@@ -4,3 +4,4 @@
 ^\.idea$
 ^dev$
 ^.*\.tar\.gz$
+^\.github$

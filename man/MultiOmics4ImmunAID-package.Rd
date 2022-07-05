@@ -10,6 +10,14 @@ Multi-omics data analysis for the ImmunAID project
     (H2020): identify potential biomarkers for Auto-Inflammatory Diseases
     (AID).
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/ecamenen/MultiOmics4ImmunAID}
+  \item Report bugs at \url{https://github.com/ecamenen/MultiOmics4ImmunAID/issues}
+}
+
+}
 \author{
 \strong{Maintainer}: Etienne Camenen \email{etienne.camenen@gmail.com}
 

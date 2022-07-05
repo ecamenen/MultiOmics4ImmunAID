@@ -13,6 +13,9 @@ Description: Multi-omics data analysis for the ImmunAID project
     (H2020): identify potential biomarkers for Auto-Inflammatory Diseases
     (AID).
 License: GPL-3
+URL: https://github.com/ecamenen/MultiOmics4ImmunAID
+BugReports: 
+    https://github.com/ecamenen/MultiOmics4ImmunAID/issues
 Imports: 
     magrittr
 Suggests: 
