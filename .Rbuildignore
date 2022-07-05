@@ -1,0 +1,6 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^README\.Rmd$
+^\.idea$
+^dev$
+^.*\.tar\.gz$

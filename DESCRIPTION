@@ -1,0 +1,23 @@
+Package: MultiOmics4ImmunAID
+Title: Multi-omics data analysis for Auto-Inflammatory Diseases
+Version: 0.1.0
+Authors@R: 
+    c(person(given = "Etienne",
+             family = "Camenen",
+             role = c("aut", "cre"),
+             email = "etienne.camenen@gmail.com"),
+      person(given = "Daniel",
+             family = "Herrero-Saboya",
+             role = "aut"))
+Description: Multi-omics data analysis for the ImmunAID project
+    (H2020): identify potential biomarkers for Auto-Inflammatory Diseases
+    (AID).
+License: GPL-3
+Imports: 
+    magrittr
+Suggests: 
+    testthat
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.1
