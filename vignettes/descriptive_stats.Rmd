@@ -1,0 +1,19 @@
+---
+title: "descriptive_stats"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{descriptive_stats}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(MultiOmics4ImmunAID)
+```

@@ -9,7 +9,7 @@ if (!file.exists(path)) {
 setwd(path)
 create_project(path)
 create_package(path)
-use_git(message = "Add configuration files for packaging")
+use_git(message = "Add packaging configuration files")
 use_github()
 use_description(
     fields = list(

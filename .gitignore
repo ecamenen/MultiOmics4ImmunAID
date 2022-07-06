@@ -5,3 +5,5 @@
 .Rproj.user
 .idea/
 *.tar.gz
+inst/doc
+inst/extdata/
