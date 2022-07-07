@@ -9,16 +9,20 @@ Authors@R:
       person(given = "Daniel",
              family = "Herrero-Saboya",
              role = "aut"))
-Description: Multi-omics data analysis for the ImmunAID project
-    (H2020): identify potential biomarkers for Auto-Inflammatory Diseases
-    (AID).
+Description: Multi-omics data analysis for the ImmunAID project (H2020):
+    identify potential biomarkers for Auto-Inflammatory Diseases (AID).
 License: GPL-3
 URL: https://github.com/ecamenen/MultiOmics4ImmunAID
-BugReports: 
-    https://github.com/ecamenen/MultiOmics4ImmunAID/issues
-Imports: 
+BugReports: https://github.com/ecamenen/MultiOmics4ImmunAID/issues
+Imports:
+    golem,
+    gplots,
+    janitor,
     magrittr,
-    openxlsx
+    openxlsx,
+    stringr,
+    tidyverse,
+    venn
 Suggests: 
     knitr,
     rmarkdown,

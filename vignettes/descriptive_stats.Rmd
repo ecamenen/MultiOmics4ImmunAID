@@ -9,11 +9,102 @@ vignette: >
 
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
+    collapse = TRUE,
+    comment = "#>"
 )
 ```
 
 ```{r setup}
 library(MultiOmics4ImmunAID)
+path <- file.path(golem::get_golem_wd(), "inst", "extdata")
+```
+
+# Proteomics
+
+## ELISA
+
+```{r elisa}
+# prot_path <- file.path(path, "ELISA/Batch1")
+batch <- 1
+date <- "20211116"
+prefix <- paste(date, "Data", "", sep = "_")
+blocks <- c("Calprotectin", "S100A12")
+files <- list()
+
+for (i in seq_along(blocks)) {
+    files[[i]] <- read.xlsx(
+          file.path(
+              path,
+              "ELISA/Batch1",
+              paste0(prefix, blocks[i], "_batch_", batch, ".xlsx")
+          ),
+          startRow = 5,
+          rowNames = TRUE
+      )
+}
+setdiff(rownames(files[[1]]), rownames(files[[2]])) # character(0)
+elisa <- cbind(files[[1]][, 5, drop = FALSE], files[[2]][, 5, drop = FALSE])
+colnames(elisa) <- blocks
+```
+
+# Clinic
+
+```{r clinic}
+# Extract items
+date <- "20220512"
+clin_path <- file.path(path, "clinical", "20220501")
+raw_files <- list.files(clin_path)
+raw_files <- raw_files[!grepl("codes", raw_files)]
+files <- str_split(raw_files, "_")
+(blocks <- unique(sapply(files, function(i) i[2])))
+```
+
+## Clinical
+
+```{r clinical}
+clin_files <- raw_files[grepl("Clinical", raw_files)]
+k <- 3
+clinic <- list()
+for (i in seq_along(clin_files)) {
+    clinic[[i]] <- read_tsv(file.path(
+        clin_path,
+        paste0(
+            "ImmunAID_",
+            blocks[k],
+            "_",
+            date,
+            "_batch",
+            i,
+            "_eCRF_export.csv"
+        )
+    ))
+}
+sapply(clinic, dim)
+
+# Common subject ID between batches
+vars <- sapply(clinic, function(i) i[, 2])
+names(vars) <- seq(3)
+venn::venn(vars, ilabels = TRUE, zcolor = "style")
+res <- gplots::venn(vars)
+n <- length(vars)
+intersections <- attributes(res)$intersections
+intersections[(n + 1):length(intersections)]
+```
+
+## PedsQL
+```{r pedsql}
+# Extract items
+peds_files <- files[grepl("PedsQL", files)]
+batch <- unique(sapply(peds_files, function(i) { i[5] }))
+max(gsub("batch(\\d)", "\\1", batch))
+peds_files <- peds_files[grepl("batch1", peds_files)]
+ql <- unique(sapply(peds_files, function(i) { i[2] }))
+(ql <- sort(as.numeric(gsub("PedsQL(\\d+)", "\\1", ql))))
+years <- unique(sapply(peds_files, function(i) { i[3] }))
+(years <- sort(as.numeric(gsub("(\\d+)years", "\\1", years))))
+```
+
+## Session information
+```{r end, echo = FALSE}
+sessionInfo()
 ```

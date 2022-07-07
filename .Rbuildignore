@@ -5,3 +5,4 @@
 ^dev$
 ^.*\.tar\.gz$
 ^\.github$
+^.*extdata/
