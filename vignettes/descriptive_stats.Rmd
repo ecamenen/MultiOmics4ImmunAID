@@ -16,7 +16,24 @@ knitr::opts_chunk$set(
 
 ```{r setup}
 library(MultiOmics4ImmunAID)
+library(magrittr)
+library(janitor)
+library(tidyverse)
+library(readxl)
+library(skimr)
+library(DataExplorer)
+library(dlookr)
+library(reshape2)
 path <- file.path(golem::get_golem_wd(), "inst", "extdata")
+```
+
+```{r utils}
+clean_data <- function(x, row_number = 1) {
+    x %>%
+        clean_names() %>%
+        remove_empty(c("rows", "cols"), quiet = FALSE) %>%
+        remove_constant(na.rm = TRUE, quiet = FALSE)
+}
 ```
 
 # Proteomics
@@ -29,22 +46,113 @@ batch <- 1
 date <- "20211116"
 prefix <- paste(date, "Data", "", sep = "_")
 blocks <- c("Calprotectin", "S100A12")
-files <- list()
+files_raw <- list()
 
+# Read files
 for (i in seq_along(blocks)) {
-    files[[i]] <- read.xlsx(
-          file.path(
-              path,
-              "ELISA/Batch1",
-              paste0(prefix, blocks[i], "_batch_", batch, ".xlsx")
-          ),
-          startRow = 5,
-          rowNames = TRUE
-      )
+    files_raw[[i]] <- read_excel(
+        file.path(
+            path,
+            "ELISA/Batch1",
+            paste0(prefix, blocks[i], "_batch_", batch, ".xlsx")
+        ),
+        skip = 5
+    )
 }
-setdiff(rownames(files[[1]]), rownames(files[[2]])) # character(0)
-elisa <- cbind(files[[1]][, 5, drop = FALSE], files[[2]][, 5, drop = FALSE])
-colnames(elisa) <- blocks
+# Clean colnames, remove empty rows, cols and constants
+files <- lapply(files_raw, clean_data)
+# Common IDs ?
+setdiff(files[[1]][, 1], files[[2]][, 1]) # character(0) = Nope !
+# Bind tables
+elisa <- cbind(files[[1]], files[[2]][, 4, drop = FALSE]) %>% tibble()
+colnames(elisa)[4:5] <- blocks
+
+# Set constants into the attributes
+for (i in 4:5) {
+    var <- colnames(files_raw[[1]])[i]
+    attributes(elisa)[var] <- unique(files_raw[[1]][, var])
+}
+
+# Convert into types
+str(elisa)
+elisa$patient_id <- as.character(elisa$patient_id)
+elisa$visit <- factor(elisa$visit)
+
+# View factor
+diagnose_category(
+    elisa[, -c(1:2)],
+    top = 500
+)
+# %>% filter(is.na(levels))
+# %>% filter(ratio <= 0.01)
+
+# elisa %>% count(visit)  %>% mutate(freq = n / sum(n))
+# elisa %>% count(patient_id, sort = TRUE)  %>% mutate(freq = n / sum(n))
+
+diagnose_numeric(elisa) # %>% filter(minus > 0 | zero > 0)
+# View duplicates
+elisa %>% get_dupes("patient_id")
+
+# Descriptive stats general
+plot_str(elisa)
+introduce(elisa)
+plot_intro(elisa)
+diagnose(elisa)
+# %>% filter(missing_count > 0 ) %>% arrange(desc(missing_count))
+
+# Descriptive stats per variables
+# qplot(Calprotectin, data = elisa)
+plot_bar(elisa)
+plot_histogram(elisa)
+# plot_boxplot(elisa)
+skim(elisa)
+
+elisa_melt <- melt(elisa)
+ggplot(elisa_melt, aes(x = variable, y = value, color = variable)) +
+    geom_violin(trim = FALSE, draw_quantiles = c(0.25, 0.5, 0.75)) +
+    scale_y_log10() +
+    theme_bw() +
+    guides(color = "none") +
+    xlab("") +
+    ylab("")
+
+# str_squish
+
+# Correlation
+plot_correlation(elisa)
+plot_correlation(elisa, type = "c") # continuous data
+correlate(elisa) %>%
+    filter(as.integer(var1) > as.integer(var2)) %>%
+    filter(abs(coef_corr) > 0.5)
+plot_correlate(elisa)
+
+# Normality
+plot_qq(elisa)
+# Do not follow the normality with Shapiro-Wilk
+(not_normal <- normality(elisa) %>% filter(p_value <= 0.01) %>% arrange(abs(p_value)))
+plot_normality(not_normal)
+
+# Missing data
+# set_missing
+plot_missing(elisa)
+find_na(elisa)
+# impute_na(elisa)
+
+# Outliers
+find_outliers(elisa) # wich variables
+diagnose_outlier(elisa) %>% filter(outliers_ratio > 0)
+plot_outlier(elisa)
+elisa_w_out <- elisa
+for (i in find_outliers(elisa)) {
+    var <- colnames(elisa)[i]
+    elisa_w_out[var] <- imputate_outlier(elisa, var, method = "mean")
+}
+
+# PCA
+pca_df <- na.omit(elisa[, 4:5])
+plot_prcomp(pca_df, nrow = 2, ncol = 2)
+
+# eda_report(elisa)
 ```
 
 # Clinic
@@ -53,16 +161,16 @@ colnames(elisa) <- blocks
 # Extract items
 date <- "20220512"
 clin_path <- file.path(path, "clinical", "20220501")
-raw_files <- list.files(clin_path)
-raw_files <- raw_files[!grepl("codes", raw_files)]
-files <- str_split(raw_files, "_")
+files_raw <- list.files(clin_path)
+files_raw <- files_raw[!grepl("codes", files_raw)]
+files <- str_split(files_raw, "_")
 (blocks <- unique(sapply(files, function(i) i[2])))
 ```
 
 ## Clinical
 
 ```{r clinical}
-clin_files <- raw_files[grepl("Clinical", raw_files)]
+clin_files <- files_raw[grepl("Clinical", files_raw)]
 k <- 3
 clinic <- list()
 for (i in seq_along(clin_files)) {

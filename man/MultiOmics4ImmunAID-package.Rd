@@ -6,9 +6,8 @@
 \alias{MultiOmics4ImmunAID-package}
 \title{MultiOmics4ImmunAID: Multi-omics data analysis for Auto-Inflammatory Diseases}
 \description{
-Multi-omics data analysis for the ImmunAID project
-    (H2020): identify potential biomarkers for Auto-Inflammatory Diseases
-    (AID).
+Multi-omics data analysis for the ImmunAID project (H2020):
+    identify potential biomarkers for Auto-Inflammatory Diseases (AID).
 }
 \seealso{
 Useful links:

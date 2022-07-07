@@ -15,14 +15,20 @@ License: GPL-3
 URL: https://github.com/ecamenen/MultiOmics4ImmunAID
 BugReports: https://github.com/ecamenen/MultiOmics4ImmunAID/issues
 Imports:
+    DataExplorer,
+    dlookr,
     golem,
     gplots,
     janitor,
     magrittr,
-    openxlsx,
+    naniar,
+    readxl,
+    reshape2,
+    skimr,
     stringr,
     tidyverse,
-    venn
+    venn,
+    VIM
 Suggests: 
     knitr,
     rmarkdown,
