@@ -24,13 +24,17 @@ library(skimr)
 library(DataExplorer)
 library(dlookr)
 library(reshape2)
+library(naniar)
+library(VIM)
 path <- file.path(golem::get_golem_wd(), "inst", "extdata")
 ```
 
 ```{r utils}
-clean_data <- function(x, row_number = 1) {
+clean_data <- function(x, clean_name = TRUE, row_number = 1) {
+    if (clean_name) {
+          x <- clean_names(x)
+      }
     x %>%
-        clean_names() %>%
         remove_empty(c("rows", "cols"), quiet = FALSE) %>%
         remove_constant(na.rm = TRUE, quiet = FALSE)
 }
@@ -97,8 +101,9 @@ elisa %>% get_dupes("patient_id")
 plot_str(elisa)
 introduce(elisa)
 plot_intro(elisa)
-diagnose(elisa)
-# %>% filter(missing_count > 0 ) %>% arrange(desc(missing_count))
+diagnose(elisa) %>%
+    filter(missing_count > 0) %>%
+    arrange(desc(missing_count))
 
 # Descriptive stats per variables
 # qplot(Calprotectin, data = elisa)
@@ -162,41 +167,86 @@ plot_prcomp(pca_df, nrow = 2, ncol = 2)
 date <- "20220512"
 clin_path <- file.path(path, "clinical", "20220501")
 files_raw <- list.files(clin_path)
-files_raw <- files_raw[!grepl("codes", files_raw)]
-files <- str_split(files_raw, "_")
+files_code <- files_raw[grepl("codes", files_raw)]
+files_export <- files_raw[grepl("export", files_raw)]
+files <- str_split(files_export, "_")
 (blocks <- unique(sapply(files, function(i) i[2])))
 ```
 
 ## Clinical
 
 ```{r clinical}
-clin_files <- files_raw[grepl("Clinical", files_raw)]
+clin_export <- files_export[grepl("Clinical", files_export)]
+clin_code <- files_code[grepl("Clinical", files_code)]
 k <- 3
-clinic <- list()
-for (i in seq_along(clin_files)) {
-    clinic[[i]] <- read_tsv(file.path(
-        clin_path,
-        paste0(
-            "ImmunAID_",
-            blocks[k],
-            "_",
-            date,
-            "_batch",
-            i,
-            "_eCRF_export.csv"
-        )
-    ))
+
+read_batches <- function(files, export = "export") {
+    batches <- list()
+    for (i in seq_along(files)) {
+        batches[[i]] <- read_tsv(file.path(
+            clin_path,
+            paste0(
+                "ImmunAID_",
+                blocks[k],
+                "_",
+                date,
+                "_batch",
+                i,
+                "_eCRF_", export, ".csv"
+            )
+        ))
+    }
+    return(batches)
 }
+clinic <- read_batches(clin_export)
 sapply(clinic, dim)
 
+clinic_tot <- Reduce(rbind, clinic)
+
+clinic_code <- read_batches(clin_code, "codes")
+
 # Common subject ID between batches
-vars <- sapply(clinic, function(i) i[, 2])
+vars <- lapply(clinic, function(i) as.numeric(as.data.frame(i[, 2])[, 1]))
+# vars <- lapply(clinic_code, function(i) as.data.frame(i[, 1])[, 1])
 names(vars) <- seq(3)
 venn::venn(vars, ilabels = TRUE, zcolor = "style")
-res <- gplots::venn(vars)
-n <- length(vars)
-intersections <- attributes(res)$intersections
-intersections[(n + 1):length(intersections)]
+
+get_intersection <- function(x) {
+    res <- gplots::venn(x)
+    intersections <- attributes(res)$intersections
+    intersections[grepl(":", names(intersections))]
+}
+get_intersection(vars)
+
+# Common subject ID with ELISA
+vars_clin <- sort(as.numeric(unlist(vars)))
+vars_elisa <- sort(as.numeric(as.data.frame(elisa[, 2])[, 1]))
+vars_tot <- list(Clinic = vars_clin, ELISA = vars_elisa)
+vars_tot2 <- c(vars, list(ELISA = vars_elisa))
+venn::venn(vars_tot, ilabels = TRUE, zcolor = "style") # all included in clinic data
+venn::venn(vars_tot2, ilabels = TRUE, zcolor = "style") # all from clinic batch 1
+get_intersection(vars_tot)
+
+# Missing data
+# set_missing
+clinic_tot <- clean_data(clinic_tot, FALSE)
+find_na(clinic_tot)
+
+best_na_percent <- function(x, threshold = 50) {
+    (df_na <- diagnose(x) %>% filter(missing_percent > threshold) %>% arrange(desc(missing_percent)))
+    var_na <- data.frame(df_na %>% select(variables))[, 1]
+    x %>% select(-one_of(var_na))
+}
+clinic_tot_proc <- best_na_percent(clinic_tot, 20)
+plot_missing(clinic_tot_proc, geom_label_args = list(label.size = NA, label.padding = unit(0, "lines"), size = 3))
+
+gg_miss_var(clinic_tot)
+vis_miss(clinic_tot_proc)
+clinic_code_proc <- clean_data(clinic_code[[1]])
+# vis_miss(clinic_code_proc)
+# vis_miss(best_na_percent(clinic_tot_proc, 0))
+res <- summary(aggr(clinic_tot, sortVar = TRUE))$combinations
+# impute_na(elisa)
 ```
 
 ## PedsQL
