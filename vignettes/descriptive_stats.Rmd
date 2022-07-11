@@ -26,6 +26,8 @@ library(dlookr)
 library(reshape2)
 library(naniar)
 library(VIM)
+library(lubridate)
+library(corrplot)
 path <- file.path(golem::get_golem_wd(), "inst", "extdata")
 ```
 
@@ -126,9 +128,15 @@ ggplot(elisa_melt, aes(x = variable, y = value, color = variable)) +
 # Correlation
 plot_correlation(elisa)
 plot_correlation(elisa, type = "c") # continuous data
-correlate(elisa) %>%
-    filter(as.integer(var1) > as.integer(var2)) %>%
-    filter(abs(coef_corr) > 0.5)
+get_correlation <- function(x, threshold = 0.5, half = TRUE) {
+  y <- correlate(x) %>%
+      filter(abs(coef_corr) > threshold)
+  if(half)
+    y %>% filter(as.integer(var1) > as.integer(var2))
+  else
+    y
+}
+get_correlation(elisa)
 plot_correlate(elisa)
 
 # Normality
@@ -267,6 +275,9 @@ var_na <- colnames(clinic_tot_proc)
 (stats <- clinic_code_proc %>%
     filter(clinic_code_proc$column_code %in% var_na) %>%
     select(!(starts_with("repeat"))))
+
+(stats %>% filter(str_detect(column_code, paste0(c(var_na), collapse = "|"))))$item_name
+
 diagnose_category(as.data.frame(stats$group_name))
 # Which is the frequence of this category
 clinic_code_proc[, "group_name", drop = FALSE] %>%
@@ -292,6 +303,27 @@ clinic_tot_proc %>%
     )) %>%
     select(country) %>%
     plot_bar()
+
+# By French centers
+clinic_tot_proc %>%
+    filter(str_detect(C_2643_3797, "Paris|Bordeaux|Nantes|Lyon|Lille|Strasbourg")) %>%
+    select(C_2643_3797) %>%
+    plot_bar()
+
+# By French cities
+clinic_tot_proc %>%
+    mutate(town = case_when(
+        str_detect(C_2643_3797, "Paris") ~ "Paris",
+        str_detect(C_2643_3797, "Bordeaux") ~ "Bordeaux",
+        str_detect(C_2643_3797, "Nantes") ~ "Nantes",
+        str_detect(C_2643_3797, "Lyon") ~ "Lyon",
+        str_detect(C_2643_3797, "Lille") ~ "Lille",
+        str_detect(C_2643_3797, "Strasbourg") ~ "Strasbourg",
+        TRUE ~ "Others"
+    )) %>%
+    select(town) %>%
+    plot_bar()
+
 # %>% diagnose_category()
 
 # Date
@@ -305,6 +337,25 @@ for (i in var_dates) {
 clin_proc_year <- update_columns(clinic_tot_proc, var_dates, function(i) year(round_date(i, "year")))
 plot_histogram(clin_proc_year)
 
+# ggplot(clin_proc_year, aes())
+clin_melt <- melt(clinic_tot_proc)
+ggplot(clin_melt, aes(x = variable, y = value, color = variable)) +
+    geom_violin(trim = FALSE, draw_quantiles = c(0.25, 0.5, 0.75)) +
+    geom_dotplot(binaxis = "y", stackdir = "center", alpha = .1, color = "gray", drop = TRUE, width = .5) + 
+    facet_wrap(~variable, scale = "free") +
+    theme_bw() +
+    guides(color = "none", fill = "none") +
+    xlab("") +
+    ylab("")+ theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+ggplot(clin_melt, aes(x = variable, y = value, fill = variable, color = variable)) +
+geom_violindot(trim = FALSE, draw_quantiles = c(0.25, 0.5, 0.75), binwidth = 2) +
+facet_wrap(~variable, scale = "free") +
+theme_bw() +
+guides(color = "none", fill = "none", x = "none") +
+xlab("") +
+ylab("")
+
 for (i in var_dates) {
     y <- as.data.frame(as.character(as.data.frame(clin_proc_year[, i])[, 1]))
     diagnose_category(y, top = 100) %>% arrange(freq)
@@ -317,6 +368,29 @@ diagnose_category(decade, top = 100) %>%
     select(-variables)
 qplot(decade[, 1])
 qplot(as.character(2020 - as.numeric(decade[, 1])))
+
+# Correlation
+get_correlation(clinic_tot_proc)
+M <- get_correlation(clinic_tot_proc, 0, FALSE) %>% dcast(var1 ~ var2)
+p.mat <-
+  sapply(colnames(clinic_tot_proc), function(x)
+    sapply(colnames(clinic_tot_proc), function(y) {
+      if (is.numeric(x) &
+          is.numeric(y)) {
+        cor.test(x, y, data = clinic_tot_proc)$p.value
+      } else{
+        NA
+      })
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(M, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", # Ajout du coefficient de corrélation
+         tl.col="black", tl.srt=45, #Rotation des etiquettes de textes
+         # Combiner avec le niveau de significativité
+         p.mat = p.mat, sig.level = 0.01, insig = "blank", 
+         # Cacher les coefficients de corrélation sur la diagonale
+         diag=FALSE 
+         )
 ```
 
 ## PedsQL
