@@ -28,6 +28,7 @@ library(naniar)
 library(VIM)
 library(lubridate)
 library(corrplot)
+library(ggstatsplot)
 path <- file.path(golem::get_golem_wd(), "inst", "extdata")
 ```
 
@@ -129,12 +130,13 @@ ggplot(elisa_melt, aes(x = variable, y = value, color = variable)) +
 plot_correlation(elisa)
 plot_correlation(elisa, type = "c") # continuous data
 get_correlation <- function(x, threshold = 0.5, half = TRUE) {
-  y <- correlate(x) %>%
-      filter(abs(coef_corr) > threshold)
-  if(half)
-    y %>% filter(as.integer(var1) > as.integer(var2))
-  else
-    y
+    y <- correlate(x) %>%
+        filter(abs(coef_corr) > threshold)
+    if (half) {
+          y %>% filter(as.integer(var1) > as.integer(var2))
+      } else {
+          y
+      }
 }
 get_correlation(elisa)
 plot_correlate(elisa)
@@ -152,9 +154,9 @@ find_na(elisa)
 # impute_na(elisa)
 
 # Outliers
-find_outliers(elisa) # wich variables
+# find_outliers(elisa) # wich variables
 diagnose_outlier(elisa) %>% filter(outliers_ratio > 0)
-plot_outlier(elisa)
+plot_outlier(elisa, typographic = FALSE)
 elisa_w_out <- elisa
 for (i in find_outliers(elisa)) {
     var <- colnames(elisa)[i]
@@ -276,7 +278,14 @@ var_na <- colnames(clinic_tot_proc)
     filter(clinic_code_proc$column_code %in% var_na) %>%
     select(!(starts_with("repeat"))))
 
-(stats %>% filter(str_detect(column_code, paste0(c(var_na), collapse = "|"))))$item_name
+function(x, y) {
+    x$column_code
+}
+
+get_var_names <- function(x) {
+    (stats %>% filter(str_detect(column_code, paste0(c(x), collapse = "|"))))$item_name
+}
+get_var_names(var_na)
 
 diagnose_category(as.data.frame(stats$group_name))
 # Which is the frequence of this category
@@ -337,25 +346,6 @@ for (i in var_dates) {
 clin_proc_year <- update_columns(clinic_tot_proc, var_dates, function(i) year(round_date(i, "year")))
 plot_histogram(clin_proc_year)
 
-# ggplot(clin_proc_year, aes())
-clin_melt <- melt(clinic_tot_proc)
-ggplot(clin_melt, aes(x = variable, y = value, color = variable)) +
-    geom_violin(trim = FALSE, draw_quantiles = c(0.25, 0.5, 0.75)) +
-    geom_dotplot(binaxis = "y", stackdir = "center", alpha = .1, color = "gray", drop = TRUE, width = .5) + 
-    facet_wrap(~variable, scale = "free") +
-    theme_bw() +
-    guides(color = "none", fill = "none") +
-    xlab("") +
-    ylab("")+ theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
-
-ggplot(clin_melt, aes(x = variable, y = value, fill = variable, color = variable)) +
-geom_violindot(trim = FALSE, draw_quantiles = c(0.25, 0.5, 0.75), binwidth = 2) +
-facet_wrap(~variable, scale = "free") +
-theme_bw() +
-guides(color = "none", fill = "none", x = "none") +
-xlab("") +
-ylab("")
-
 for (i in var_dates) {
     y <- as.data.frame(as.character(as.data.frame(clin_proc_year[, i])[, 1]))
     diagnose_category(y, top = 100) %>% arrange(freq)
@@ -370,27 +360,149 @@ qplot(decade[, 1])
 qplot(as.character(2020 - as.numeric(decade[, 1])))
 
 # Correlation
-get_correlation(clinic_tot_proc)
-M <- get_correlation(clinic_tot_proc, 0, FALSE) %>% dcast(var1 ~ var2)
-p.mat <-
-  sapply(colnames(clinic_tot_proc), function(x)
-    sapply(colnames(clinic_tot_proc), function(y) {
-      if (is.numeric(x) &
-          is.numeric(y)) {
-        cor.test(x, y, data = clinic_tot_proc)$p.value
-      } else{
-        NA
-      })
-col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
-corrplot(M, method="color", col=col(200),  
-         type="upper", order="hclust", 
-         addCoef.col = "black", # Ajout du coefficient de corrélation
-         tl.col="black", tl.srt=45, #Rotation des etiquettes de textes
-         # Combiner avec le niveau de significativité
-         p.mat = p.mat, sig.level = 0.01, insig = "blank", 
-         # Cacher les coefficients de corrélation sur la diagonale
-         diag=FALSE 
-         )
+get_corr <- function(x, pval = FALSE) {
+    x <- as.data.frame(x)
+    vars <- colnames(x)[sapply(colnames(x), function(i) is.numeric(x[, i]))]
+    sapply(
+        vars,
+        function(i) {
+            sapply(
+                vars,
+                function(j) {
+                    if (is.numeric(x[, i]) & is.numeric(x[, j])) {
+                        res <- cor.test(x[, i], x[, j])
+                        if (pval) {
+                            res$estimate
+                        } else {
+                            res$p.value
+                        }
+                    } else {
+                        NA
+                    }
+                }
+            )
+        }
+    )
+}
+
+plot_corr <- function(x, clean_name = TRUE) {
+    if (clean_name) {
+        colnames(x) <- get_var_names(colnames(x))
+        x <- clean_names(x)
+    }
+    x <- as.data.frame(x)
+    M <- get_corr(x, TRUE)
+    p.mat <- get_corr(x)
+
+    col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+
+    corrplot(
+        M,
+        # method="color",
+        col = col(200),
+        type = "upper",
+        order = "hclust",
+        addCoef.col = "black",
+        # Ajout du coefficient de corrélation
+        tl.col = "black",
+        tl.srt = 45,
+        # Rotation des etiquettes de textes
+        # Combiner avec le niveau de significativité
+        p.mat = p.mat,
+        sig.level = 0.01,
+        addgrid.col = NA,
+        insig = "blank",
+        # Cacher les coefficients de corrélation sur la diagonale
+        diag = FALSE
+    )
+}
+
+save_tiff <- function(f, filename = "violinplot_clin.tiff") {
+    tiff(filename, units = "px", width = 2000, height = 2000, res = 300)
+    f
+    dev.off()
+}
+
+
+# plot_correlate(clinic_tot_proc)
+save_tiff(plot_corr(clinic_tot_proc))
+
+# Stats / outliers
+vars <- colnames(x)[
+    sapply(
+        colnames(x),
+        function(i) is.numeric(c(x[, i])[[1]])
+    )
+]
+
+get_outliers <- function(x, y, probs = c(0.25, 0.75), method = "iqr", c = 1.5) {
+    stopif(!method %in% c("iqr", "percentiles", "mad", "sd"))
+    y <- as.data.frame(x)[, y]
+    # outliers <- boxplot(y)$out
+    # percentiles: probs = c(0.025, 0.975)
+    Q <- quantile(y, probs = probs, na.rm = TRUE)
+    up <- Q[2]
+    low <- Q[1]
+    if (method == "iqr") {
+        # interquartile range: 1.5 * IQR
+        iqr <- IQR(y, na.rm = TRUE)
+        up <- up + c * iqr
+        low <- low - c * iqr
+    }
+    if (method %in% c("hampel", "mad", "sd")) {
+        if (method %in% c("hampel", "mad")) {
+            # mediane absolute deviation: 3 * MAD
+            med <- median(y, na.rm = TRUE)
+            mad3 <- c * mad(y, na.rm = TRUE, constant = 1)
+        } else {
+            med <- median(y, na.rm = TRUE)
+            mad3 <- c * sd(y, na.rm = TRUE)
+        }
+        up <- med + mad3
+        low <- med - mad3
+    }
+    x %>% filter(y < low | y > up)
+}
+i <- "C_2643_3804"
+j <- "C_2649_3889"
+(clin_melt %>% filter(variable == i) %>% boxplot())$out
+get_outliers(clinic_tot_proc, i)
+# get_outliers(clinic_tot_proc, j, probs = c(.025, .975), method = "percentiles")
+# get_outliers(clinic_tot_proc, j, , method = "hampel, c = 3)
+
+ggbetweenstats(
+    (clinic_tot_proc %>% select(all_of(vars)) %>% gather()),
+    key,
+    value,
+    outlier.tagging = TRUE,
+    results.subtitle = FALSE,
+    pairwise.comparisons = FALSE
+) +
+    xlab("") +
+    ylab("") + facet_wrap(~key, scale = "free") +
+    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+    # theme(strip.background = element_blank(), strip.text.x = element_blank())
+
+clin_melt <- melt(clinic_tot_proc) %>% select(variable, value)
+ggplot(clin_melt, aes(x = variable, y = value, color = variable)) +
+    geom_violin(trim = FALSE, draw_quantiles = c(0.25, 0.5, 0.75)) +
+    geom_boxplot() +
+    geom_dotplot(binaxis = "y", stackdir = "center", alpha = .1, color = "gray", drop = TRUE, width = .5) +
+    facet_wrap(~variable, scale = "free") +
+    theme_bw() +
+    guides(color = "none", fill = "none") +
+    xlab("") +
+    ylab("") +
+    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+ggplot(clin_melt, aes(x = variable, y = value, fill = variable, color = variable)) +
+    geom_violindot(trim = FALSE, draw_quantiles = c(0.25, 0.5, 0.75), binwidth = 2) +
+    facet_wrap(~variable, scale = "free") +
+    theme_bw() +
+    guides(color = "none", fill = "none", x = "none") +
+    xlab("") +
+    ylab("")
+
 ```
 
 ## PedsQL
