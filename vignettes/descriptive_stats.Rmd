@@ -192,7 +192,9 @@ read_batches <- function(files, export = "export") {
                 date,
                 "_batch",
                 i,
-                "_eCRF_", export, ".csv"
+                "_eCRF_",
+                export,
+                ".csv"
             )
         ))
     }
@@ -237,8 +239,15 @@ best_na_percent <- function(x, threshold = 50) {
     var_na <- data.frame(df_na %>% select(variables))[, 1]
     x %>% select(-one_of(var_na))
 }
-clinic_tot_proc <- best_na_percent(clinic_tot, 20)
-plot_missing(clinic_tot_proc, geom_label_args = list(label.size = NA, label.padding = unit(0, "lines"), size = 3))
+clinic_tot_proc <- best_na_percent(clinic_tot, 3)
+plot_missing(
+    clinic_tot_proc,
+    geom_label_args = list(
+        label.size = NA,
+        label.padding = unit(0, "lines"),
+        size = 3
+    )
+)
 
 gg_miss_var(clinic_tot)
 vis_miss(clinic_tot_proc)
@@ -247,6 +256,67 @@ clinic_code_proc <- clean_data(clinic_code[[1]])
 # vis_miss(best_na_percent(clinic_tot_proc, 0))
 res <- summary(aggr(clinic_tot, sortVar = TRUE))$combinations
 # impute_na(elisa)
+
+# Categorical variables
+# group_name
+# The top bottom by frequency
+diagnose_category(clinic_code_proc[, "group_name", drop = FALSE], top = 100) %>% arrange(freq)
+# Select the clinic data with 0 NA
+var_na <- colnames(clinic_tot_proc)
+# Look at the metadata in codes
+(stats <- clinic_code_proc %>%
+    filter(clinic_code_proc$column_code %in% var_na) %>%
+    select(!(starts_with("repeat"))))
+diagnose_category(as.data.frame(stats$group_name))
+# Which is the frequence of this category
+clinic_code_proc[, "group_name", drop = FALSE] %>%
+    diagnose_category(top = 100) %>%
+    filter(str_detect(levels, paste0(unique(stats$group_name), collapse = "|")))
+# What are the most frequent modalities for each variable
+plot_bar(clinic_tot_proc)
+# Create country variable
+clinic_tot_proc %>%
+    mutate(country = case_when(
+        str_detect(C_2643_3797, "Paris|Bordeaux|Nantes|Lyon|Lille|Strasbourg") ~ "France",
+        str_detect(C_2643_3797, "Madrid|Barcelona") ~ "Spain",
+        str_detect(C_2643_3797, "Leuven") ~ "Belgium",
+        str_detect(C_2643_3797, "Rotterdam") ~ "Netherlands",
+        str_detect(C_2643_3797, "Athens") ~ "Greece",
+        str_detect(C_2643_3797, "Roma") ~ "Italy",
+        str_detect(C_2643_3797, "Geneva") ~ "Switzerland",
+        str_detect(C_2643_3797, "Ankara") ~ "Turkey",
+        str_detect(C_2643_3797, "Münster|Berlin") ~ "Germany",
+        str_detect(C_2643_3797, "Leeds") ~ "United Kingdom (UK)",
+        str_detect(C_2643_3797, "Lubljana") ~ "Slovenia",
+        TRUE ~ C_2643_3797
+    )) %>%
+    select(country) %>%
+    plot_bar()
+# %>% diagnose_category()
+
+# Date
+var_dates <- c("C_2643_3800", "C_2643_3801", "C_2643_3802")
+clinic_tot_proc <- update_columns(clinic_tot_proc, var_dates[1], my)
+clinic_tot_proc <- update_columns(clinic_tot_proc, var_dates[-1], dmy)
+for (i in var_dates) {
+      qplot(as.data.frame(clinic_tot_proc[, i])[, 1])
+  }
+
+clin_proc_year <- update_columns(clinic_tot_proc, var_dates, function(i) year(round_date(i, "year")))
+plot_histogram(clin_proc_year)
+
+for (i in var_dates) {
+    y <- as.data.frame(as.character(as.data.frame(clin_proc_year[, i])[, 1]))
+    diagnose_category(y, top = 100) %>% arrange(freq)
+}
+
+# Age in decades
+decade <- as.data.frame(as.character(as.data.frame(clin_proc_year[, "C_2643_3800"] - clin_proc_year[, "C_2643_3800"] %% 10)[, 1]))
+diagnose_category(decade, top = 100) %>%
+    arrange(levels) %>%
+    select(-variables)
+qplot(decade[, 1])
+qplot(as.character(2020 - as.numeric(decade[, 1])))
 ```
 
 ## PedsQL
