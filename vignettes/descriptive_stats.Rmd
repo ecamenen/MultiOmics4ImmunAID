@@ -121,7 +121,10 @@ plot_correlate(elisa)
 # Normality
 plot_qq(elisa)
 # Do not follow the normality with Shapiro-Wilk
-(not_normal <- normality(elisa) %>% filter(p_value <= 0.01) %>% arrange(abs(p_value)))
+(not_normal <- normality(elisa) %>%
+    filter(p_value <= 0.01) %>%
+    arrange(abs(p_value))
+)
 plot_normality(not_normal)
 
 # Missing data
@@ -167,6 +170,27 @@ clin_export <- files_export[grepl("Clinical", files_export)]
 clin_code <- files_code[grepl("Clinical", files_code)]
 k <- 3
 
+read_batches <- function(files, export = "export") {
+    batches <- list()
+    for (i in seq_along(files)) {
+        batches[[i]] <- read_tsv(file.path(
+            clin_path,
+            paste0(
+                "ImmunAID_",
+                blocks[k],
+                "_",
+                date,
+                "_batch",
+                i,
+                "_eCRF_",
+                export,
+                ".csv"
+            )
+        ))
+    }
+    return(batches)
+}
+
 clinic <- read_batches(clin_export)
 sapply(clinic, dim)
 
@@ -187,8 +211,10 @@ vars_clin <- sort(as.numeric(unlist(vars)))
 vars_elisa <- sort(as.numeric(as.data.frame(elisa[, 2])[, 1]))
 vars_tot <- list(Clinic = vars_clin, ELISA = vars_elisa)
 vars_tot2 <- c(vars, list(ELISA = vars_elisa))
-venn::venn(vars_tot, ilabels = TRUE, zcolor = "style") # all included in clinic data
-venn::venn(vars_tot2, ilabels = TRUE, zcolor = "style") # all from clinic batch 1
+venn::venn(vars_tot, ilabels = TRUE, zcolor = "style")
+# all included in clinic data
+venn::venn(vars_tot2, ilabels = TRUE, zcolor = "style")
+# all from clinic batch 1
 get_intersection(vars_tot)
 
 # Missing data
@@ -217,13 +243,26 @@ res <- summary(aggr(clinic_tot, sortVar = TRUE))$combinations
 # Categorical variables
 # group_name
 # The top bottom by frequency
-diagnose_category(clinic_code_proc[, "group_name", drop = FALSE], top = 100) %>% arrange(freq)
+diagnose_category(
+  clinic_code_proc[, "group_name", drop = FALSE], top = 100
+) %>% arrange(freq)
 # Select the clinic data with 0 NA
 var_na <- colnames(clinic_tot_proc)
 # Look at the metadata in codes
 (stats <- clinic_code_proc %>%
     filter(clinic_code_proc$column_code %in% var_na) %>%
     select(!(starts_with("repeat"))))
+
+get_var_names <- function(x) {
+    (stats %>%
+        filter(
+            str_detect(
+                column_code,
+                paste0(c(x), collapse = "|")
+            )
+        )
+    )$item_name
+}
 get_var_names(var_na)
 
 diagnose_category(as.data.frame(stats$group_name))
@@ -304,7 +343,7 @@ qplot(as.character(2020 - as.numeric(decade[, 1])))
 
 # Correlation
 # plot_correlate(clinic_tot_proc)
-(p <- plot_corr(clinic_tot_proc))
+(p <- plot_corr(clinic_tot_proc, stats))
 # save_tiff(p)
 
 # Stats / outliers

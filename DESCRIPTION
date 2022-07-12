@@ -18,9 +18,12 @@ Imports:
     corrplot,
     DataExplorer,
     dlookr,
+    dplyr,
+    ggplot2,
     ggstatsplot,
     golem,
     gplots,
+    grDevices,
     janitor,
     lubridate,
     magrittr,
@@ -29,10 +32,12 @@ Imports:
     reshape2,
     see,
     skimr,
+    stats,
     stringr,
     tidyverse,
     venn,
-    VIM
+    VIM,
+    viridis
 Suggests: 
     knitr,
     rmarkdown,

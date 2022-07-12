@@ -1,6 +1,7 @@
-plot_corr <- function(x, clean_name = TRUE) {
+#' @export
+plot_corr <- function(x, stats, clean_name = TRUE) {
     if (clean_name) {
-        colnames(x) <- get_var_names(colnames(x))
+        colnames(x) <- get_var_names(colnames(x), stats)
         x <- clean_names(x)
     }
     x <- as.data.frame(x)

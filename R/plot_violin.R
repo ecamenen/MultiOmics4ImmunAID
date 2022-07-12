@@ -1,3 +1,4 @@
+#' @export
 plot_violin <- function(x) {
     x <- get_melt(x)
     ggbetweenstats(
@@ -14,6 +15,7 @@ plot_violin <- function(x) {
     # theme(strip.background = element_blank(), strip.text.x = element_blank())
 }
 
+#' @export
 plot_violin2 <- function(x) {
     x <- melt(x) %>% select(variable, value)
     ggplot(x, aes(x = variable, y = value, color = variable)) +
@@ -27,13 +29,15 @@ plot_violin2 <- function(x) {
             drop = TRUE,
             width = .5
         ) +
-        facet_wrap(~variable, scale = "free") +
+        facet_wrap(~variable, scales = "free") +
         theme_bw() +
         guides(color = "none", fill = "none") +
         xlab("") +
         ylab("") +
         theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
 }
+
+#' @export
 plot_violin3 <- function(x) {
     x <- melt(x) %>% select(variable, value)
     ggplot(x, aes(

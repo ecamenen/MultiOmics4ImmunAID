@@ -1,7 +1,10 @@
-#' @import corrplot DataExplorer dlookr golem ggstatsplot janitor lubridate
-#' @import naniar readxl reshape2 see stringr tidyverse venn VIM
+#' @import corrplot DataExplorer dlookr dplyr ggplot2 golem ggstatsplot
+#' @import grDevices lubridate naniar readxl reshape2 see VIM stringr
+#' @import tidyverse venn viridis
 #' @importFrom magrittr %>%
 #' @rawNamespace import(gplots, except = venn)
+#' @rawNamespace import(janitor, except = c(chisq.test, fisher.test))
 #' @rawNamespace import(skimr, except = n_complete)
+#' @rawNamespace import(stats, except = c(filter, lag, lowess))
 #' @keywords internal
 "_PACKAGE"
