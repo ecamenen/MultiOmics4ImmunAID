@@ -119,30 +119,13 @@ plot_bar(elisa)
 plot_histogram(elisa)
 # plot_boxplot(elisa)
 skim(elisa)
-
-elisa_melt <- melt(elisa)
-ggplot(elisa_melt, aes(x = variable, y = value, color = variable)) +
-    geom_violin(trim = FALSE, draw_quantiles = c(0.25, 0.5, 0.75)) +
-    scale_y_log10() +
-    theme_bw() +
-    guides(color = "none") +
-    xlab("") +
-    ylab("")
+plot_violin(elisa)
 
 # str_squish
 
 # Correlation
 plot_correlation(elisa)
 plot_correlation(elisa, type = "c") # continuous data
-get_correlation <- function(x, threshold = 0.5, half = TRUE) {
-    y <- correlate(x) %>%
-        filter(abs(coef_corr) > threshold)
-    if (half) {
-          y %>% filter(as.integer(var1) > as.integer(var2))
-      } else {
-          y
-      }
-}
 get_correlation(elisa)
 plot_correlate(elisa)
 
@@ -195,26 +178,6 @@ clin_export <- files_export[grepl("Clinical", files_export)]
 clin_code <- files_code[grepl("Clinical", files_code)]
 k <- 3
 
-read_batches <- function(files, export = "export") {
-    batches <- list()
-    for (i in seq_along(files)) {
-        batches[[i]] <- read_tsv(file.path(
-            clin_path,
-            paste0(
-                "ImmunAID_",
-                blocks[k],
-                "_",
-                date,
-                "_batch",
-                i,
-                "_eCRF_",
-                export,
-                ".csv"
-            )
-        ))
-    }
-    return(batches)
-}
 clinic <- read_batches(clin_export)
 sapply(clinic, dim)
 
@@ -228,11 +191,6 @@ vars <- lapply(clinic, function(i) as.numeric(as.data.frame(i[, 2])[, 1]))
 names(vars) <- seq(3)
 venn::venn(vars, ilabels = TRUE, zcolor = "style")
 
-get_intersection <- function(x) {
-    res <- gplots::venn(x)
-    intersections <- attributes(res)$intersections
-    intersections[grepl(":", names(intersections))]
-}
 get_intersection(vars)
 
 # Common subject ID with ELISA
@@ -249,11 +207,6 @@ get_intersection(vars_tot)
 clinic_tot <- clean_data(clinic_tot, FALSE)
 find_na(clinic_tot)
 
-best_na_percent <- function(x, threshold = 50) {
-    (df_na <- diagnose(x) %>% filter(missing_percent > threshold) %>% arrange(desc(missing_percent)))
-    var_na <- data.frame(df_na %>% select(variables))[, 1]
-    x %>% select(-one_of(var_na))
-}
 clinic_tot_proc <- best_na_percent(clinic_tot, 3)
 plot_missing(
     clinic_tot_proc,
@@ -282,14 +235,6 @@ var_na <- colnames(clinic_tot_proc)
 (stats <- clinic_code_proc %>%
     filter(clinic_code_proc$column_code %in% var_na) %>%
     select(!(starts_with("repeat"))))
-
-function(x, y) {
-    x$column_code
-}
-
-get_var_names <- function(x) {
-    (stats %>% filter(str_detect(column_code, paste0(c(x), collapse = "|"))))$item_name
-}
 get_var_names(var_na)
 
 diagnose_category(as.data.frame(stats$group_name))
@@ -301,20 +246,22 @@ clinic_code_proc[, "group_name", drop = FALSE] %>%
 plot_bar(clinic_tot_proc)
 # Create country variable
 clinic_tot_proc %>%
-    mutate(country = case_when(
-        str_detect(C_2643_3797, "Paris|Bordeaux|Nantes|Lyon|Lille|Strasbourg") ~ "France",
-        str_detect(C_2643_3797, "Madrid|Barcelona") ~ "Spain",
-        str_detect(C_2643_3797, "Leuven") ~ "Belgium",
-        str_detect(C_2643_3797, "Rotterdam") ~ "Netherlands",
-        str_detect(C_2643_3797, "Athens") ~ "Greece",
-        str_detect(C_2643_3797, "Roma") ~ "Italy",
-        str_detect(C_2643_3797, "Geneva") ~ "Switzerland",
-        str_detect(C_2643_3797, "Ankara") ~ "Turkey",
-        str_detect(C_2643_3797, "Münster|Berlin") ~ "Germany",
-        str_detect(C_2643_3797, "Leeds") ~ "United Kingdom (UK)",
-        str_detect(C_2643_3797, "Lubljana") ~ "Slovenia",
-        TRUE ~ C_2643_3797
-    )) %>%
+    mutate(
+        country = case_when(
+            str_detect(C_2643_3797, "Paris|Bordeaux|Nantes|Lyon|Lille|Strasbourg") ~ "France",
+            str_detect(C_2643_3797, "Madrid|Barcelona") ~ "Spain",
+            str_detect(C_2643_3797, "Leuven") ~ "Belgium",
+            str_detect(C_2643_3797, "Rotterdam") ~ "Netherlands",
+            str_detect(C_2643_3797, "Athens") ~ "Greece",
+            str_detect(C_2643_3797, "Roma") ~ "Italy",
+            str_detect(C_2643_3797, "Geneva") ~ "Switzerland",
+            str_detect(C_2643_3797, "Ankara") ~ "Turkey",
+            str_detect(C_2643_3797, "Münster|Berlin") ~ "Germany",
+            str_detect(C_2643_3797, "Leeds") ~ "United Kingdom (UK)",
+            str_detect(C_2643_3797, "Lubljana") ~ "Slovenia",
+            TRUE ~ C_2643_3797
+        )
+    ) %>%
     select(country) %>%
     plot_bar()
 
@@ -326,15 +273,17 @@ clinic_tot_proc %>%
 
 # By French cities
 clinic_tot_proc %>%
-    mutate(town = case_when(
-        str_detect(C_2643_3797, "Paris") ~ "Paris",
-        str_detect(C_2643_3797, "Bordeaux") ~ "Bordeaux",
-        str_detect(C_2643_3797, "Nantes") ~ "Nantes",
-        str_detect(C_2643_3797, "Lyon") ~ "Lyon",
-        str_detect(C_2643_3797, "Lille") ~ "Lille",
-        str_detect(C_2643_3797, "Strasbourg") ~ "Strasbourg",
-        TRUE ~ "Others"
-    )) %>%
+    mutate(
+        town = case_when(
+            str_detect(C_2643_3797, "Paris") ~ "Paris",
+            str_detect(C_2643_3797, "Bordeaux") ~ "Bordeaux",
+            str_detect(C_2643_3797, "Nantes") ~ "Nantes",
+            str_detect(C_2643_3797, "Lyon") ~ "Lyon",
+            str_detect(C_2643_3797, "Lille") ~ "Lille",
+            str_detect(C_2643_3797, "Strasbourg") ~ "Strasbourg",
+            TRUE ~ "Others"
+        )
+    ) %>%
     select(town) %>%
     plot_bar()
 
@@ -345,8 +294,8 @@ var_dates <- c("C_2643_3800", "C_2643_3801", "C_2643_3802")
 clinic_tot_proc <- update_columns(clinic_tot_proc, var_dates[1], my)
 clinic_tot_proc <- update_columns(clinic_tot_proc, var_dates[-1], dmy)
 for (i in var_dates) {
-      qplot(as.data.frame(clinic_tot_proc[, i])[, 1])
-  }
+    qplot(as.data.frame(clinic_tot_proc[, i])[, 1])
+}
 
 clin_proc_year <- update_columns(clinic_tot_proc, var_dates, function(i) year(round_date(i, "year")))
 plot_histogram(clin_proc_year)
@@ -365,170 +314,23 @@ qplot(decade[, 1])
 qplot(as.character(2020 - as.numeric(decade[, 1])))
 
 # Correlation
-get_corr <- function(x, pval = FALSE) {
-    x <- as.data.frame(x)
-    vars <- colnames(x)[sapply(colnames(x), function(i) is.numeric(x[, i]))]
-    sapply(
-        vars,
-        function(i) {
-            sapply(
-                vars,
-                function(j) {
-                    if (is.numeric(x[, i]) & is.numeric(x[, j])) {
-                        res <- cor.test(x[, i], x[, j])
-                        if (pval) {
-                            res$estimate
-                        } else {
-                            res$p.value
-                        }
-                    } else {
-                        NA
-                    }
-                }
-            )
-        }
-    )
-}
-
-plot_corr <- function(x, clean_name = TRUE) {
-    if (clean_name) {
-        colnames(x) <- get_var_names(colnames(x))
-        x <- clean_names(x)
-    }
-    x <- as.data.frame(x)
-    M <- get_corr(x, TRUE)
-    p.mat <- get_corr(x)
-
-    col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
-
-    corrplot(
-        M,
-        # method="color",
-        col = col(200),
-        type = "upper",
-        order = "hclust",
-        addCoef.col = "black",
-        # Ajout du coefficient de corrélation
-        tl.col = "black",
-        tl.srt = 45,
-        # Rotation des etiquettes de textes
-        # Combiner avec le niveau de significativité
-        p.mat = p.mat,
-        sig.level = 0.01,
-        addgrid.col = NA,
-        insig = "blank",
-        # Cacher les coefficients de corrélation sur la diagonale
-        diag = FALSE
-    )
-}
-
-save_tiff <- function(f, filename = "violinplot_clin.tiff") {
-    tiff(filename, units = "px", width = 2000, height = 2000, res = 300)
-    f
-    dev.off()
-}
-
-
 # plot_correlate(clinic_tot_proc)
 (p <- plot_corr(clinic_tot_proc))
 # save_tiff(p)
 
 # Stats / outliers
-get_name_num <- function(x) {
-    colnames(x)[
-        sapply(
-            colnames(x),
-            function(i) is.numeric(c(x[, i])[[1]])
-        )
-    ]
-}
-
 var_num <- get_name_num(clinic_tot_proc)
 
-explore_outliers <- function(x) {
-    colnames(x)[find_outliers(x)]
-}
-
-get_outliers <- function(x, y, probs = c(0.25, 0.75), method = "iqr", c = 1.5) {
-    stopifnot(method %in% c("iqr", "percentiles", "hampel", "mad", "sd"))
-    y <- as.data.frame(x)[, y]
-    # outliers <- boxplot(y)$out
-    # percentiles: probs = c(0.025, 0.975)
-    Q <- quantile(y, probs = probs, na.rm = TRUE)
-    up <- Q[2]
-    low <- Q[1]
-    if (method == "iqr") {
-        # interquartile range: 1.5 * IQR
-        iqr <- IQR(y, na.rm = TRUE)
-        up <- up + c * iqr
-        low <- low - c * iqr
-    }
-    if (method %in% c("hampel", "mad", "sd")) {
-        if (method %in% c("hampel", "mad")) {
-            # mediane absolute deviation: 3 * MAD
-            med <- median(y, na.rm = TRUE)
-            mad3 <- c * mad(y, na.rm = TRUE, constant = 1)
-        } else {
-            med <- median(y, na.rm = TRUE)
-            mad3 <- c * sd(y, na.rm = TRUE)
-        }
-        up <- med + mad3
-        low <- med - mad3
-    }
-    x %>% filter(y < low | y > up)
-}
 col_outliers <- explore_outliers(clinic_tot_proc)
 i <- col_outliers[1] # "C_2643_3804"
 j <- col_outliers[2] # "C_2649_3889"
-get_melt <- function(x) {
-    (x %>% select(all_of(get_name_num(x))) %>% gather())
-}
 clin_melt <- melt(clinic_tot_proc) %>% select(variable, value)
 (clin_melt %>% filter(variable == i) %>% boxplot())$out
 get_outliers(clinic_tot_proc, i)
 # get_outliers(clinic_tot_proc, j, probs = c(.025, .975), method = "percentiles")
 # get_outliers(clinic_tot_proc, j, , method = "hampel", c = 3)
 
-plot_violin1 <- function(x) {
-    x <- get_melt(x)
-    ggbetweenstats(
-        x,
-        key,
-        value,
-        outlier.tagging = TRUE,
-        results.subtitle = FALSE,
-        pairwise.comparisons = FALSE
-    ) +
-        xlab("") +
-        ylab("") + facet_wrap(~key, scale = "free") +
-        theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
-    # theme(strip.background = element_blank(), strip.text.x = element_blank())
-}
-plot_violin1(clinic_tot_proc)
-
-plot_violin2 <- function(x) {
-    x <- melt(x) %>% select(variable, value)
-    ggplot(x, aes(x = variable, y = value, color = variable)) +
-        geom_violin(trim = FALSE, draw_quantiles = c(0.25, 0.5, 0.75)) +
-        geom_boxplot() +
-        geom_dotplot(binaxis = "y", stackdir = "center", alpha = .1, color = "gray", drop = TRUE, width = .5) +
-        facet_wrap(~variable, scale = "free") +
-        theme_bw() +
-        guides(color = "none", fill = "none") +
-        xlab("") +
-        ylab("") +
-        theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
-}
-plot_violin3 <- function(x) {
-    x <- melt(x) %>% select(variable, value)
-    ggplot(x, aes(x = variable, y = value, fill = variable, color = variable)) +
-        geom_violindot(trim = FALSE, draw_quantiles = c(0.25, 0.5, 0.75), binwidth = 2) +
-        facet_wrap(~variable, scale = "free") +
-        theme_bw() +
-        guides(color = "none", fill = "none", x = "none") +
-        xlab("") +
-        ylab("")
-}
+plot_violin(clinic_tot_proc)
 plot_violin2(clinic_tot_proc)
 plot_violin3(clinic_tot_proc)
 ```
