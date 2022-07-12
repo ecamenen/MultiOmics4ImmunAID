@@ -16,19 +16,24 @@ knitr::opts_chunk$set(
 
 ```{r setup}
 library(MultiOmics4ImmunAID)
-library(magrittr)
-library(janitor)
-library(tidyverse)
-library(readxl)
-library(skimr)
-library(DataExplorer)
-library(dlookr)
-library(reshape2)
-library(naniar)
-library(VIM)
-library(lubridate)
-library(corrplot)
-library(ggstatsplot)
+load_libraries(
+    c(
+        "corrplot",
+        "DataExplorer",
+        "dlookr",
+        "ggstatsplot",
+        "janitor",
+        "lubridate",
+        "magrittr",
+        "naniar",
+        "readxl",
+        "reshape2",
+        "see",
+        "skimr",
+        "tidyverse",
+        "VIM"
+    )
+)
 path <- file.path(golem::get_golem_wd(), "inst", "extdata")
 ```
 
@@ -425,18 +430,27 @@ save_tiff <- function(f, filename = "violinplot_clin.tiff") {
 
 
 # plot_correlate(clinic_tot_proc)
-save_tiff(plot_corr(clinic_tot_proc))
+(p <- plot_corr(clinic_tot_proc))
+# save_tiff(p)
 
 # Stats / outliers
-vars <- colnames(x)[
-    sapply(
-        colnames(x),
-        function(i) is.numeric(c(x[, i])[[1]])
-    )
-]
+get_name_num <- function(x) {
+    colnames(x)[
+        sapply(
+            colnames(x),
+            function(i) is.numeric(c(x[, i])[[1]])
+        )
+    ]
+}
+
+var_num <- get_name_num(clinic_tot_proc)
+
+explore_outliers <- function(x) {
+    colnames(x)[find_outliers(x)]
+}
 
 get_outliers <- function(x, y, probs = c(0.25, 0.75), method = "iqr", c = 1.5) {
-    stopif(!method %in% c("iqr", "percentiles", "mad", "sd"))
+    stopifnot(method %in% c("iqr", "percentiles", "hampel", "mad", "sd"))
     y <- as.data.frame(x)[, y]
     # outliers <- boxplot(y)$out
     # percentiles: probs = c(0.025, 0.975)
@@ -463,46 +477,60 @@ get_outliers <- function(x, y, probs = c(0.25, 0.75), method = "iqr", c = 1.5) {
     }
     x %>% filter(y < low | y > up)
 }
-i <- "C_2643_3804"
-j <- "C_2649_3889"
+col_outliers <- explore_outliers(clinic_tot_proc)
+i <- col_outliers[1] # "C_2643_3804"
+j <- col_outliers[2] # "C_2649_3889"
+get_melt <- function(x) {
+    (x %>% select(all_of(get_name_num(x))) %>% gather())
+}
+clin_melt <- melt(clinic_tot_proc) %>% select(variable, value)
 (clin_melt %>% filter(variable == i) %>% boxplot())$out
 get_outliers(clinic_tot_proc, i)
 # get_outliers(clinic_tot_proc, j, probs = c(.025, .975), method = "percentiles")
-# get_outliers(clinic_tot_proc, j, , method = "hampel, c = 3)
+# get_outliers(clinic_tot_proc, j, , method = "hampel", c = 3)
 
-ggbetweenstats(
-    (clinic_tot_proc %>% select(all_of(vars)) %>% gather()),
-    key,
-    value,
-    outlier.tagging = TRUE,
-    results.subtitle = FALSE,
-    pairwise.comparisons = FALSE
-) +
-    xlab("") +
-    ylab("") + facet_wrap(~key, scale = "free") +
-    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+plot_violin1 <- function(x) {
+    x <- get_melt(x)
+    ggbetweenstats(
+        x,
+        key,
+        value,
+        outlier.tagging = TRUE,
+        results.subtitle = FALSE,
+        pairwise.comparisons = FALSE
+    ) +
+        xlab("") +
+        ylab("") + facet_wrap(~key, scale = "free") +
+        theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
     # theme(strip.background = element_blank(), strip.text.x = element_blank())
+}
+plot_violin1(clinic_tot_proc)
 
-clin_melt <- melt(clinic_tot_proc) %>% select(variable, value)
-ggplot(clin_melt, aes(x = variable, y = value, color = variable)) +
-    geom_violin(trim = FALSE, draw_quantiles = c(0.25, 0.5, 0.75)) +
-    geom_boxplot() +
-    geom_dotplot(binaxis = "y", stackdir = "center", alpha = .1, color = "gray", drop = TRUE, width = .5) +
-    facet_wrap(~variable, scale = "free") +
-    theme_bw() +
-    guides(color = "none", fill = "none") +
-    xlab("") +
-    ylab("") +
-    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
-
-ggplot(clin_melt, aes(x = variable, y = value, fill = variable, color = variable)) +
-    geom_violindot(trim = FALSE, draw_quantiles = c(0.25, 0.5, 0.75), binwidth = 2) +
-    facet_wrap(~variable, scale = "free") +
-    theme_bw() +
-    guides(color = "none", fill = "none", x = "none") +
-    xlab("") +
-    ylab("")
-
+plot_violin2 <- function(x) {
+    x <- melt(x) %>% select(variable, value)
+    ggplot(x, aes(x = variable, y = value, color = variable)) +
+        geom_violin(trim = FALSE, draw_quantiles = c(0.25, 0.5, 0.75)) +
+        geom_boxplot() +
+        geom_dotplot(binaxis = "y", stackdir = "center", alpha = .1, color = "gray", drop = TRUE, width = .5) +
+        facet_wrap(~variable, scale = "free") +
+        theme_bw() +
+        guides(color = "none", fill = "none") +
+        xlab("") +
+        ylab("") +
+        theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+}
+plot_violin3 <- function(x) {
+    x <- melt(x) %>% select(variable, value)
+    ggplot(x, aes(x = variable, y = value, fill = variable, color = variable)) +
+        geom_violindot(trim = FALSE, draw_quantiles = c(0.25, 0.5, 0.75), binwidth = 2) +
+        facet_wrap(~variable, scale = "free") +
+        theme_bw() +
+        guides(color = "none", fill = "none", x = "none") +
+        xlab("") +
+        ylab("")
+}
+plot_violin2(clinic_tot_proc)
+plot_violin3(clinic_tot_proc)
 ```
 
 ## PedsQL
