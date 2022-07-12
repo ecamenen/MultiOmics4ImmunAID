@@ -1,25 +1,31 @@
 #' @export
 plot_violin <- function(x) {
-    x <- get_melt(x)
-    ggbetweenstats(
-        x,
-        key,
+    p <- ggbetweenstats(
+        get_melt(x),
+        name,
         value,
         outlier.tagging = TRUE,
         results.subtitle = FALSE,
         pairwise.comparisons = FALSE
-    ) +
-        xlab("") +
-        ylab("") + facet_wrap(~key, scale = "free") +
-        theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+    )
+    theme_perso(p)
     # theme(strip.background = element_blank(), strip.text.x = element_blank())
 }
 
 #' @export
 plot_violin2 <- function(x) {
-    x <- melt(x) %>% select(variable, value)
-    ggplot(x, aes(x = variable, y = value, color = variable)) +
-        geom_violin(trim = FALSE, draw_quantiles = c(0.25, 0.5, 0.75)) +
+    p <- ggplot(
+        getmelt0(x),
+        aes(
+            x = name,
+            y = value,
+            color = name
+        )
+    ) +
+        geom_violin(
+            trim = FALSE,
+            draw_quantiles = c(0.25, 0.5, 0.75)
+        ) +
         geom_boxplot() +
         geom_dotplot(
             binaxis = "y",
@@ -28,32 +34,42 @@ plot_violin2 <- function(x) {
             color = "gray",
             drop = TRUE,
             width = .5
-        ) +
-        facet_wrap(~variable, scales = "free") +
-        theme_bw() +
-        guides(color = "none", fill = "none") +
-        xlab("") +
-        ylab("") +
-        theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+        )
+    theme_perso(p)
 }
 
 #' @export
 plot_violin3 <- function(x) {
-    x <- melt(x) %>% select(variable, value)
-    ggplot(x, aes(
-        x = variable,
-        y = value,
-        fill = variable,
-        color = variable
-    )) +
+    p <- ggplot(
+        getmelt0(x),
+        aes(
+            x = name,
+            y = value,
+            fill = name,
+            color = name
+        )
+    ) +
         geom_violindot(
             trim = FALSE,
             draw_quantiles = c(0.25, 0.5, 0.75),
             binwidth = 2
-        ) +
-        facet_wrap(~variable, scale = "free") +
-        theme_bw() +
-        guides(color = "none", fill = "none", x = "none") +
+        )
+    theme_perso0(p)
+}
+
+theme_perso0 <- function(p) {
+    p +
         xlab("") +
-        ylab("")
+        ylab("") +
+        facet_wrap(~name, scales = "free") +
+        theme_bw() +
+        guides(color = "none", fill = "none", x = "none")
+}
+
+theme_perso <- function(p) {
+    theme_perso0(p) +
+        theme(
+            axis.text.x = element_blank(),
+            axis.ticks.x = element_blank()
+        )
 }

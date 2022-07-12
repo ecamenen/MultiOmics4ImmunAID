@@ -34,6 +34,7 @@ Imports:
     skimr,
     stats,
     stringr,
+    tidyr,
     tidyverse,
     venn,
     VIM,

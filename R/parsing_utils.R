@@ -38,7 +38,16 @@ get_var_names <- function(x, stats) {
 
 #' @export
 get_melt <- function(x) {
-    (x %>% select(all_of(get_name_num(x))) %>% gather())
+    x %>%
+        select(all_of(get_name_num(x))) %>%
+        pivot_longer(everything())
+}
+
+#' @export
+getmelt0 <- function(x) {
+    melt(x) %>%
+        select(variable, value) %>%
+        rename(name = variable)
 }
 
 #' @export

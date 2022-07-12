@@ -15,7 +15,7 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
-library(MultiOmics4ImmunAID)
+suppressPackageStartupMessages(library(MultiOmics4ImmunAID))
 load_libraries(
     c(
         "corrplot",
@@ -244,7 +244,8 @@ res <- summary(aggr(clinic_tot, sortVar = TRUE))$combinations
 # group_name
 # The top bottom by frequency
 diagnose_category(
-  clinic_code_proc[, "group_name", drop = FALSE], top = 100
+    clinic_code_proc[, "group_name", drop = FALSE],
+    top = 100
 ) %>% arrange(freq)
 # Select the clinic data with 0 NA
 var_na <- colnames(clinic_tot_proc)

@@ -6,5 +6,6 @@
 #' @rawNamespace import(janitor, except = c(chisq.test, fisher.test))
 #' @rawNamespace import(skimr, except = n_complete)
 #' @rawNamespace import(stats, except = c(filter, lag, lowess))
+#' @rawNamespace import(tidyr, except = extract)
 #' @keywords internal
 "_PACKAGE"

@@ -1,0 +1,13 @@
+utils::globalVariables(
+    c(
+        "coef_corr",
+        "column_code",
+        "missing_percent",
+        "value",
+        "var1",
+        "var2",
+        "name",
+        "variable",
+        "variables"
+    )
+)
