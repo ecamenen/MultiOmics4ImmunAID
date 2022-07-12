@@ -37,17 +37,6 @@ load_libraries(
 path <- file.path(golem::get_golem_wd(), "inst", "extdata")
 ```
 
-```{r utils}
-clean_data <- function(x, clean_name = TRUE, row_number = 1) {
-    if (clean_name) {
-          x <- clean_names(x)
-      }
-    x %>%
-        remove_empty(c("rows", "cols"), quiet = FALSE) %>%
-        remove_constant(na.rm = TRUE, quiet = FALSE)
-}
-```
-
 # Proteomics
 
 ## ELISA
