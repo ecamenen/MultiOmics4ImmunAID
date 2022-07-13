@@ -1,4 +1,58 @@
 #' @export
+plot_histo <- function(x) {
+    gghistogram(
+        get_melt(x),
+        x = "value",
+        add = "mean",
+        rug = TRUE,
+        color = "grey",
+        fill = "name"
+    ) +
+        facet_wrap(~name, scales = "free") +
+        guides(color = "none", fill = "none") +
+        theme_classic() +
+        theme(
+            axis.text = element_text(size = 10 * cex),
+            axis.title = element_text(face = "bold.italic", size = cex_sub),
+            strip.text = element_text(
+                size = cex_main,
+                face = "bold",
+                hjust = 0.5,
+                margin = margin(0.5, 0.5, 0.5, 0.5)
+            )
+        ) +
+        scale_fill_manual(values = colors, na.value = "black") +
+        scale_color_manual(values = colors, na.value = "black")
+}
+
+plot_histo2 <- function(
+    x,
+    y,
+    colors = get_colors(),
+    cex = 1,
+    cex_main = 12 * cex,
+    cex_sub = 10 * cex) {
+    gghistostats(
+        x,
+        y,
+        results.subtitle = FALSE,
+        bar.fill = colors[1],
+        centrality.line.args = list(size = 1, color = colors[1])
+    ) +
+        theme_bw() +
+        theme(
+            axis.text = element_text(size = 10 * cex),
+            axis.title = element_text(face = "bold.italic", size = cex_sub),
+            strip.text = element_text(
+                size = cex_main,
+                face = "bold",
+                hjust = 0.5,
+                margin = margin(0.5, 0.5, 0.5, 0.5)
+            )
+        )
+}
+
+#' @export
 plot_violin1 <- function(x, colors = get_colors(), cex = 1, cex_main = 12 * cex, cex_sub = 10 * cex) {
     p <- ggviolin(
         get_melt(x),

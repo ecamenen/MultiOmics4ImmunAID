@@ -337,6 +337,9 @@ qplot(as.character(2020 - as.numeric(decade[, 1])))
 (p <- plot_corr(clinic_tot_proc, stats))
 # save_tiff(p)
 
+plot_corr(clinic_tot_proc, stats)
+ggcorrmat(clinic_tot_proc)
+
 # Stats / outliers
 var_num <- get_name_num(clinic_tot_proc)
 

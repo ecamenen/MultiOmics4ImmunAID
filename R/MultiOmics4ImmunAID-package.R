@@ -1,6 +1,6 @@
-#' @import corrplot DataExplorer dlookr dplyr ggplot2 golem ggstatsplot
-#' @import ggpubr grDevices lubridate naniar readxl reshape2 see VIM stringr
-#' @import tidyverse venn viridis
+#' @import corrplot DataExplorer dlookr dplyr ggplot2 golem
+#' @import ggstatsplot ggpubr grDevices lubridate naniar readxl
+#' @import reshape2 rstatix see VIM stringr tidyverse venn viridis
 #' @importFrom magrittr %>%
 #' @rawNamespace import(gplots, except = venn)
 #' @rawNamespace import(janitor, except = c(chisq.test, fisher.test))

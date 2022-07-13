@@ -1,5 +1,8 @@
 utils::globalVariables(
     c(
+        "cex",
+        "cex_main",
+        "cex_sub",
         "coef_corr",
         "column_code",
         "missing_percent",
