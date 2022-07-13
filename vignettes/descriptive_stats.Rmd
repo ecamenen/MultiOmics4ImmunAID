@@ -21,11 +21,13 @@ load_libraries(
         "corrplot",
         "DataExplorer",
         "dlookr",
+        "ggpubr",
         "ggstatsplot",
         "janitor",
         "lubridate",
         "magrittr",
         "naniar",
+        "rstatix",
         "readxl",
         "reshape2",
         "see",
@@ -114,18 +116,16 @@ plot_violin(elisa)
 
 # Correlation
 plot_correlation(elisa)
-plot_correlation(elisa, type = "c") # continuous data
+# continuous data
+plot_correlation(elisa, type = "c")
 get_correlation(elisa)
 plot_correlate(elisa)
 
 # Normality
 plot_qq(elisa)
 # Do not follow the normality with Shapiro-Wilk
-(not_normal <- normality(elisa) %>%
-    filter(p_value <= 0.01) %>%
-    arrange(abs(p_value))
-)
-plot_normality(not_normal)
+plot_normal(elisa)
+
 
 # Missing data
 # set_missing
@@ -254,17 +254,7 @@ var_na <- colnames(clinic_tot_proc)
     filter(clinic_code_proc$column_code %in% var_na) %>%
     select(!(starts_with("repeat"))))
 
-get_var_names <- function(x) {
-    (stats %>%
-        filter(
-            str_detect(
-                column_code,
-                paste0(c(x), collapse = "|")
-            )
-        )
-    )$item_name
-}
-get_var_names(var_na)
+get_var_names(var_na, stats)
 
 diagnose_category(as.data.frame(stats$group_name))
 # Which is the frequence of this category

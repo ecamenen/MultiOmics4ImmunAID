@@ -25,11 +25,11 @@ get_name_num <- function(x) {
 }
 
 #' @export
-get_var_names <- function(x, stats) {
-    (stats %>%
+get_var_names <- function(x, y) {
+    (y %>%
         filter(
             str_detect(
-                column_code,
+                y[, 1],
                 paste0(c(x), collapse = "|")
             )
         )

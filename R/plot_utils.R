@@ -1,7 +1,7 @@
 #' @export
-plot_corr <- function(x, stats, clean_name = TRUE) {
+plot_corr <- function(x, y, clean_name = TRUE) {
     if (clean_name) {
-        colnames(x) <- get_var_names(colnames(x), stats)
+        colnames(x) <- get_var_names(colnames(x), y)
         x <- clean_names(x)
     }
     x <- as.data.frame(x)
@@ -29,4 +29,10 @@ plot_corr <- function(x, stats, clean_name = TRUE) {
         # Cacher les coefficients de corrélation sur la diagonale
         diag = FALSE
     )
+}
+
+plot_normal <- function(x) {
+    x %>%
+        select(get_not_normal(x)$vars) %>%
+        plot_normality()
 }

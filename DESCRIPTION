@@ -21,6 +21,7 @@ Imports:
     dplyr,
     ggplot2,
     ggstatsplot,
+    ggpubr,
     golem,
     gplots,
     grDevices,

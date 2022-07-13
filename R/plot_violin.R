@@ -57,17 +57,19 @@ plot_violin3 <- function(x) {
     theme_perso0(p)
 }
 
-theme_perso0 <- function(p) {
+theme_perso0 <- function(p, option = "plasma") {
     p +
         xlab("") +
         ylab("") +
         facet_wrap(~name, scales = "free") +
         theme_bw() +
-        guides(color = "none", fill = "none", x = "none")
+        guides(color = "none", fill = "none", x = "none") +
+        scale_color_viridis_d(option = option) +
+        scale_fill_viridis_d(option = option)
 }
 
-theme_perso <- function(p) {
-    theme_perso0(p) +
+theme_perso <- function(p, option = "plasma") {
+    theme_perso0(p, option = option) +
         theme(
             axis.text.x = element_blank(),
             axis.ticks.x = element_blank()

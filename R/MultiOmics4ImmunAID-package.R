@@ -1,5 +1,5 @@
 #' @import corrplot DataExplorer dlookr dplyr ggplot2 golem ggstatsplot
-#' @import grDevices lubridate naniar readxl reshape2 see VIM stringr
+#' @import ggpubr grDevices lubridate naniar readxl reshape2 see VIM stringr
 #' @import tidyverse venn viridis
 #' @importFrom magrittr %>%
 #' @rawNamespace import(gplots, except = venn)

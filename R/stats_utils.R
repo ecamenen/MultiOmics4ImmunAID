@@ -92,3 +92,9 @@ get_outliers <- function(
     }
     x %>% filter(y < low | y > up)
 }
+
+get_not_normal <- function(x, p_value = 0.05) {
+        normality(x) %>%
+        filter(p_value <= 0.01) %>%
+        arrange(abs(p_value))
+}
