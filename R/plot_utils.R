@@ -31,8 +31,26 @@ plot_corr <- function(x, y, clean_name = TRUE) {
     )
 }
 
+#' @export
 plot_normal <- function(x) {
     x %>%
         select(get_not_normal(x)$vars) %>%
         plot_normality()
+}
+
+get_colors <- function() {
+    c(
+        "#cd5b45",
+        "#71ad65",
+        "#3c78b4",
+        "#ffc600",
+        "#b448af",
+        "#9d9d9d",
+        "#abcaef",
+        "#4a6f43",
+        "#f0e500",
+        "#efb8f0",
+        "black",
+        "#d6d6d6"
+    )
 }
