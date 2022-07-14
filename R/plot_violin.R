@@ -1,6 +1,11 @@
 #' @export
-plot_histo <- function(x) {
-    gghistogram(
+plot_histo <- function(
+    x,
+    colors = get_colors(),
+    cex = 1,
+    cex_main = 12 * cex,
+    cex_sub = 10 * cex) {
+    p <- gghistogram(
         get_melt(x),
         x = "value",
         add = "mean",
@@ -9,22 +14,11 @@ plot_histo <- function(x) {
         fill = "name"
     ) +
         facet_wrap(~name, scales = "free") +
-        guides(color = "none", fill = "none") +
-        theme_classic() +
-        theme(
-            axis.text = element_text(size = 10 * cex),
-            axis.title = element_text(face = "bold.italic", size = cex_sub),
-            strip.text = element_text(
-                size = cex_main,
-                face = "bold",
-                hjust = 0.5,
-                margin = margin(0.5, 0.5, 0.5, 0.5)
-            )
-        ) +
-        scale_fill_manual(values = colors, na.value = "black") +
-        scale_color_manual(values = colors, na.value = "black")
+        guides(color = "none", fill = "none")
+    theme_perso0((p + theme_perso(cex, cex_main, cex_sub)), colors = colors)
 }
 
+# plot_histo2(elisa, "Calprotectin", cex = 3, color = c("yellow", "blue"))
 plot_histo2 <- function(
     x,
     y,
@@ -33,23 +27,14 @@ plot_histo2 <- function(
     cex_main = 12 * cex,
     cex_sub = 10 * cex) {
     gghistostats(
-        x,
-        y,
+        data = x,
+        x = .data[[y]],
         results.subtitle = FALSE,
         bar.fill = colors[1],
         centrality.line.args = list(size = 1, color = colors[1])
     ) +
         theme_bw() +
-        theme(
-            axis.text = element_text(size = 10 * cex),
-            axis.title = element_text(face = "bold.italic", size = cex_sub),
-            strip.text = element_text(
-                size = cex_main,
-                face = "bold",
-                hjust = 0.5,
-                margin = margin(0.5, 0.5, 0.5, 0.5)
-            )
-        )
+        theme_perso(cex, cex_main, cex_sub)
 }
 
 #' @export
@@ -67,7 +52,7 @@ plot_violin1 <- function(
         add = "boxplot",
         add.params = list(fill = "white")
     )
-    theme_perso(
+    theme_violin(
         p,
         colors = colors,
         cex = cex,
@@ -91,7 +76,7 @@ plot_violin <- function(
         results.subtitle = FALSE,
         pairwise.comparisons = FALSE
     )
-    theme_perso(
+    theme_violin(
         p,
         colors = colors,
         cex = cex,
@@ -126,7 +111,7 @@ plot_violin2 <- function(
             drop = TRUE,
             width = .5
         )
-    theme_perso(
+    theme_violin(
         p,
         colors = colors,
         cex = cex,
@@ -156,5 +141,5 @@ plot_violin3 <- function(
             draw_quantiles = c(0.25, 0.5, 0.75),
             binwidth = 2
         )
-    theme_perso0(p, colors = colors)
+    theme_violin0(p, colors = colors)
 }

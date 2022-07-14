@@ -55,36 +55,62 @@ get_colors <- function() {
 
 theme_perso0 <- function(p, colors = get_colors()) {
     p +
-        xlab("") +
-        ylab("") +
-        facet_wrap(~name, scales = "free") +
         theme_classic() +
-        guides(
-            color = "none",
-            fill = "none",
-            x = "none"
-        ) +
         scale_color_manual(values = colors, na.value = "black") +
         scale_fill_manual(values = colors, na.value = "black")
 }
 
-theme_perso <- function(
+theme_violin0 <- function(p, colors = get_colors()) {
+    theme_perso0(
+        p +
+        xlab("") +
+        ylab("") +
+        facet_wrap(~name, scales = "free") +
+        guides(
+            color = "none",
+            fill = "none",
+            x = "none"
+        ),
+        colors = colors
+    )
+}
+
+theme_violin <- function(
     p,
     colors = get_colors(),
     cex = 1,
     cex_main = 12 * cex,
     cex_sub = 10 * cex) {
-    theme_perso0(p, colors = colors) +
-        theme(
-            axis.text.x = element_blank(),
-            axis.ticks.x = element_blank(),
-            axis.text.y = element_text(size = 10 * cex),
-            axis.title = element_text(face = "bold.italic", size = cex_sub),
-            strip.text = element_text(
-                size = cex_main,
-                face = "bold",
-                hjust = 0.5,
-                margin = margin(0.5, 0.5, 0.5, 0.5)
-            )
+    theme_violin0(p, colors = colors) +
+        theme(axis.text.x = element_blank(),
+              axis.ticks.x = element_blank()) +
+        theme_perso(cex, cex_main, cex_sub)
+}
+
+theme_perso <- function(
+    cex = 1,
+    cex_main = 12 * cex,
+    cex_sub = 10 * cex,
+    cex_axis = 10 * cex
+    ) {
+    # cex_axis
+    theme(
+        axis.text = element_text(size = cex_axis * cex),
+        axis.title = element_text(face = "bold.italic", size = cex_sub),
+        strip.text = element_text(
+            size = cex_main,
+            face = "bold",
+            hjust = 0.5,
+            margin = margin(0.5, 0.5, 0.5, 0.5)
         )
+    )
+}
+
+theme_histo <- function(
+    p,
+    colors = get_colors(),
+    cex = 1,
+    cex_main = 12 * cex,
+    cex_sub = 10 * cex) {
+    theme_perso0(p + theme_perso(cex, cex_main, cex_sub), colors = colors)
 }
