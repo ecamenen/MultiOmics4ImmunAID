@@ -5,6 +5,7 @@ utils::globalVariables(
         "cex_sub",
         "coef_corr",
         "column_code",
+        "item_name",
         "missing_percent",
         "value",
         "var1",

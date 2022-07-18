@@ -369,8 +369,8 @@ get_intersection(pql_names)
 get_difference(pql_names)
 
 # Select level variables
-level_vars <- lapply(pql_codes, function(i) (i[[1]] %>% filter(!str_detect(item_name, paste0(c("ImmunAID identifier", "Form completed on:"), collapse = "|"))))$column_code)
-level_ <- na.omit(sort(unique(unlist(mapply(function(x, y) select(x[[3]], all_of(y)), pql, level_vars)))))
+level_vars <- lapply(pql_codes, get_codes_levels)
+level_ <- get_levels(unlist(mapply(function(x, y) select(x[[3]], all_of(y)), pql, level_vars)))
 
 # group_code
 peds_regex <- "PedsQL(\\d{1,2})_(\\d{1,2})_"
@@ -417,23 +417,129 @@ for (i in 0:4) {
     pql_tot[pql_tot == level_[i + 1]] <- paste0(i)
 }
 
-pql_tot <- clean_data(pql_tot)
+pql <- clean_data(pql_tot)
+usethis::use_data(pql, overwrite = TRUE)
 ```
 
 # SF36
 ```{r}
 sf36 <- read_batches("SF36")
 sapply(sf36, dim)
-
 sf36_tot <- Reduce(rbind, sf36)
-
 sf36_code <- read_batches("SF36", "codes")
+sf36_tot[sf36_tot == "None of the Time"] <- "None of the time"
+
+# Levels
+level_cols <- (select(sf36_tot, all_of(get_codes_levels(sf36_code))))
+l <- plyr::ldply(sapply(level_cols, get_levels), rbind)
+l_level_cols <- distinct(l[, -1])
+
+col_sim <- sapply(
+    seq(nrow(l_level_cols)),
+    function(j) {
+        l[
+            sapply(
+                seq(nrow(l)),
+                function(i) identical(c(l[i, -1]), c(l_level_cols[j, ]))
+            ),
+            1
+        ]
+    }
+)
+get_var_names(col_sim[[1]], sf36_code[[3]])
+
+plot_venn(as.list(as.data.frame(t(l_level_cols))))
+unique(unlist(l_level_cols[c(8, 11:13), ]))
+unique(unlist(l_level_cols[c(3, 10), ]))
+
+l_level_cols[-c(3, 10, 8, 11:13), ]
+
+get_intersection(as.list(as.data.frame(t(l_level_cols[c(5:7), ]))))
+unique(unlist(l_level_cols[c(5:7), ]))
 
 # group_code
 group_codes <- sf36_code[[1]]$group_code
 sf36_groups <- unique(gsub("SF36_", "", group_codes))
 sf36_groups0 <- unique(gsub("(V\\d_)|(_2)", "", sf36_groups))
-sapply(sf36_groups0, function(i) length(group_codes[str_detect(group_codes, i)]))
+sapply(sf36_groups0, function(i) length(group_codes[str_detect(sf36_groups0, i)]))
+
+# Save
+colnames(sf36_tot) <- group_codes
+sf36 <- clean_data(sf36_tot)
+usethis::use_data(sf36, overwrite = TRUE)
+```
+
+# HAQ
+```{r}
+haq <- read_batches("HAQ")
+sapply(haq, dim)
+haq_tot <- Reduce(rbind, haq)
+haq_code <- read_batches("HAQ", "codes")
+
+# Levels
+level_cols <- (select(haq_tot, all_of(get_codes_levels(haq_code))))
+l <- plyr::ldply(sapply(level_cols, get_levels), rbind)
+l_level_cols <- distinct(l[, -1])
+
+col_sim <- sapply(
+    seq(nrow(l_level_cols)),
+    function(j) {
+          l[
+              sapply(
+                  seq(nrow(l)),
+                  function(i) identical(c(l[i, -1]), c(l_level_cols[j, ]))
+              ),
+              1
+          ]
+      }
+)
+get_var_names(col_sim[[3]], haq_code[[3]])
+
+plot_venn(as.list(as.data.frame(t(l_level_cols))))
+i_rows <- c(1:2, 7, 10)
+# unlist(col_sim[i_rows])
+level0 <- unique(unlist(l_level_cols[i_rows, ]))
+# get_var_names(unlist(col_sim[-i_rows]), haq_code[[3]])
+unique(unlist(l_level_cols[-i_rows, ]))
+
+n <- unique(na.omit(unlist(l_level_cols[-i_rows, ]))) %>%
+    str_count(pattern = ";") %>%
+    max()
+
+level_ <- as.data.frame(unique(na.omit(unlist(l_level_cols[-i_rows, ]))))
+l <- level_ %>% separate(1, sep = ";", into = paste0("X", 1:(n + 1)))
+level_tot <- sort(unique(str_trim(na.omit(unlist(l)))))
+
+sapply(
+    unlist(col_sim[-i_rows]),
+    function(i) {
+        sapply(
+            level_tot,
+            function(j) {
+                nrow(
+                    haq_tot %>%
+                        filter(str_detect(as.data.frame(haq_tot[, i])[, 1], j)) %>%
+                        select(all_of(i))
+                )
+            }
+        )
+    }
+)
+
+# group_code
+group_codes <- haq_code[[1]]$group_code
+haq_groups <- unique(gsub("haq_", "", group_codes))
+haq_groups0 <- unique(gsub("(V\\d_)|(_2)", "", haq_groups))
+sapply(haq_groups0, function(i) length(group_codes[str_detect(haq_groups0, i)]))
+
+for (i in 0:3) {
+    haq_tot[haq_tot == level0[i + 1]] <- paste0(3 - i)
+}
+
+# Save
+colnames(haq_tot) <- group_codes
+haq <- clean_data(haq_tot)
+usethis::use_data(haq, overwrite = TRUE)
 ```
 
 ## Session information

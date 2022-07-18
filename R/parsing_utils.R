@@ -40,6 +40,7 @@ get_name_num <- function(x) {
 
 #' @export
 get_var_names <- function(x, y) {
+    y <- as.data.frame(y)
     (y %>%
         filter(
             str_detect(
@@ -94,4 +95,19 @@ get_dup_name <- function(x) {
 #' @export
 get_dup <- function(x) {
     filter(x, x[, 1] == get_dup_name(x))
+}
+
+#' @export
+get_codes_levels <- function(
+    x,
+    y = c("ImmunAID identifier", "Form completed on:")) {
+    (filter(
+        x[[1]],
+        !str_detect(item_name, paste0(y, collapse = "|")))
+    )$column_code
+}
+
+#' @export
+get_levels <- function(x) {
+    na.omit(sort(unique(x)))
 }
