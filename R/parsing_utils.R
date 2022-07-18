@@ -111,3 +111,76 @@ get_codes_levels <- function(
 get_levels <- function(x) {
     na.omit(sort(unique(x)))
 }
+
+#' @export
+get_levels0 <- function(x, y) {
+    unique(na.omit(unlist(x[y, ])))
+}
+
+#' @export
+parse_levels0 <- function(x) {
+    n <- str_count(x, pattern = ";") %>% max()
+    l <- as.data.frame(x) %>% separate(1, sep = ";", into = paste0("X", 1:(n + 1)))
+    sort(unique(str_trim(na.omit(unlist(l)))))
+}
+
+#' @export
+get_group_occ <- function(x, y = "haq") {
+    haq_groups <- unique(gsub(paste(y, "_"), "", x))
+    haq_groups0 <- unique(gsub("(V\\d_)|(_2)", "", haq_groups))
+    sapply(haq_groups0, function(i) {
+          length(x[str_detect(haq_groups0, i)])
+      })
+}
+
+#' @export
+parse_levels <- function(x, y) {
+    distinct(parse_levels1(x, y)[, -1])
+}
+
+parse_levels1 <- function(x, y) {
+    level_cols <- select(x, all_of(get_codes_levels(y))) %>%
+        select(-one_of(get_name_num(x)))
+    plyr::ldply(sapply(level_cols, get_levels), rbind)
+}
+
+#' @export
+col_sim <- function(x, y) {
+    l <- parse_levels1(x, y)
+    l_level_cols <- parse_levels(x, y)
+    sapply(
+        seq(nrow(l_level_cols)),
+        function(j) {
+            l[
+                sapply(
+                    seq(nrow(l)),
+                    function(i) {
+                          identical(c(l[i, -1]), c(l_level_cols[j, ]))
+                      }
+                ),
+                1
+            ]
+        }
+    )
+}
+
+#' @export
+get_table_occ <- function(x, y, i_rows) {
+    level_tot <- parse_levels0(
+        get_levels0(parse_levels(x, y), -i_rows)
+    )
+    sapply(
+        unlist(col_sim(x, y)[-i_rows]),
+        function(i) {
+            sapply(
+                level_tot,
+                function(j) {
+                    nrow(
+                        filter(x, str_detect(as.data.frame(x[, i])[, 1], j)) %>%
+                            select(all_of(i))
+                    )
+                }
+            )
+        }
+    )
+}

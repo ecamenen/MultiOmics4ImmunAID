@@ -477,63 +477,29 @@ haq_tot <- Reduce(rbind, haq)
 haq_code <- read_batches("HAQ", "codes")
 
 # Levels
-level_cols <- (select(haq_tot, all_of(get_codes_levels(haq_code))))
-l <- plyr::ldply(sapply(level_cols, get_levels), rbind)
-l_level_cols <- distinct(l[, -1])
+l_level_cols <- parse_levels(haq_tot, haq_code)
 
-col_sim <- sapply(
-    seq(nrow(l_level_cols)),
-    function(j) {
-          l[
-              sapply(
-                  seq(nrow(l)),
-                  function(i) identical(c(l[i, -1]), c(l_level_cols[j, ]))
-              ),
-              1
-          ]
-      }
-)
-get_var_names(col_sim[[3]], haq_code[[3]])
+cols_sim <- col_sim(haq_tot, haq_code)
+get_var_names(cols_sim[[3]], haq_code[[3]])
 
 plot_venn(as.list(as.data.frame(t(l_level_cols))))
 i_rows <- c(1:2, 7, 10)
-# unlist(col_sim[i_rows])
-level0 <- unique(unlist(l_level_cols[i_rows, ]))
-# get_var_names(unlist(col_sim[-i_rows]), haq_code[[3]])
-unique(unlist(l_level_cols[-i_rows, ]))
+# unlist(cols_sim[i_rows])
 
-n <- unique(na.omit(unlist(l_level_cols[-i_rows, ]))) %>%
-    str_count(pattern = ";") %>%
-    max()
+level0 <- get_levels0(l_level_cols, i_rows) -> haq_levels
+# get_var_names(unlist(cols_sim[-i_rows]), haq_code[[3]])
+level1 <- get_levels0(l_level_cols, -i_rows)
 
-level_ <- as.data.frame(unique(na.omit(unlist(l_level_cols[-i_rows, ]))))
-l <- level_ %>% separate(1, sep = ";", into = paste0("X", 1:(n + 1)))
-level_tot <- sort(unique(str_trim(na.omit(unlist(l)))))
-
-sapply(
-    unlist(col_sim[-i_rows]),
-    function(i) {
-        sapply(
-            level_tot,
-            function(j) {
-                nrow(
-                    haq_tot %>%
-                        filter(str_detect(as.data.frame(haq_tot[, i])[, 1], j)) %>%
-                        select(all_of(i))
-                )
-            }
-        )
-    }
-)
+level_tot <- parse_levels0(level1)
+get_table_occ(haq_tot, haq_code, i_rows)
 
 # group_code
 group_codes <- haq_code[[1]]$group_code
-haq_groups <- unique(gsub("haq_", "", group_codes))
-haq_groups0 <- unique(gsub("(V\\d_)|(_2)", "", haq_groups))
-sapply(haq_groups0, function(i) length(group_codes[str_detect(haq_groups0, i)]))
 
-for (i in 0:3) {
-    haq_tot[haq_tot == level0[i + 1]] <- paste0(3 - i)
+get_group_occ(group_codes, "haq")
+
+for (i in (seq(level0) - 1)) {
+  haq_tot[haq_tot == level0[i + 1]] <- paste0(3 - i)
 }
 
 # Save
