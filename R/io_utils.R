@@ -10,3 +10,37 @@ save_tiff <- function(f, filename = "violinplot_clin.tiff") {
     f
     dev.off()
 }
+
+#' @export
+read_batches <- function(
+    k = "Clinical",
+    export = "export",
+    date = "20220512",
+    n_batch = 3,
+    clin_path = file.path(
+        golem::get_golem_wd(),
+        "inst",
+        "extdata",
+        "clinical",
+        "20220501"
+    )
+) {
+    batches <- list()
+    for (i in seq(n_batch)) {
+        batches[[i]] <- read_tsv(file.path(
+            clin_path,
+            paste0(
+                "ImmunAID_",
+                k,
+                "_",
+                date,
+                "_batch",
+                i,
+                "_eCRF_",
+                export,
+                ".csv"
+            )
+        ))
+    }
+    return(batches)
+}

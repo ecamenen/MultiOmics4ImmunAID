@@ -19,6 +19,7 @@ suppressPackageStartupMessages(library(MultiOmics4ImmunAID))
 load_libraries(
     c(
         "corrplot",
+        # "datawizard",
         "DataExplorer",
         "dlookr",
         "ggpubr",
@@ -168,41 +169,18 @@ files <- str_split(files_export, "_")
 ```{r clinical}
 clin_export <- files_export[grepl("Clinical", files_export)]
 clin_code <- files_code[grepl("Clinical", files_code)]
-k <- 3
-
-read_batches <- function(files, export = "export") {
-    batches <- list()
-    for (i in seq_along(files)) {
-        batches[[i]] <- read_tsv(file.path(
-            clin_path,
-            paste0(
-                "ImmunAID_",
-                blocks[k],
-                "_",
-                date,
-                "_batch",
-                i,
-                "_eCRF_",
-                export,
-                ".csv"
-            )
-        ))
-    }
-    return(batches)
-}
-
-clinic <- read_batches(clin_export)
+clinic <- read_batches()
 sapply(clinic, dim)
 
 clinic_tot <- Reduce(rbind, clinic)
 
-clinic_code <- read_batches(clin_code, "codes")
+clinic_code <- read_batches(, "codes")
 
 # Common subject ID between batches
 vars <- lapply(clinic, function(i) as.numeric(as.data.frame(i[, 2])[, 1]))
 # vars <- lapply(clinic_code, function(i) as.data.frame(i[, 1])[, 1])
 names(vars) <- seq(3)
-venn::venn(vars, ilabels = TRUE, zcolor = "style")
+plot_venn(vars)
 
 get_intersection(vars)
 
@@ -211,9 +189,9 @@ vars_clin <- sort(as.numeric(unlist(vars)))
 vars_elisa <- sort(as.numeric(as.data.frame(elisa[, 2])[, 1]))
 vars_tot <- list(Clinic = vars_clin, ELISA = vars_elisa)
 vars_tot2 <- c(vars, list(ELISA = vars_elisa))
-venn::venn(vars_tot, ilabels = TRUE, zcolor = "style")
+plot_venn(vars_tot)
 # all included in clinic data
-venn::venn(vars_tot2, ilabels = TRUE, zcolor = "style")
+plot_venn(vars_tot2)
 # all from clinic batch 1
 get_intersection(vars_tot)
 
@@ -360,7 +338,8 @@ plot_violin3(clinic_tot_proc)
 ## PedsQL
 ```{r pedsql}
 # Extract items
-peds_files <- files[grepl("PedsQL", files)]
+block <- "PedsQL"
+peds_files <- files[grepl(block, files)]
 batch <- unique(sapply(peds_files, function(i) { i[5] }))
 max(gsub("batch(\\d)", "\\1", batch))
 peds_files <- peds_files[grepl("batch1", peds_files)]
@@ -368,6 +347,93 @@ ql <- unique(sapply(peds_files, function(i) { i[2] }))
 (ql <- sort(as.numeric(gsub("PedsQL(\\d+)", "\\1", ql))))
 years <- unique(sapply(peds_files, function(i) { i[3] }))
 (years <- sort(as.numeric(gsub("(\\d+)years", "\\1", years))))
+
+# Load data
+pql_blocks <- paste0(block, ql, "_", years, "years")
+pql <- lapply(pql_blocks, read_batches)
+# pql <- lapply(pql, function(i) lapply(i, function(j) clean_data(j, FALSE, FALSE)))
+names(pql) <- pql_blocks
+lapply(pql, function(i) sapply(i, dim))
+# pql1 <- lapply(pql, function(i) sapply(i, colnames))[[4]]; plot_venn(lapply(seq(ncol(pql1)), function(i) pql1[, i]))
+
+# Duplicate individuals between batches
+lapply(pql, function(i) get_intersection(lapply(i, function(i) as.data.frame(i[, 1])[, 1])))
+plot_venn(lapply(pql, function(i) colnames(i[[1]])))
+
+# Metada
+pql_codes <- lapply(pql_blocks, function(i) read_batches(i, "codes"))
+colnames(pql_codes[[1]][[3]])
+pql_names <- lapply(pql_codes, function(i) i[[3]]$item_name)
+plot_venn(pql_names)
+get_intersection(pql_names)
+get_difference(pql_names)
+
+# Select level variables
+level_vars <- lapply(pql_codes, function(i) (i[[1]] %>% filter(!str_detect(item_name, paste0(c("ImmunAID identifier", "Form completed on:"), collapse = "|"))))$column_code)
+level_ <- na.omit(sort(unique(unlist(mapply(function(x, y) select(x[[3]], all_of(y)), pql, level_vars)))))
+
+# group_code
+peds_regex <- "PedsQL(\\d{1,2})_(\\d{1,2})_"
+group_codes <- pql_codes[[4]][[3]]$group_code
+pql_groups <- unique(gsub(peds_regex, "", group_codes))
+pql_groups0 <- unique(gsub("V\\d_", "", pql_groups))
+sapply(pql_groups0, function(i) length(group_codes[str_detect(group_codes, i)]))
+
+# item codes
+pql_item_code <- lapply(pql_codes, function(i) gsub(peds_regex, "", i[[3]]$item_code))
+plot_venn(pql_item_code)
+# Compare item_name for each group_code between ages
+get_intersection(pql_item_code)
+# $`B:C:D` "SCHOOL_FUNCTIONING_4" "SCHOOL_FUNCTIONING_5"
+
+# TODO: Reduce
+pql_tot <- lapply(pql, function(i) Reduce(rbind, i))
+
+# Duplicates individuals
+get_dup_name(pql_tot[[3]])
+get_dup(pql_tot[[3]])
+
+for (i in seq_along(pql)) {
+    colnames(pql_tot[[i]]) <- pql_item_code[i][[1]]
+}
+
+i_cols <- which(str_detect(pql_item_code[1][[1]], "SCHOOL_FUNCTIONING_1"))
+# name_cols <- rep(paste0("SCHOOL_FUNCTIONING_", seq(2)), 2)
+# Add SCHOOL_FUNCTIONING_[45] in 24 25 48 49 with NA
+for (i in seq(2)) {
+    pql_tot[[1]] <- add_column(pql_tot[[1]], SCHOOL_FUNCTIONING_4 = NA, SCHOOL_FUNCTIONING_5 = NA, .before = i_cols[i])
+}
+colnames(pql_tot[[1]]) <- colnames(pql_tot[[4]])
+# Then add Date in 26 for i = {1, ,2, 3} with NA
+i_col <- which(str_detect(pql_item_code[4][[1]], "DATE"))[2]
+for (i in 2:3) {
+    pql_tot[[i]] <- add_column(pql_tot[[i]], DATE = NA, .before = i_col)
+}
+
+pql_tot <- Reduce(rbind, pql_tot)
+# sapply(as.data.frame(pql_tot)[, which(str_detect(pql_item_code[4][[1]], "SCHOOL_FUNCTIONING"))], unique)
+
+for (i in 0:4) {
+    pql_tot[pql_tot == level_[i + 1]] <- paste0(i)
+}
+
+pql_tot <- clean_data(pql_tot)
+```
+
+# SF36
+```{r}
+sf36 <- read_batches("SF36")
+sapply(sf36, dim)
+
+sf36_tot <- Reduce(rbind, sf36)
+
+sf36_code <- read_batches("SF36", "codes")
+
+# group_code
+group_codes <- sf36_code[[1]]$group_code
+sf36_groups <- unique(gsub("SF36_", "", group_codes))
+sf36_groups0 <- unique(gsub("(V\\d_)|(_2)", "", sf36_groups))
+sapply(sf36_groups0, function(i) length(group_codes[str_detect(group_codes, i)]))
 ```
 
 ## Session information

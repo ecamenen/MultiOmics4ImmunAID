@@ -5,11 +5,11 @@ plot_corr <- function(x, y, clean_name = TRUE) {
         x <- clean_names(x)
     }
     x <- as.data.frame(x)
-    M <- get_corr(x, TRUE)
-    p.mat <- get_corr(x)
+    mat <- get_corr(x, TRUE)
+    p_mat <- get_corr(x)
 
     corrplot(
-        M,
+        mat,
         # method="color",
         col = get_colors(),
         type = "upper",
@@ -20,7 +20,7 @@ plot_corr <- function(x, y, clean_name = TRUE) {
         tl.srt = 45,
         # Rotation des etiquettes de textes
         # Combiner avec le niveau de significativité
-        p.mat = p.mat,
+        p.mat = p_mat,
         sig.level = 0.01,
         addgrid.col = NA,
         insig = "blank",
@@ -63,14 +63,14 @@ theme_perso0 <- function(p, colors = get_colors()) {
 theme_violin0 <- function(p, colors = get_colors()) {
     theme_perso0(
         p +
-        xlab("") +
-        ylab("") +
-        facet_wrap(~name, scales = "free") +
-        guides(
-            color = "none",
-            fill = "none",
-            x = "none"
-        ),
+            xlab("") +
+            ylab("") +
+            facet_wrap(~name, scales = "free") +
+            guides(
+                color = "none",
+                fill = "none",
+                x = "none"
+            ),
         colors = colors
     )
 }
@@ -82,8 +82,10 @@ theme_violin <- function(
     cex_main = 12 * cex,
     cex_sub = 10 * cex) {
     theme_violin0(p, colors = colors) +
-        theme(axis.text.x = element_blank(),
-              axis.ticks.x = element_blank()) +
+        theme(
+            axis.text.x = element_blank(),
+            axis.ticks.x = element_blank()
+        ) +
         theme_perso(cex, cex_main, cex_sub)
 }
 
@@ -113,4 +115,14 @@ theme_histo <- function(
     cex_main = 12 * cex,
     cex_sub = 10 * cex) {
     theme_perso0(p + theme_perso(cex, cex_main, cex_sub), colors = colors)
+}
+
+#' @export
+plot_venn <- function(x) {
+    venn::venn(
+        x,
+        ilabels = TRUE,
+        zcolor = "style",
+        box = FALSE
+    )
 }

@@ -69,9 +69,9 @@ get_outliers <- function(
     y <- as.data.frame(x)[, y]
     # outliers <- boxplot(y)$out
     # percentiles: probs = c(0.025, 0.975)
-    Q <- quantile(y, probs = probs, na.rm = TRUE)
-    up <- Q[2]
-    low <- Q[1]
+    quant <- quantile(y, probs = probs, na.rm = TRUE)
+    up <- quant[2]
+    low <- quant[1]
     if (method == "iqr") {
         # interquartile range: 1.5 * IQR
         iqr <- IQR(y, na.rm = TRUE)

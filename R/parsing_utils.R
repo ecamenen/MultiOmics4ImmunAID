@@ -2,14 +2,28 @@
 clean_data <- function(
     x,
     clean_name = TRUE,
-    row_number = 1
+    clean_constant = TRUE,
+    clean_duplicates = TRUE
     ) {
     if (clean_name) {
         x <- clean_names(x)
     }
-    x %>%
-        remove_empty(c("rows", "cols"), quiet = FALSE) %>%
-        remove_constant(na.rm = TRUE, quiet = FALSE)
+    if (clean_constant) {
+        x <- remove_constant(x, na.rm = TRUE, quiet = FALSE)
+    }
+    if (clean_duplicates) {
+        res <- get_dup_name(x)
+        if (length(res) > 0) {
+            msg <- paste0(
+                "Deletion of duplicated lines with identifiers ",
+                paste(res, collapse = ", "),
+                "."
+            )
+            message(msg)
+        }
+        x <- distinct(x)
+    }
+    remove_empty(x, c("rows", "cols"), quiet = FALSE)
 }
 
 #' @export
@@ -50,9 +64,34 @@ getmelt0 <- function(x) {
         rename(name = variable)
 }
 
+get_intersection0 <- function(x) {
+    res <- gplots::venn(x)
+    attributes(res)$intersections
+}
+
 #' @export
 get_intersection <- function(x) {
-    res <- gplots::venn(x)
-    intersections <- attributes(res)$intersections
+    intersections <- get_intersection0(x)
     intersections[grepl(":", names(intersections))]
+}
+
+#' @export
+get_difference <- function(x) {
+    intersections <- get_intersection0(x)
+    intersections[!grepl(":", names(intersections))]
+}
+
+#' @export
+get_dup_bool <- function(x) {
+    duplicated(x[, 1])
+}
+
+#' @export
+get_dup_name <- function(x) {
+    as.data.frame(x)[get_dup_bool(x), 1]
+}
+
+#' @export
+get_dup <- function(x) {
+    filter(x, x[, 1] == get_dup_name(x))
 }
