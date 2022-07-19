@@ -430,38 +430,23 @@ sf36_code <- read_batches("SF36", "codes")
 sf36_tot[sf36_tot == "None of the Time"] <- "None of the time"
 
 # Levels
-level_cols <- (select(sf36_tot, all_of(get_codes_levels(sf36_code))))
-l <- plyr::ldply(sapply(level_cols, get_levels), rbind)
-l_level_cols <- distinct(l[, -1])
+l_level_cols <- parse_levels(sf36_tot, sf36_code)
 
-col_sim <- sapply(
-    seq(nrow(l_level_cols)),
-    function(j) {
-        l[
-            sapply(
-                seq(nrow(l)),
-                function(i) identical(c(l[i, -1]), c(l_level_cols[j, ]))
-            ),
-            1
-        ]
-    }
-)
-get_var_names(col_sim[[1]], sf36_code[[3]])
+cols_sim <- col_sim(sf36_tot, sf36_code)
+get_var_names(cols_sim[[3]], sf36_code[[3]])
 
 plot_venn(as.list(as.data.frame(t(l_level_cols))))
-unique(unlist(l_level_cols[c(8, 11:13), ]))
-unique(unlist(l_level_cols[c(3, 10), ]))
+get_levels0(l_level_cols, c(8, 11:13))
+get_levels0(l_level_cols, c(3, 10))
 
 l_level_cols[-c(3, 10, 8, 11:13), ]
 
 get_intersection(as.list(as.data.frame(t(l_level_cols[c(5:7), ]))))
-unique(unlist(l_level_cols[c(5:7), ]))
+get_levels0(l_level_cols, c(5:7))
 
 # group_code
 group_codes <- sf36_code[[1]]$group_code
-sf36_groups <- unique(gsub("SF36_", "", group_codes))
-sf36_groups0 <- unique(gsub("(V\\d_)|(_2)", "", sf36_groups))
-sapply(sf36_groups0, function(i) length(group_codes[str_detect(sf36_groups0, i)]))
+get_group_occ(group_codes, "SF36_")
 
 # Save
 colnames(sf36_tot) <- group_codes
@@ -478,14 +463,11 @@ haq_code <- read_batches("HAQ", "codes")
 
 # Levels
 l_level_cols <- parse_levels(haq_tot, haq_code)
-
 cols_sim <- col_sim(haq_tot, haq_code)
 get_var_names(cols_sim[[3]], haq_code[[3]])
 
-plot_venn(as.list(as.data.frame(t(l_level_cols))))
 i_rows <- c(1:2, 7, 10)
 # unlist(cols_sim[i_rows])
-
 level0 <- get_levels0(l_level_cols, i_rows) -> haq_levels
 # get_var_names(unlist(cols_sim[-i_rows]), haq_code[[3]])
 level1 <- get_levels0(l_level_cols, -i_rows)
@@ -495,7 +477,6 @@ get_table_occ(haq_tot, haq_code, i_rows)
 
 # group_code
 group_codes <- haq_code[[1]]$group_code
-
 get_group_occ(group_codes, "haq")
 
 for (i in (seq(level0) - 1)) {
