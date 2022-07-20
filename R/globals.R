@@ -1,5 +1,6 @@
 utils::globalVariables(
     c(
+        ".",
         "cex",
         "cex_main",
         "cex_sub",

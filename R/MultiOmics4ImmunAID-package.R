@@ -2,7 +2,7 @@
 #' @import ggstatsplot ggpubr grDevices lubridate naniar readr readxl
 #' @import reshape2 see VIM stringr tidyverse usethis venn viridis
 #' @importFrom magrittr %>%
-#' @importFrom plyr ldply
+#' @importFrom plyr ldply .
 #' @rawNamespace import(gplots, except = venn)
 #' @rawNamespace import(janitor, except = c(chisq.test, fisher.test))
 #' @rawNamespace import(skimr, except = n_complete)

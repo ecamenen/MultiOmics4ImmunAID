@@ -112,7 +112,7 @@ plot_bar(elisa)
 plot_histogram(elisa)
 # plot_boxplot(elisa)
 skim(elisa)
-# plot_violin(elisa)
+plot_violin(elisa)
 
 # str_squish
 
@@ -159,7 +159,6 @@ plot_prcomp(pca_df, nrow = 2, ncol = 2)
 date <- "20220512"
 clin_path <- file.path(path, "clinical", "20220501")
 files_raw <- list.files(clin_path)
-files_code <- files_raw[grepl("codes", files_raw)]
 files_export <- files_raw[grepl("export", files_raw)]
 files <- str_split(files_export, "_")
 (blocks <- unique(sapply(files, function(i) i[2])))
@@ -168,8 +167,6 @@ files <- str_split(files_export, "_")
 ## Clinical
 
 ```{r clinical}
-clin_export <- files_export[grepl("Clinical", files_export)]
-clin_code <- files_code[grepl("Clinical", files_code)]
 clinic <- read_batches()
 sapply(clinic, dim)
 
@@ -331,9 +328,9 @@ get_outliers(clinic_tot_proc, i)
 # get_outliers(clinic_tot_proc, j, probs = c(.025, .975), method = "percentiles")
 # get_outliers(clinic_tot_proc, j, , method = "hampel", c = 3)
 
-# plot_violin(clinic_tot_proc)
-# plot_violin2(clinic_tot_proc)
-# plot_violin3(clinic_tot_proc)
+plot_violin(clinic_tot_proc)
+plot_violin2(clinic_tot_proc)
+plot_violin3(clinic_tot_proc)
 ```
 
 ## PedsQL
@@ -424,10 +421,11 @@ use_data(pql, overwrite = TRUE)
 
 # SF36
 ```{r}
-sf36 <- read_batches("SF36")
+block <- blocks[10]
+sf36 <- read_batches(block)
 sapply(sf36, dim)
 sf36_tot <- Reduce(rbind, sf36)
-sf36_code <- read_batches("SF36", "codes")
+sf36_code <- read_batches(block, "codes")
 sf36_tot[sf36_tot == "None of the Time"] <- "None of the time"
 
 # Levels
@@ -457,10 +455,11 @@ use_data(sf36, overwrite = TRUE)
 
 # HAQ
 ```{r}
-haq <- read_batches("HAQ")
+block <- blocks[5]
+haq <- read_batches(block)
 sapply(haq, dim)
 haq_tot <- Reduce(rbind, haq)
-haq_code <- read_batches("HAQ", "codes")
+haq_code <- read_batches(block, "codes")
 
 # Pre-replacement
 keys <- c("Bathtub seat", "Bathtub bar", "Devices used for Dressing (button hook, zipper pull, etc.)", "dressing and grooming")
@@ -475,7 +474,7 @@ get_var_names(cols_sim[[3]], haq_code[[3]])
 i_rows <- c(1:2, 7, 10)
 # unlist(cols_sim[i_rows])
 haq_level0 <- reformat(l_level_cols[i_rows, ])
-# get_var_names(unlist(cols_sim[-i_rows]), haq_code[[3]])
+# get_level_name(cols_sim, haq_code[[3]])
 level1 <- reformat(l_level_cols[-i_rows, ])
 
 haq_level_tot <- parse_levels0(level1)
@@ -497,17 +496,18 @@ use_data(haq, overwrite = TRUE)
 
 # CHAQ
 ```{r}
-chaq <- read_batches("CHAQ")
+block <- blocks[2]
+chaq <- read_batches(block)
 sapply(chaq, dim)
 chaq_tot <- Reduce(rbind, chaq)
-chaq_code <- read_batches("CHAQ", "codes")
+chaq_code <- read_batches(block, "codes")
 
 # Replace
 na_vars <- c("Not applicable", "pas adapter à l'age", "NONE")
 for (i in na_vars) {
   chaq_tot[chaq_tot == i] <- NA
 }
-chaq_tot <- mutate_all(chaq_tot, funs(str_replace_all(., paste(na_vars, collapse = ", "), "")))
+chaq_tot <- mutate_all(chaq_tot, ~str_replace_all(., paste(na_vars, collapse = ", "), ""))
 
 # Levels
 l_level_cols <- parse_levels(chaq_tot, chaq_code)
@@ -517,7 +517,7 @@ get_var_names(cols_sim[[3]], chaq_code[[3]])
 i_rows <- detect_difficulty(l_level_cols)
 # unlist(cols_sim[i_rows])
 chaq_level0 <- reformat(l_level_cols[i_rows, ])[-1]
-# get_var_names(unlist(cols_sim[-i_rows]), chaq_code[[3]])
+# get_level_name(cols_sim, chaq_code[[3]])
 level1 <- reformat(l_level_cols[-i_rows, ])
 
 # str_detect(as.data.frame(chaq_code)[, 1], paste0(i_rows, collapse = "|"))
@@ -543,6 +543,40 @@ for (i in seq(chaq_level0)) {
 colnames(chaq_tot) <- group_codes
 chaq <- clean_data(chaq_tot)
 use_data(chaq, overwrite = TRUE)
+```
+
+# BEHCET
+```{r}
+block <- blocks[1]
+behcet <- read_batches(block)
+sapply(behcet, dim)
+behcet_tot <- Reduce(rbind, behcet)
+behcet_code <- read_batches(block, "codes")
+
+# Pre-replacement
+keys <- c("(no)|(not at all present)$", "(yes)|(for up to 4 weeks)$")
+values <- c("0", "1")
+behcet_tot <- replace_levels(behcet_tot, keys, values)
+
+# Levels
+l_level_cols <- parse_levels(behcet_tot, behcet_code)
+cols_sim <- col_sim(behcet_tot, behcet_code)
+get_level_name(cols_sim, behcet_code[[3]])
+
+i_rows <- detect_difficulty(l_level_cols, "face")
+# unlist(cols_sim[i_rows])
+behcet_level0 <- reformat(l_level_cols[i_rows, ])
+
+behcet_level_tot <- parse_levels0(behcet_level0)
+# get_table_occ(behcet_tot, behcet_code, .Machine$double.xmax)
+
+group_codes <- behcet_code[[1]]$group_code
+get_group_occ(group_codes, "behcet")
+
+# Save
+colnames(behcet_tot) <- group_codes
+behcet <- clean_data(behcet_tot)
+use_data(behcet, overwrite = TRUE)
 ```
 
 ## Session information

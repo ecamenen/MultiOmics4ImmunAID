@@ -26,17 +26,32 @@ clean_data <- function(
     remove_empty(x, c("rows", "cols"), quiet = FALSE)
 }
 
+get_name_num0 <- function(x) {
+    colnames(x)[
+        sapply(
+            colnames(x),
+            function(i) {
+                is.numeric(c(x[, i])[[1]])
+            }
+        )
+    ]
+}
+
 #' @export
 get_name_num <- function(x) {
     colnames(x)[
         sapply(
             colnames(x),
             function(i) {
-              suppressWarnings(
-                isTRUE(
-                  unique(!is.na(as.numeric(na.omit(c(x[, i])[[1]]))))
+                !isTRUE(
+                    c(x[, i])[[1]] %>%
+                        na.omit() %>%
+                        as.character() %>%
+                        as.numeric() %>%
+                        is.na() %>%
+                        unique() %>%
+                        suppressWarnings()
                 )
-              )
             }
         )
     ]
@@ -57,8 +72,8 @@ get_var_names <- function(x, y) {
 
 #' @export
 get_melt <- function(x) {
-    x %>%
-        select(all_of(get_name_num(x))) %>%
+    as.data.frame(x) %>%
+        select(all_of(get_name_num0(x))) %>%
         pivot_longer(everything())
 }
 
@@ -135,9 +150,17 @@ parse_levels0 <- function(x) {
 get_group_occ <- function(x, y = "haq") {
     haq_groups <- unique(gsub(paste(y, "_"), "", x))
     haq_groups0 <- unique(gsub("(V\\d_)|(_2)", "", haq_groups))
-    sapply(haq_groups0, function(i) {
-          length(x[str_detect(haq_groups0, i)])
-      })
+    sapply(
+        haq_groups0,
+        function(i) {
+            length(x[str_detect(x, i)])
+        }
+    )
+}
+
+#' @export
+get_level_name <- function(x, y) {
+    lapply(seq(x), function(i) get_var_names(x[[i]], y))
 }
 
 #' @export
@@ -164,8 +187,8 @@ col_sim <- function(x, y) {
                 sapply(
                     seq(nrow(l)),
                     function(i) {
-                          identical(c(l[i, -1]), c(l_level_cols[j, ]))
-                      }
+                        identical(c(l[i, -1]), c(l_level_cols[j, ]))
+                    }
                 ),
                 1
             ]
@@ -223,7 +246,10 @@ detect_difficulty <- function(x, pattern = "difficulty") {
 #' @export
 replace_levels <- function(x, keys, values) {
     for (i in seq_along(keys)) {
-        x <- mutate_all(x, funs(str_replace_all(., keys[i], values[i])))
+        x <- mutate_all(
+            x,
+            ~ str_replace_all(., regex(keys[i], ignore_case = TRUE), values[i])
+        )
     }
     return(x)
 }
