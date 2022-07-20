@@ -485,7 +485,7 @@ group_codes <- haq_code[[1]]$group_code
 get_group_occ(group_codes, "haq")
 
 for (i in (seq(haq_level0) - 1)) {
-  haq_tot[haq_tot == haq_level0[i + 1]] <- paste0(3 - i)
+    haq_tot[haq_tot == haq_level0[i + 1]] <- paste0(3 - i)
 }
 
 # Save
@@ -505,9 +505,9 @@ chaq_code <- read_batches(block, "codes")
 # Replace
 na_vars <- c("Not applicable", "pas adapter à l'age", "NONE")
 for (i in na_vars) {
-  chaq_tot[chaq_tot == i] <- NA
+    chaq_tot[chaq_tot == i] <- NA
 }
-chaq_tot <- mutate_all(chaq_tot, ~str_replace_all(., paste(na_vars, collapse = ", "), ""))
+chaq_tot <- mutate_all(chaq_tot, ~ str_replace_all(., paste(na_vars, collapse = ", "), ""))
 
 # Levels
 l_level_cols <- parse_levels(chaq_tot, chaq_code)
@@ -536,7 +536,7 @@ chaq_tot <- replace_levels(chaq_tot, keys, values)
 
 # Missing "UNABLE TO DO"
 for (i in seq(chaq_level0)) {
-  chaq_tot[chaq_tot == chaq_level0[i + 1]] <- paste0(4 - i)
+    chaq_tot[chaq_tot == chaq_level0[i + 1]] <- paste0(4 - i)
 }
 
 # Save
@@ -577,6 +577,48 @@ get_group_occ(group_codes, "behcet")
 colnames(behcet_tot) <- group_codes
 behcet <- clean_data(behcet_tot)
 use_data(behcet, overwrite = TRUE)
+```
+
+# DIET
+```{r}
+block <- blocks[4]
+diet <- read_batches(block)
+sapply(diet, dim)
+diet_tot <- Reduce(rbind, diet)
+diet_code <- read_batches(block, "codes")
+
+# Pre-replacement
+keys <- c("n/a", "N[AD]", "DM", "o", "xxx", "unknown", "[-\\/?]", "not done", "no[nt] applicable", "not specified", "Missing answer", "ne sais plus", "don't know", "not answered", "not checked by the patient", "not done")
+values <- rep("NA", length(keys))
+diet_tot <- replace_levels(diet_tot, paste0("^", keys, "$"), values)
+diet_tot[diet_tot == "NA"] <- NA
+
+# Levels
+l_level_cols <- parse_levels(diet_tot, diet_code)
+cols_sim <- col_sim(diet_tot, diet_code)
+# get_level_name(cols_sim, diet_code[[3]])
+
+i_rows <- detect_difficulty(l_level_cols, "l or less")
+get_level_name0(diet_tot, cols_sim, i_rows)
+diet_level0 <- reformat(l_level_cols[i_rows, ])
+j_rows <- detect_difficulty(l_level_cols, "g or less")
+diet_level1 <- reformat(l_level_cols[j_rows, ])
+k_rows <- detect_difficulty(l_level_cols, " day")
+diet_level2 <- reformat(l_level_cols[k_rows, ])
+l_rows <- rownames(l_level_cols)[-c(i_rows, j_rows, k_rows, 11)]
+diet_level3 <- unique(tolower(reformat(l_level_cols[l_rows, ])))
+cols_diet <- get_level_name0(diet_tot, cols_sim, l_rows)
+cols_diet %>% get_var_names(diet_code)
+diet_tot <- update_columns(diet_tot, cols_diet, tolower)
+
+# get_table_occ(diet_tot, diet_code, k_rows)
+
+group_codes <- diet_code[[1]]$group_code
+
+# Save
+colnames(diet_tot) <- group_codes
+diet <- clean_data(diet_tot)
+use_data(diet, overwrite = TRUE)
 ```
 
 ## Session information

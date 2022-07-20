@@ -43,7 +43,7 @@ get_name_num <- function(x) {
         sapply(
             colnames(x),
             function(i) {
-                !isTRUE(
+                !any(
                     c(x[, i])[[1]] %>%
                         na.omit() %>%
                         as.character() %>%
@@ -164,6 +164,12 @@ get_level_name <- function(x, y) {
 }
 
 #' @export
+get_level_name0 <- function(x, y, i_rows) {
+    select(x, all_of(unlist(y[as.numeric(i_rows)]))) %>%
+        colnames()
+}
+
+#' @export
 parse_levels <- function(x, y) {
     distinct(parse_levels1(x, y)[, -1])
 }
@@ -214,17 +220,6 @@ get_table_occ <- function(x, y, i_rows) {
                 }
             )
         }
-    )
-}
-
-
-detect_difficulty0 <- function(x, pattern = "difficulty") {
-    filter(
-        x,
-        if_any(
-            everything(),
-            ~ str_detect(., regex(pattern, ignore_case = TRUE))
-        )
     )
 }
 
