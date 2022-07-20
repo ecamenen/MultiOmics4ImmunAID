@@ -32,7 +32,11 @@ get_name_num <- function(x) {
         sapply(
             colnames(x),
             function(i) {
-                is.numeric(c(x[, i])[[1]])
+              suppressWarnings(
+                isTRUE(
+                  unique(!is.na(as.numeric(na.omit(c(x[, i])[[1]]))))
+                )
+              )
             }
         )
     ]
@@ -65,6 +69,7 @@ getmelt0 <- function(x) {
         rename(name = variable)
 }
 
+#' @export
 get_intersection0 <- function(x) {
     res <- gplots::venn(x)
     attributes(res)$intersections
@@ -113,15 +118,17 @@ get_levels <- function(x) {
 }
 
 #' @export
-get_levels0 <- function(x, y) {
-    unique(na.omit(unlist(x[y, ])))
+reformat <- function(x) {
+    unique(str_trim(na.omit(unlist(x))))
 }
 
 #' @export
 parse_levels0 <- function(x) {
     n <- str_count(x, pattern = ";") %>% max()
-    l <- as.data.frame(x) %>% separate(1, sep = ";", into = paste0("X", 1:(n + 1)))
-    sort(unique(str_trim(na.omit(unlist(l)))))
+    as.data.frame(x) %>%
+        separate(1, sep = ";", into = paste0("X", seq(n + 1))) %>%
+        reformat() %>%
+        sort()
 }
 
 #' @export
@@ -138,10 +145,12 @@ parse_levels <- function(x, y) {
     distinct(parse_levels1(x, y)[, -1])
 }
 
+#' @export
 parse_levels1 <- function(x, y) {
-    level_cols <- select(x, all_of(get_codes_levels(y))) %>%
+    level_cols <- x %>%
+        select(all_of(get_codes_levels(y, "Form completed on:"))) %>%
         select(-one_of(get_name_num(x)))
-    plyr::ldply(sapply(level_cols, get_levels), rbind)
+    ldply(sapply(level_cols, get_levels), rbind)
 }
 
 #' @export
@@ -167,7 +176,7 @@ col_sim <- function(x, y) {
 #' @export
 get_table_occ <- function(x, y, i_rows) {
     level_tot <- parse_levels0(
-        get_levels0(parse_levels(x, y), -i_rows)
+        parse_levels0(parse_levels(x, y)[-c(i_rows), ])
     )
     sapply(
         unlist(col_sim(x, y)[-i_rows]),
@@ -183,4 +192,38 @@ get_table_occ <- function(x, y, i_rows) {
             )
         }
     )
+}
+
+
+detect_difficulty0 <- function(x, pattern = "difficulty") {
+    filter(
+        x,
+        if_any(
+            everything(),
+            ~ str_detect(., regex(pattern, ignore_case = TRUE))
+        )
+    )
+}
+
+#' @export
+detect_difficulty <- function(x, pattern = "difficulty") {
+    which(
+        sapply(
+            seq(nrow(x)),
+            function(i) {
+                str_detect(
+                    paste(as.data.frame(x)[i, ], collapse = " "),
+                    regex(pattern, ignore_case = TRUE)
+                )
+            }
+        )
+    )
+}
+
+#' @export
+replace_levels <- function(x, keys, values) {
+    for (i in seq_along(keys)) {
+        x <- mutate_all(x, funs(str_replace_all(., keys[i], values[i])))
+    }
+    return(x)
 }

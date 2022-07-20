@@ -34,6 +34,7 @@ load_libraries(
         "see",
         "skimr",
         "tidyverse",
+        "usethis",
         "VIM"
     )
 )
@@ -111,7 +112,7 @@ plot_bar(elisa)
 plot_histogram(elisa)
 # plot_boxplot(elisa)
 skim(elisa)
-plot_violin(elisa)
+# plot_violin(elisa)
 
 # str_squish
 
@@ -330,9 +331,9 @@ get_outliers(clinic_tot_proc, i)
 # get_outliers(clinic_tot_proc, j, probs = c(.025, .975), method = "percentiles")
 # get_outliers(clinic_tot_proc, j, , method = "hampel", c = 3)
 
-plot_violin(clinic_tot_proc)
-plot_violin2(clinic_tot_proc)
-plot_violin3(clinic_tot_proc)
+# plot_violin(clinic_tot_proc)
+# plot_violin2(clinic_tot_proc)
+# plot_violin3(clinic_tot_proc)
 ```
 
 ## PedsQL
@@ -418,7 +419,7 @@ for (i in 0:4) {
 }
 
 pql <- clean_data(pql_tot)
-usethis::use_data(pql, overwrite = TRUE)
+use_data(pql, overwrite = TRUE)
 ```
 
 # SF36
@@ -436,13 +437,13 @@ cols_sim <- col_sim(sf36_tot, sf36_code)
 get_var_names(cols_sim[[3]], sf36_code[[3]])
 
 plot_venn(as.list(as.data.frame(t(l_level_cols))))
-get_levels0(l_level_cols, c(8, 11:13))
-get_levels0(l_level_cols, c(3, 10))
+reformat(l_level_cols[c(8, 11:13), ])
+reformat(l_level_cols[c(3, 10), ])
 
 l_level_cols[-c(3, 10, 8, 11:13), ]
 
 get_intersection(as.list(as.data.frame(t(l_level_cols[c(5:7), ]))))
-get_levels0(l_level_cols, c(5:7))
+reformat(l_level_cols[c(5:7), ])
 
 # group_code
 group_codes <- sf36_code[[1]]$group_code
@@ -451,7 +452,7 @@ get_group_occ(group_codes, "SF36_")
 # Save
 colnames(sf36_tot) <- group_codes
 sf36 <- clean_data(sf36_tot)
-usethis::use_data(sf36, overwrite = TRUE)
+use_data(sf36, overwrite = TRUE)
 ```
 
 # HAQ
@@ -461,6 +462,11 @@ sapply(haq, dim)
 haq_tot <- Reduce(rbind, haq)
 haq_code <- read_batches("HAQ", "codes")
 
+# Pre-replacement
+keys <- c("Bathtub seat", "Bathtub bar", "Devices used for Dressing (button hook, zipper pull, etc.)", "dressing and grooming")
+values <- c("Bath seat", "Bath rail", "Devices used for dressing", "Dressing")
+haq_tot <- replace_levels(haq_tot, keys, values)
+
 # Levels
 l_level_cols <- parse_levels(haq_tot, haq_code)
 cols_sim <- col_sim(haq_tot, haq_code)
@@ -468,25 +474,75 @@ get_var_names(cols_sim[[3]], haq_code[[3]])
 
 i_rows <- c(1:2, 7, 10)
 # unlist(cols_sim[i_rows])
-level0 <- get_levels0(l_level_cols, i_rows) -> haq_levels
+haq_level0 <- reformat(l_level_cols[i_rows, ])
 # get_var_names(unlist(cols_sim[-i_rows]), haq_code[[3]])
-level1 <- get_levels0(l_level_cols, -i_rows)
+level1 <- reformat(l_level_cols[-i_rows, ])
 
-level_tot <- parse_levels0(level1)
+haq_level_tot <- parse_levels0(level1)
 get_table_occ(haq_tot, haq_code, i_rows)
 
 # group_code
 group_codes <- haq_code[[1]]$group_code
 get_group_occ(group_codes, "haq")
 
-for (i in (seq(level0) - 1)) {
-  haq_tot[haq_tot == level0[i + 1]] <- paste0(3 - i)
+for (i in (seq(haq_level0) - 1)) {
+  haq_tot[haq_tot == haq_level0[i + 1]] <- paste0(3 - i)
 }
 
 # Save
 colnames(haq_tot) <- group_codes
 haq <- clean_data(haq_tot)
-usethis::use_data(haq, overwrite = TRUE)
+use_data(haq, overwrite = TRUE)
+```
+
+# CHAQ
+```{r}
+chaq <- read_batches("CHAQ")
+sapply(chaq, dim)
+chaq_tot <- Reduce(rbind, chaq)
+chaq_code <- read_batches("CHAQ", "codes")
+
+# Replace
+na_vars <- c("Not applicable", "pas adapter à l'age", "NONE")
+for (i in na_vars) {
+  chaq_tot[chaq_tot == i] <- NA
+}
+chaq_tot <- mutate_all(chaq_tot, funs(str_replace_all(., paste(na_vars, collapse = ", "), "")))
+
+# Levels
+l_level_cols <- parse_levels(chaq_tot, chaq_code)
+cols_sim <- col_sim(chaq_tot, chaq_code)
+get_var_names(cols_sim[[3]], chaq_code[[3]])
+
+i_rows <- detect_difficulty(l_level_cols)
+# unlist(cols_sim[i_rows])
+chaq_level0 <- reformat(l_level_cols[i_rows, ])[-1]
+# get_var_names(unlist(cols_sim[-i_rows]), chaq_code[[3]])
+level1 <- reformat(l_level_cols[-i_rows, ])
+
+# str_detect(as.data.frame(chaq_code)[, 1], paste0(i_rows, collapse = "|"))
+chaq_level_tot <- parse_levels0(level1)
+# get_table_occ(chaq_tot, chaq_code, i_rows)
+inter <- list(haq = haq_level_tot, chaq = chaq_level_tot)
+plot_venn(inter)
+(res <- get_intersection0(inter))
+
+group_codes <- chaq_code[[1]]$group_code
+get_group_occ(group_codes, "chaq")
+
+keys <- c("Devices used for dressing (button hook, zipper pull, long-handled shoe horn, etc.)", "Dressing and personal care")
+values <- c("Devices used for dressing", "Dressing")
+chaq_tot <- replace_levels(chaq_tot, keys, values)
+
+# Missing "UNABLE TO DO"
+for (i in seq(chaq_level0)) {
+  chaq_tot[chaq_tot == chaq_level0[i + 1]] <- paste0(4 - i)
+}
+
+# Save
+colnames(chaq_tot) <- group_codes
+chaq <- clean_data(chaq_tot)
+use_data(chaq, overwrite = TRUE)
 ```
 
 ## Session information
