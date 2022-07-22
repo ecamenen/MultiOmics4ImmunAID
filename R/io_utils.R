@@ -25,22 +25,23 @@ read_batches <- function(
         "20220501"
     )
 ) {
-    batches <- list()
-    for (i in seq(n_batch)) {
-        batches[[i]] <- read_tsv(file.path(
-            clin_path,
-            paste0(
-                "ImmunAID_",
-                k,
-                "_",
-                date,
-                "_batch",
-                i,
-                "_eCRF_",
-                export,
-                ".csv"
-            )
-        ))
-    }
-    return(batches)
+    lapply(
+        seq(n_batch),
+        function(i) {
+            read_tsv(file.path(
+                clin_path,
+                paste0(
+                    "ImmunAID_",
+                    k,
+                    "_",
+                    date,
+                    "_batch",
+                    i,
+                    "_eCRF_",
+                    export,
+                    ".csv"
+                )
+            ))
+        }
+    )
 }

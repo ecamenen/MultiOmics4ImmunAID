@@ -152,6 +152,93 @@ plot_prcomp(pca_df, nrow = 2, ncol = 2)
 # eda_report(elisa)
 ```
 
+## MS
+```{r ms}
+ms <- lapply(
+    seq(5),
+    function(i) {
+        b <- ifelse(i < 3, 1, 2)
+        read_delim(
+            file.path(
+                path,
+                "MS",
+                paste0("Batch", b),
+                "data",
+                paste0("log2_lfq_proteinGroups_S", i, ".csv")
+            ),
+            delim = ","
+        )
+    }
+)
+
+sapply(ms, dim)
+
+ms_codes <- lapply(
+    seq(2),
+    function(i) {
+        read_excel(
+            file.path(
+                path,
+                "MS",
+                paste0("Batch", i),
+                "Annotations",
+                "Samples_annotations.xlsx"
+            )
+        ) %>%
+            clean_names()
+    }
+)
+
+ms_codes_tot <- Reduce(rbind, ms_codes)
+ms_codes_tot <- update_columns(ms_codes_tot, c(3:4, 6), as.factor)
+summary(ms_codes_tot)
+
+# Check for patient intersection : None
+# get_intersection(lapply(ms, colnames))
+
+# Get a list of all the prot names
+list_prot_names <- lapply(ms, function(i) i$ProteinName) %>%
+    unlist() %>%
+    str_split(";") %>%
+    reformat() %>%
+    sort()
+
+# Get the intersection of the prot id
+plot_venn(
+    lapply(ms, function(i) i$MajorProteinIds),
+    snames = paste("Batch", seq(5))
+)
+
+# Combine batches
+ms_tot <- Reduce(full_join, ms)
+metadata <- get_intersection(lapply(ms, colnames))[[1]]
+# Reorder the columns
+ms_tot <- select(ms_tot, all_of(metadata), everything())
+
+# Join by samples
+ms_codes_tot$sample_barcode <- str_replace(ms_codes_tot$sample_barcode, "_", "-")
+# identical(colnames(ms_tot)[-seq(4)], ms_codes_tot$sample_barcode)
+
+ms_proc <- t(ms_tot) %>%
+    cbind(colnames(ms_tot), .) %>%
+    tibble()
+colnames(ms_proc[[1]]) <- c("MajorProteinIds", ms_tot$MajorProteinIds)
+
+ms <- ms_proc[[1]][-seq(4), ] %>%
+    cbind(ms_codes_tot) %>%
+    tibble() %>%
+    select(all_of(colnames(ms_codes_tot)), everything()) %>%
+    select(-MajorProteinIds) %>%
+    clean_data(FALSE) %>%
+    update_columns(4, dmy)
+
+ms_code <- ms_proc[[1]][seq(4), ] %>% tibble()
+
+use_data(ms, overwrite = TRUE)
+use_data(ms_code, overwrite = TRUE)
+```
+
+
 # Clinic
 
 ```{r clinic}
@@ -165,7 +252,6 @@ files <- str_split(files_export, "_")
 ```
 
 ## Clinical
-
 ```{r clinical}
 clinic <- read_batches()
 sapply(clinic, dim)
@@ -184,9 +270,11 @@ get_intersection(vars)
 
 # Common subject ID with ELISA
 vars_clin <- sort(as.numeric(unlist(vars)))
-vars_elisa <- sort(as.numeric(as.data.frame(elisa[, 2])[, 1]))
-vars_tot <- list(Clinic = vars_clin, ELISA = vars_elisa)
-vars_tot2 <- c(vars, list(ELISA = vars_elisa))
+vars_elisa <- get_patient_id(elisa)
+vars_ms <- get_patient_id(ms)
+vars_prot <- list(ELISA = vars_elisa, MS = vars_ms)
+vars_tot <- c(list(Clinic = vars_clin), vars_prot)
+vars_tot2 <- c(vars, vars_prot)
 plot_venn(vars_tot)
 # all included in clinic data
 plot_venn(vars_tot2)
@@ -419,7 +507,7 @@ pql <- clean_data(pql_tot)
 use_data(pql, overwrite = TRUE)
 ```
 
-# SF36
+## SF36
 ```{r}
 block <- blocks[10]
 sf36 <- read_batches(block)
@@ -453,7 +541,7 @@ sf36 <- clean_data(sf36_tot)
 use_data(sf36, overwrite = TRUE)
 ```
 
-# HAQ
+## HAQ
 ```{r}
 block <- blocks[5]
 haq <- read_batches(block)
@@ -494,7 +582,7 @@ haq <- clean_data(haq_tot)
 use_data(haq, overwrite = TRUE)
 ```
 
-# CHAQ
+## CHAQ
 ```{r}
 block <- blocks[2]
 chaq <- read_batches(block)
@@ -545,7 +633,7 @@ chaq <- clean_data(chaq_tot)
 use_data(chaq, overwrite = TRUE)
 ```
 
-# BEHCET
+## BEHCET
 ```{r}
 block <- blocks[1]
 behcet <- read_batches(block)
@@ -579,7 +667,7 @@ behcet <- clean_data(behcet_tot)
 use_data(behcet, overwrite = TRUE)
 ```
 
-# DIET
+## DIET
 ```{r}
 block <- blocks[4]
 diet <- read_batches(block)
@@ -621,7 +709,7 @@ diet <- clean_data(diet_tot)
 use_data(diet, overwrite = TRUE)
 ```
 
-## Session information
+# Session information
 ```{r end, echo = FALSE}
 sessionInfo()
 ```

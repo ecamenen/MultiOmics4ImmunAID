@@ -248,3 +248,8 @@ replace_levels <- function(x, keys, values) {
     }
     return(x)
 }
+
+#' @export
+get_patient_id <- function(x) {
+    sort(as.numeric(as.data.frame(x[, 2])[, 1]))
+}
