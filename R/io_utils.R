@@ -11,6 +11,17 @@ save_tiff <- function(f, filename = "violinplot_clin.tiff") {
     dev.off()
 }
 
+save_tsv <- function(x, filename = NULL, col_names = TRUE) {
+    if (is.null(filename)) {
+        filename <- substitute(x)
+    }
+    write_tsv(
+        as.data.frame(x),
+        file.path(golem::get_golem_wd(), filename),
+        col_names = col_names
+    )
+}
+
 #' @export
 read_batches <- function(
     k = "Clinical",

@@ -150,6 +150,9 @@ pca_df <- na.omit(elisa[, 4:5])
 plot_prcomp(pca_df, nrow = 2, ncol = 2)
 
 # eda_report(elisa)
+
+rownames(elisa) <- elisa$sample_barcode
+use_data(elisa, overwrite = TRUE)
 ```
 
 ## MS
@@ -158,15 +161,14 @@ ms <- lapply(
     seq(5),
     function(i) {
         b <- ifelse(i < 3, 1, 2)
-        read_delim(
+        read_csv(
             file.path(
                 path,
                 "MS",
                 paste0("Batch", b),
                 "data",
                 paste0("log2_lfq_proteinGroups_S", i, ".csv")
-            ),
-            delim = ","
+            )
         )
     }
 )
@@ -190,18 +192,12 @@ ms_codes <- lapply(
 )
 
 ms_codes_tot <- Reduce(rbind, ms_codes)
-ms_codes_tot <- update_columns(ms_codes_tot, c(3:4, 6), as.factor)
+ms_codes_tot <- update_columns(ms_codes_tot, c(3:4, 6), as.factor) %>%
+    update_columns(5, dmy)
 summary(ms_codes_tot)
 
 # Check for patient intersection : None
 # get_intersection(lapply(ms, colnames))
-
-# Get a list of all the prot names
-list_prot_names <- lapply(ms, function(i) i$ProteinName) %>%
-    unlist() %>%
-    str_split(";") %>%
-    reformat() %>%
-    sort()
 
 # Get the intersection of the prot id
 plot_venn(
@@ -215,32 +211,51 @@ metadata <- get_intersection(lapply(ms, colnames))[[1]]
 # Reorder the columns
 ms_tot <- select(ms_tot, all_of(metadata), everything())
 
+# Get a list of all the prot names
+list_prot_names <- str_split(ms_tot$ProteinName, ";") %>%
+    reformat()
+list_gene_names <- str_split(ms_tot$GeneName, ";") %>%
+    reformat()
+
 # Join by samples
 ms_codes_tot$sample_barcode <- str_replace(ms_codes_tot$sample_barcode, "_", "-")
 # identical(colnames(ms_tot)[-seq(4)], ms_codes_tot$sample_barcode)
 
-ms_proc <- t(ms_tot) %>%
-    cbind(colnames(ms_tot), .) %>%
-    tibble()
-colnames(ms_proc[[1]]) <- c("MajorProteinIds", ms_tot$MajorProteinIds)
-
-ms <- ms_proc[[1]][-seq(4), ] %>%
-    cbind(ms_codes_tot) %>%
-    tibble() %>%
-    select(all_of(colnames(ms_codes_tot)), everything()) %>%
-    select(-MajorProteinIds) %>%
+ms <- t(ms_tot) %>%
+    t2tibble() %>%
+    slice(-seq(4)) %>%
     clean_data(FALSE) %>%
-    update_columns(4, dmy)
+    update_columns(seq(ncol(.)), as.numeric)
+rownames(ms) <- ms_codes_tot$sample_barcode
+colnames(ms) <- ms_tot$MajorProteinIds
 
-ms_code <- ms_proc[[1]][seq(4), ] %>% tibble()
+ms_prot_code <- select(ms_tot, 2:4) %>%
+    update_columns(3, as.factor)
+rownames(ms_prot_code) <- ms_tot$MajorProteinIds
+
+ms_sample_code <- ms_codes_tot[, -1]
+rownames(ms_sample_code) <- ms_codes_tot$sample_barcode
 
 use_data(ms, overwrite = TRUE)
-use_data(ms_code, overwrite = TRUE)
+use_data(ms_prot_code, overwrite = TRUE)
+use_data(ms_sample_code, overwrite = TRUE)
 ```
 
+# Transcriptomics
+```{r}
+rna <- read_tsv(file.path(path, "processed_counts_matrix.tsv"))
+rna_t <- t(rna)[-1, ] %>%
+    t2tibble() %>%
+    clean_data(clean_name = FALSE, clean_duplicates = FALSE) %>%
+    update_columns(seq(ncol(.)), as.numeric)
+colnames(rna_t) <- rna$GeneName
+rownames(rna_t) <- colnames(rna)[-1]
+rna <- rna_t
+
+use_data(rna, overwrite = TRUE)
+```
 
 # Clinic
-
 ```{r clinic}
 # Extract items
 date <- "20220512"
@@ -270,14 +285,20 @@ get_intersection(vars)
 
 # Common subject ID with ELISA
 vars_clin <- sort(as.numeric(unlist(vars)))
-vars_elisa <- get_patient_id(elisa)
-vars_ms <- get_patient_id(ms)
-vars_prot <- list(ELISA = vars_elisa, MS = vars_ms)
-vars_tot <- c(list(Clinic = vars_clin), vars_prot)
-vars_tot2 <- c(vars, vars_prot)
-plot_venn(vars_tot)
+vars_ms <- list(MS = get_patient_id(ms))
+vars_prot <- c(list(ELISA = get_patient_id(elisa)), vars_ms)
+vars_rna <- list(RNA = get_patient_id(rna))
+vars_clin_rna <- c(list(Clinic = vars_clin), vars_rna)
+vars_tot <- c(vars_clin_rna, vars_prot)
+vars_tot2 <- c(vars, vars_rna, vars_prot)
+plot_venn(vars_prot)
+plot_venn(vars_clin_rna)
+plot_venn(c(vars_prot, vars_rna))
+plot_venn(vars_tot) # N = 30
+plot_venn(c(vars_ms, vars_clin_rna)) # N = 78 !
 # all included in clinic data
 plot_venn(vars_tot2)
+plot_venn(c(vars, vars_rna, vars_ms))
 # all from clinic batch 1
 get_intersection(vars_tot)
 

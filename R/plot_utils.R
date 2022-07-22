@@ -118,14 +118,15 @@ theme_histo <- function(
 }
 
 #' @export
-plot_venn <- function(x, snames = "") {
+plot_venn <- function(x, snames = "", ilcs = 2, sncs = 3, plotsize = 15) {
     venn::venn(
         x,
         ilabels = TRUE,
         zcolor = "style",
         box = FALSE,
-        ilcs = 1,
-        sncs = 1.5,
-        snames = snames
+        ilcs = ilcs,
+        sncs = sncs,
+        snames = snames,
+        plotsize = plotsize
     )
 }

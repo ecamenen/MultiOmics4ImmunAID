@@ -134,7 +134,7 @@ get_levels <- function(x) {
 
 #' @export
 reformat <- function(x) {
-    unique(str_trim(na.omit(unlist(x))))
+    sort(unique(str_trim(na.omit(unlist(x)))))
 }
 
 #' @export
@@ -251,5 +251,19 @@ replace_levels <- function(x, keys, values) {
 
 #' @export
 get_patient_id <- function(x) {
-    sort(as.numeric(as.data.frame(x[, 2])[, 1]))
+    str_replace(
+        rownames(x),
+        "(\\d{5})[:upper:]\\d{2}[:upper:]{2}\\d",
+        "\\1"
+    ) %>%
+        as.numeric() %>%
+        suppressWarnings() %>%
+        sort()
+}
+
+#' @export
+t2tibble <- function(x) {
+    tibble(x) %>%
+        update_columns(ncol(.), as.character)
+    # as.character to fix t bug
 }
