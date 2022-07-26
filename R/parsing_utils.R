@@ -12,16 +12,16 @@ clean_data <- function(
         x <- remove_constant(x, na.rm = TRUE, quiet = FALSE)
     }
     if (clean_duplicates) {
-        res <- get_dup_name(x)
-        if (length(res) > 0) {
+        res <- distinct(x)
+        if (nrow(res) < nrow(x)) {
             msg <- paste0(
-                "Deletion of duplicated lines with identifiers ",
-                paste(res, collapse = ", "),
+                "Deletion of duplicated lines",
+                # paste(row.names(x)[get_dup_bool(x)], collapse = ", "),
                 "."
             )
             message(msg)
         }
-        x <- distinct(x)
+        x <- res
     }
     remove_empty(x, c("rows", "cols"), quiet = FALSE)
 }
@@ -64,7 +64,7 @@ get_var_names <- function(x, y) {
         filter(
             str_detect(
                 y[, 1],
-                paste0(c(x), collapse = "|")
+                paste0("^", paste0(c(x), collapse = "|"), "$")
             )
         )
     )$item_name
@@ -123,7 +123,8 @@ get_codes_levels <- function(
     y = c("ImmunAID identifier", "Form completed on:")) {
     (filter(
         x[[1]],
-        !str_detect(item_name, paste0(y, collapse = "|")))
+        !str_detect(item_name, paste0(y, collapse = "|"))
+    )
     )$column_code
 }
 
@@ -140,7 +141,7 @@ reformat <- function(x) {
 #' @export
 parse_levels0 <- function(x) {
     n <- str_count(x, pattern = ";") %>% max()
-    as.data.frame(x) %>%
+    as.data.frame(x, drop = FALSE) %>%
         separate(1, sep = ";", into = paste0("X", seq(n + 1))) %>%
         reformat() %>%
         sort()
@@ -170,22 +171,23 @@ get_level_name0 <- function(x, y, i_rows) {
 }
 
 #' @export
-parse_levels <- function(x, y) {
-    distinct(parse_levels1(x, y)[, -1])
+parse_levels <- function(x, y, form = TRUE) {
+    distinct(parse_levels1(x, y, form = form)[, -1])
 }
 
 #' @export
-parse_levels1 <- function(x, y) {
-    level_cols <- x %>%
-        select(all_of(get_codes_levels(y, "Form completed on:"))) %>%
-        select(-one_of(get_name_num(x)))
+parse_levels1 <- function(x, y, form = TRUE) {
+    if (form) {
+        x <- select(x, all_of(get_codes_levels(y, "Form completed on:")))
+    }
+    level_cols <- select(x, -one_of(get_name_num(x)))
     ldply(sapply(level_cols, get_levels), rbind)
 }
 
 #' @export
-col_sim <- function(x, y) {
-    l <- parse_levels1(x, y)
-    l_level_cols <- parse_levels(x, y)
+col_sim <- function(x, y, form = TRUE) {
+    l <- parse_levels1(x, y, form = form)
+    l_level_cols <- parse_levels(x, y, form = form)
     sapply(
         seq(nrow(l_level_cols)),
         function(j) {
@@ -203,12 +205,11 @@ col_sim <- function(x, y) {
 }
 
 #' @export
-get_table_occ <- function(x, y, i_rows) {
-    level_tot <- parse_levels0(
-        parse_levels0(parse_levels(x, y)[-c(i_rows), ])
-    )
+get_table_occ <- function(x, y, i_rows, form = TRUE) {
+    res <- parse_levels(x, y, form = form)[-c(i_rows), ]
+    level_tot <- parse_levels0(res[!is.na(res)])
     sapply(
-        unlist(col_sim(x, y)[-i_rows]),
+        unlist(col_sim(x, y, form = form)[-i_rows]),
         function(i) {
             sapply(
                 level_tot,
@@ -230,7 +231,7 @@ detect_difficulty <- function(x, pattern = "difficulty") {
             seq(nrow(x)),
             function(i) {
                 str_detect(
-                    paste(as.data.frame(x)[i, ], collapse = " "),
+                    paste(as.data.frame(x)[i, ], collapse = "\t"),
                     regex(pattern, ignore_case = TRUE)
                 )
             }
@@ -266,4 +267,37 @@ t2tibble <- function(x) {
     tibble(x) %>%
         update_columns(ncol(.), as.character)
     # as.character to fix t bug
+}
+
+#' @export
+get_level_pattern <- function(levels, regex) {
+    i_rows <- detect_difficulty(levels, regex)
+    reformat(levels[i_rows, ])
+}
+
+#' @export
+get_table_occ0 <- function(x, y, levels, regex) {
+    get_table_occ(x, y, seq(nrow(levels))[-detect_difficulty(levels, regex)], FALSE)
+}
+
+#' @export
+complete_date <- function(x, sep = "/") {
+    r_y <- "((?:19|20)\\d{2})"
+    r_m <- "([01]\\d)"
+    r_d <- "(\\d{2})"
+    regex_date <- paste(r_d, r_m, r_y, sep = sep)
+    values0 <- sapply(2:0, function(x) paste(rep(paste0("01", sep), x), collapse = ""))
+    values <- sapply(seq(3), function(x) paste0("\\", seq(x), collapse = sep))
+    values <- mapply(paste0, values0, values)
+    keys <- NULL
+    res <- NULL
+    k <- c(r_y, r_m, r_d)
+    for (i in seq_along(k)) {
+        res <- c(k[i], res)
+        keys[i] <- paste0("^", paste(res, collapse = sep), "$")
+    }
+    for (i in seq_along(keys)) {
+        x <- str_replace_all(x, keys[i], values[i])
+    }
+    return(x)
 }

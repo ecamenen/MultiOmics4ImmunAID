@@ -74,7 +74,9 @@ plot_violin <- function(
         value,
         outlier.tagging = TRUE,
         results.subtitle = FALSE,
-        pairwise.comparisons = FALSE
+        pairwise.comparisons = FALSE,
+        centrality.point.args = list(size = 3, color = "red"),
+        outlier.color = "white"
     )
     theme_violin(
         p,
@@ -83,7 +85,6 @@ plot_violin <- function(
         cex_main = cex_main,
         cex_sub = cex_sub
     )
-    # theme(strip.background = element_blank(), strip.text.x = element_blank())
 }
 
 #' @export

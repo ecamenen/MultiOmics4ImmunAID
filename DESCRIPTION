@@ -19,6 +19,7 @@ BugReports:
 Depends: 
     R (>= 2.10)
 Imports:
+    correlation,
     corrplot,
     DataExplorer,
     dlookr,
@@ -36,6 +37,7 @@ Imports:
     plyr,
     readr,
     readxl,
+    RColorBrewer,
     reshape2,
     rstatix,
     see,

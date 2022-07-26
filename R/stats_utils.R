@@ -20,16 +20,10 @@ get_correlation <- function(x, threshold = 0.5, half = TRUE) {
 }
 
 #' @export
-get_corr <- function(x, pval = FALSE) {
+# n = 3; df = matrix(rep(c(runif(n), NA), 2), n +1, 2); get_corr(df)
+get_corr <- function(x, pval = FALSE, method = "pearson") {
     x <- as.data.frame(x)
-    vars <- colnames(x)[
-        sapply(
-            colnames(x),
-            function(i) {
-                is.numeric(x[, i])
-            }
-        )
-    ]
+    vars <- seq(ncol(x))
     sapply(
         vars,
         function(i) {
@@ -37,12 +31,18 @@ get_corr <- function(x, pval = FALSE) {
                 vars,
                 function(j) {
                     if (is.numeric(x[, i]) & is.numeric(x[, j])) {
-                        res <- cor.test(x[, i], x[, j])
-                        if (pval) {
-                            res$estimate
-                        } else {
-                            res$p.value
-                        }
+                        tryCatch(
+                            {
+                                res <- cor.test(x[, i], x[, j], method = method)
+                                if (pval) {
+                                    res$estimate
+                                } else {
+                                    res$p.value
+                                }
+                            },
+                            error = function(e) NA
+                        )
+                        # return(res)
                     } else {
                         NA
                     }
@@ -95,6 +95,35 @@ get_outliers <- function(
 
 get_not_normal <- function(x, p_value = 0.05) {
     normality(x) %>%
-        filter(p_value <= 0.01) %>%
+        filter(p_value <= p_value) %>%
         arrange(abs(p_value))
+}
+
+perc_autocorr <- function(x, threshold = 0.8) {
+    round(nrow(get_correlation(x, threshold)) / (ncol(x)^2 - ncol(x)), 2)
+}
+
+get_not_normal0 <- function(x, threshold = 0.05) {
+    sapply(
+        x, function(i)
+        tryCatch(
+            shapiro_test(as.data.frame(i)[[1]])$p.value < threshold,
+            error = function(e) NA
+        ))
+}
+
+percent_not_normal <- function(x, threshold = 0.05) {
+    round(length(which(get_not_normal0(x, threshold))) / ncol(x) * 100, 2)
+}
+
+
+get_corr0 <- function(x, p = NULL) {
+    r <- get_corr(x, TRUE)
+    r[r == NA] <- 0
+    colnames(r) <- colnames(x) -> row.names(r)
+    if (!is.null(p)) {
+        p <- get_corr(x)
+        p[p == NA] <- 1
+    }
+    list(r, p)
 }

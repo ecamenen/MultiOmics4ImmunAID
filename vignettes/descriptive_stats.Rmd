@@ -28,6 +28,7 @@ load_libraries(
         "lubridate",
         "magrittr",
         "naniar",
+        "RColorBrewer",
         "rstatix",
         "readxl",
         "reshape2",
@@ -202,7 +203,7 @@ summary(ms_codes_tot)
 # Get the intersection of the prot id
 plot_venn(
     lapply(ms, function(i) i$MajorProteinIds),
-    snames = paste("Batch", seq(5))
+    snames = paste("", seq(5))
 )
 
 # Combine batches
@@ -239,6 +240,12 @@ rownames(ms_sample_code) <- ms_codes_tot$sample_barcode
 use_data(ms, overwrite = TRUE)
 use_data(ms_prot_code, overwrite = TRUE)
 use_data(ms_sample_code, overwrite = TRUE)
+
+get_correlation(ms, 0.9999)
+# diagnose_outlier(ms) %>% filter(outliers_ratio > 0) %>% arrange(desc(outliers_ratio)) %>% select(-c(2, 4))
+ms2 <- ms
+colnames(ms2) <- seq(ncol(ms2))
+# vis_miss(ms2)
 ```
 
 # Transcriptomics
@@ -246,7 +253,7 @@ use_data(ms_sample_code, overwrite = TRUE)
 rna <- read_tsv(file.path(path, "processed_counts_matrix.tsv"))
 rna_t <- t(rna)[-1, ] %>%
     t2tibble() %>%
-    clean_data(clean_name = FALSE, clean_duplicates = FALSE) %>%
+    clean_data(clean_name = FALSE) %>%
     update_columns(seq(ncol(.)), as.numeric)
 colnames(rna_t) <- rna$GeneName
 rownames(rna_t) <- colnames(rna)[-1]
@@ -270,17 +277,22 @@ files <- str_split(files_export, "_")
 ```{r clinical}
 clinic <- read_batches()
 sapply(clinic, dim)
-
 clinic_tot <- Reduce(rbind, clinic)
-
+clinic_tot <- clean_data(clinic_tot, FALSE)
 clinic_code <- read_batches(, "codes")
+
+# Descriptive plots
+diagnose_category(clinic_tot[, "C_2649_3888"], top = 100) %>%
+    select(-c(N, rank, variables)) %>%
+    rename(N = freq)
+ggpiestats(clinic_tot, "C_2649_3888", ggtheme = theme_classic(base_size = 22), theme_config = theme_perso())
+plot_bar(clinic_tot[, "C_2643_3798"], ggtheme = theme_classic(), theme_config = theme_perso())
 
 # Common subject ID between batches
 vars <- lapply(clinic, function(i) as.numeric(as.data.frame(i[, 2])[, 1]))
 # vars <- lapply(clinic_code, function(i) as.data.frame(i[, 1])[, 1])
 names(vars) <- seq(3)
 plot_venn(vars)
-
 get_intersection(vars)
 
 # Common subject ID with ELISA
@@ -303,29 +315,87 @@ plot_venn(c(vars, vars_rna, vars_ms))
 get_intersection(vars_tot)
 
 # Missing data
+# find_na(clinic_tot)
 # set_missing
-clinic_tot <- clean_data(clinic_tot, FALSE)
-find_na(clinic_tot)
+clinic_tot_proc <- best_na_percent(clinic_tot, 50)
 
-clinic_tot_proc <- best_na_percent(clinic_tot, 3)
 plot_missing(
     clinic_tot_proc,
     geom_label_args = list(
         label.size = NA,
         label.padding = unit(0, "lines"),
         size = 3
-    )
+    ),
+    group = list("25%" = 0.25, "50%" = 0.50, "75%" = 0.75, "100%" = 1)
 )
 
-gg_miss_var(clinic_tot)
+gg_miss_var(clinic_tot, show_pct = TRUE) + theme_classic() + theme_perso()
 vis_miss(clinic_tot_proc)
+
 clinic_code_proc <- clean_data(clinic_code[[1]])
 # vis_miss(clinic_code_proc)
 # vis_miss(best_na_percent(clinic_tot_proc, 0))
-res <- summary(aggr(clinic_tot, sortVar = TRUE))$combinations
-# impute_na(elisa)
+# Imputation
+# res <- summary(aggr(clinic_tot, sortVar = TRUE))$combinations
+
+# Convert some modalities into NA
+var_na <- c("Unknown", "Not applicable", "Unreported (not tested or unknown)", "Not performed")
+for (i in var_na) {
+    clinic_tot_proc[clinic_tot_proc == i] <- NA
+}
+
+# Numeric
+var_num <- get_name_num(clinic_tot_proc)
+clinic_tot_proc <- update_columns(clinic_tot_proc, all_of(var_num), as.numeric)
+
+diagnose_numeric(clinic_tot_proc)
+
+# plot_violin(clinic_tot_proc, colors = rep("blue", 250))
+# plot_violin2(clinic_tot_proc, colors = rep("black", 250))
+# plot_violin3(clinic_tot_proc, colors = rep("black", 250))
+
+# Date
+var_dates <- c("C_2643_3800", "C_2643_3801", "C_2643_3802", "C_2648_3886", "C_2648_3887", "C_2728_4054_1", "C_2729_4054_1", "C_2745_4178_1", "C_2745_4178_2")
+
+clinic_tot_proc <- update_columns(clinic_tot_proc, var_dates, complete_date)
+clinic_tot_proc <- update_columns(clinic_tot_proc, var_dates, dmy)
+for (i in var_dates) {
+    qplot(as.data.frame(clinic_tot_proc[, i])[, 1])
+}
+
+clin_proc_year <- update_columns(clinic_tot_proc, var_dates, function(i) year(round_date(i, "year")))
+plot_histogram(clin_proc_year)
+
+for (i in var_dates) {
+    y <- as.data.frame(as.character(as.data.frame(clin_proc_year[, i])[, 1]))
+    diagnose_category(y, top = 100) %>% arrange(freq)
+}
+
+# Age in decades
+decade <- as.data.frame(as.character(as.data.frame(clin_proc_year[, "C_2643_3800"] - clin_proc_year[, "C_2643_3800"] %% 10)[, 1]))
+diagnose_category(decade, top = 100) %>%
+    arrange(levels) %>%
+    select(-variables)
+qplot(decade[, 1])
+qplot(as.character(2020 - as.numeric(decade[, 1])))
 
 # Categorical variables
+clin_categorial <- select(clinic_tot_proc, -all_of(c(var_dates)))
+clin_categorial <- update_columns(clin_categorial, "C_2643_3798", as.character)
+l_level_cols <- parse_levels(clin_categorial, clinic_code, FALSE)
+cols_sim <- col_sim(clin_categorial, clinic_code, FALSE)
+
+regexes <- c("france", "AP-HP", "Mother", "control", "aspirin", "negative\t", "asian", "non african", "partial\t", "response", "flare", "male", "mild", "localized", "months")
+i_rows <- lapply(regexes, function(i) detect_difficulty(l_level_cols, i))
+j_rows <- seq(nrow(l_level_cols))[-unlist(i_rows)]
+tot_rows <- c(i_rows, list(j_rows))
+l_levels <- lapply(tot_rows, function(i) reformat(l_level_cols[i, ]))
+lapply(tot_rows, function(i) unlist(get_level_name(cols_sim, clinic_code[[3]])[i]))
+get_table_occ(clin_categorial, clinic_code, seq(nrow(l_level_cols))[-j_rows], FALSE)
+
+var_categorial <- unlist(cols_sim)
+clinic_tot_proc <- update_columns(clinic_tot_proc, var_categorial, as.factor)
+
 # group_name
 # The top bottom by frequency
 diagnose_category(
@@ -350,6 +420,7 @@ clinic_code_proc[, "group_name", drop = FALSE] %>%
 plot_bar(clinic_tot_proc)
 # Create country variable
 clinic_tot_proc %>%
+    update_columns("C_2643_3797", as.character) %>%
     mutate(
         country = case_when(
             str_detect(C_2643_3797, "Paris|Bordeaux|Nantes|Lyon|Lille|Strasbourg") ~ "France",
@@ -367,7 +438,7 @@ clinic_tot_proc %>%
         )
     ) %>%
     select(country) %>%
-    plot_bar()
+    plot_bar(ggtheme = theme_classic(), theme_config = theme_perso())
 
 # By French centers
 clinic_tot_proc %>%
@@ -393,33 +464,8 @@ clinic_tot_proc %>%
 
 # %>% diagnose_category()
 
-# Date
-var_dates <- c("C_2643_3800", "C_2643_3801", "C_2643_3802")
-clinic_tot_proc <- update_columns(clinic_tot_proc, var_dates[1], my)
-clinic_tot_proc <- update_columns(clinic_tot_proc, var_dates[-1], dmy)
-for (i in var_dates) {
-    qplot(as.data.frame(clinic_tot_proc[, i])[, 1])
-}
-
-clin_proc_year <- update_columns(clinic_tot_proc, var_dates, function(i) year(round_date(i, "year")))
-plot_histogram(clin_proc_year)
-
-for (i in var_dates) {
-    y <- as.data.frame(as.character(as.data.frame(clin_proc_year[, i])[, 1]))
-    diagnose_category(y, top = 100) %>% arrange(freq)
-}
-
-# Age in decades
-decade <- as.data.frame(as.character(as.data.frame(clin_proc_year[, "C_2643_3800"] - clin_proc_year[, "C_2643_3800"] %% 10)[, 1]))
-diagnose_category(decade, top = 100) %>%
-    arrange(levels) %>%
-    select(-variables)
-qplot(decade[, 1])
-qplot(as.character(2020 - as.numeric(decade[, 1])))
-
 # Correlation
-# plot_correlate(clinic_tot_proc)
-(p <- plot_corr(clinic_tot_proc, stats))
+# (p <- select(clinic_tot_proc, all_of(var_num)) %>% plot_corr0(p_adjust = "BH"))
 # save_tiff(p)
 
 plot_corr(clinic_tot_proc, stats)
@@ -437,9 +483,16 @@ get_outliers(clinic_tot_proc, i)
 # get_outliers(clinic_tot_proc, j, probs = c(.025, .975), method = "percentiles")
 # get_outliers(clinic_tot_proc, j, , method = "hampel", c = 3)
 
-plot_violin(clinic_tot_proc)
-plot_violin2(clinic_tot_proc)
-plot_violin3(clinic_tot_proc)
+clinic_tot_proc <- rename_with(
+  clinic_tot_proc,
+  ~ str_sub(.x, 1, 20)
+)
+colnames(clinic_tot_proc) <- get_var_names(colnames(clinic_tot_proc), clinic_code[[1]])
+clinic <- tibble(clinic_tot_proc, .name_repair = vctrs::vec_as_names)
+row.names(clinic) <- clinic_tot_proc$immun_aid_identifier
+
+clinic <- clinic_tot_proc
+use_data(clinic, overwrite = TRUE)
 ```
 
 ## PedsQL
@@ -525,6 +578,7 @@ for (i in 0:4) {
 }
 
 pql <- clean_data(pql_tot)
+rownames(pql) <- as.data.frame(pql[, 1])[[1]]
 use_data(pql, overwrite = TRUE)
 ```
 

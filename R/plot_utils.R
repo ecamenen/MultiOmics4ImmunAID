@@ -1,31 +1,40 @@
 #' @export
-plot_corr <- function(x, y, clean_name = TRUE) {
+plot_corr <- function(x, y, clean_name = TRUE, mat = NULL, p_mat = NULL, col = brewer.pal(n = 7, name = "RdBu")) {
     if (clean_name) {
         colnames(x) <- get_var_names(colnames(x), y)
         x <- clean_names(x)
     }
     x <- as.data.frame(x)
-    mat <- get_corr(x, TRUE)
-    p_mat <- get_corr(x)
+    if (is.null(mat)) {
+        mat <- get_corr(x, TRUE)
+    }
+    if (is.null(p_mat)) {
+        p_mat <- get_corr(x)
+    }
 
     corrplot(
         mat,
         # method="color",
-        col = get_colors(),
+        col = col,
         type = "upper",
-        order = "hclust",
-        addCoef.col = "black",
+        order = "original",
+        # addCoef.col = "black",
         # Ajout du coefficient de corrélation
         tl.col = "black",
         tl.srt = 45,
+        tl.cex = .5,
         # Rotation des etiquettes de textes
         # Combiner avec le niveau de significativité
         p.mat = p_mat,
         sig.level = 0.01,
         addgrid.col = NA,
-        insig = "blank",
+        insig = "pch",
+        pch = 4,
+        pch.cex = 2,
+        pch.col = "white",
         # Cacher les coefficients de corrélation sur la diagonale
-        diag = FALSE
+        diag = FALSE,
+        na.label = " "
     )
 }
 
@@ -89,6 +98,7 @@ theme_violin <- function(
         theme_perso(cex, cex_main, cex_sub)
 }
 
+#' @export
 theme_perso <- function(
     cex = 1,
     cex_main = 12 * cex,
@@ -128,5 +138,39 @@ plot_venn <- function(x, snames = "", ilcs = 2, sncs = 3, plotsize = 15) {
         sncs = sncs,
         snames = snames,
         plotsize = plotsize
+    )
+}
+
+#' @export
+plot_qq0 <- function(
+    x,
+    ggtheme = theme_classic(),
+    geom_qq_args = list(color = "blue"),
+    geom_qq_line_args = list(color = "red"),
+    theme_config = theme_perso(),
+    nrow = 3,
+    ncol = 3
+) {
+    plot_qq(
+        x,
+        ggtheme = ggtheme,
+        geom_qq_args = geom_qq_args,
+        geom_qq_line_args = geom_qq_line_args,
+        theme_config = theme_config,
+        nrow = nrow,
+        ncol = ncol
+    )
+}
+
+
+plot_corr0 <- function(x, n = ncol(x), cols = c("black", brewer.pal(n = 7, name = "RdBu"), "#000000"), method = "pearson", p_adjust = "holm") {
+    res <- correlation(x[, seq(n)], method = method, p_adjust = p_adjust)
+    plot_corr(
+        x[, seq(n)],
+        NULL,
+        FALSE,
+        as.matrix(select(res, matches("^parameter|^r"))),
+        as.matrix(select(res, matches("^parameter|^p"))),
+        col = cols
     )
 }

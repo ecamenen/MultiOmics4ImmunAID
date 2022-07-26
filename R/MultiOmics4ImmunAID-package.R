@@ -1,6 +1,6 @@
-#' @import corrplot DataExplorer dlookr dplyr ggplot2 golem
+#' @import correlation corrplot DataExplorer dlookr dplyr ggplot2 golem
 #' @import ggstatsplot ggpubr grDevices lubridate naniar readr readxl
-#' @import reshape2 see VIM stringr tidyverse usethis venn viridis
+#' @import RColorBrewer reshape2 see VIM stringr tidyverse usethis venn viridis
 #' @importFrom magrittr %>%
 #' @importFrom plyr ldply .
 #' @rawNamespace import(gplots, except = venn)
