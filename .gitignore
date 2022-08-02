@@ -5,5 +5,13 @@
 .Rproj.user
 .idea/
 *.tar.gz
+*.temp
 inst/doc
 inst/extdata/
+Meta
+.local/
+.config/
+/doc/
+/Meta/
+.cache/
+*.~lock.*

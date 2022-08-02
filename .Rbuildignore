@@ -6,3 +6,10 @@
 ^.*\.tar\.gz$
 ^\.github$
 ^.*extdata/
+^Dockerfile$
+^\.dockerignore$
+^doc$
+^Meta$
+^.local$
+^.config$
+^.cache$

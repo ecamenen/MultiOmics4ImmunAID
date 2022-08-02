@@ -11,6 +11,7 @@ use_test()
 use_tidy_description()
 style_pkg(
     transformers = tidyverse_style(indent_by = 4),
+    filetype = c("R", "Rprofile", "Rmd"),
     exclude_files = c(
         "R/app_config.R",
         "R/run_app.R",
@@ -20,10 +21,11 @@ style_pkg(
 lintr::lint_package()
 
 document()
-build(path = ".")
+# build(path = ".")#, vignettes = FALSE)
+install(upgrade = "never", build_vignettes = FALSE)
 install(upgrade = "never")
 build_vignettes()
-build_readme()
+# build_readme()
 check(args = c("--as-cran"))
 BiocCheck::BiocCheck(paste0(get_golem_name(), "_", get_golem_version(), ".tar.gz"))
 
