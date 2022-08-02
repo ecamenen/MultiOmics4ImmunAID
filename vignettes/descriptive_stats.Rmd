@@ -143,7 +143,7 @@ plot_outlier(elisa, typographic = FALSE)
 elisa_w_out <- elisa
 for (i in find_outliers(elisa)) {
     var <- colnames(elisa)[i]
-    elisa_w_out[var] <- imputate_outlier(elisa, var, method = "mean")
+    elisa_w_out[var] <- imputate_outlier(elisa, all_of(var), method = "mean")
 }
 
 # PCA
@@ -152,7 +152,7 @@ plot_prcomp(pca_df, nrow = 2, ncol = 2)
 
 # eda_report(elisa)
 
-rownames(elisa) <- elisa$sample_barcode
+elisa <- finalise_data(elisa)
 use_data(elisa, overwrite = TRUE)
 ```
 
@@ -246,6 +246,9 @@ get_correlation(ms, 0.9999)
 ms2 <- ms
 colnames(ms2) <- seq(ncol(ms2))
 # vis_miss(ms2)
+
+qc <- rownames(ms)[str_detect(rownames(ms), "QC")]
+length(qc)
 ```
 
 # Transcriptomics
@@ -259,6 +262,11 @@ colnames(rna_t) <- rna$GeneName
 rownames(rna_t) <- colnames(rna)[-1]
 rna <- rna_t
 
+# Number of visit A or B
+sapply(
+    c("A", "B"),
+    function(x) length_detect_row(rna, x)
+)
 use_data(rna, overwrite = TRUE)
 ```
 
@@ -284,7 +292,7 @@ clinic_code <- read_batches(, "codes")
 # Descriptive plots
 diagnose_category(clinic_tot[, "C_2649_3888"], top = 100) %>%
     select(-c(N, rank, variables)) %>%
-    rename(N = freq)
+    dplyr::rename(N = freq)
 ggpiestats(clinic_tot, "C_2649_3888", ggtheme = theme_classic(base_size = 22), theme_config = theme_perso())
 plot_bar(clinic_tot[, "C_2643_3798"], ggtheme = theme_classic(), theme_config = theme_perso())
 
@@ -294,6 +302,10 @@ vars <- lapply(clinic, function(i) as.numeric(as.data.frame(i[, 2])[, 1]))
 names(vars) <- seq(3)
 plot_venn(vars)
 get_intersection(vars)
+# Duplicates are identical ? TRUE
+identical(as.data.frame(t(clinic[[1]][23, ])), as.data.frame(t(clinic[[2]][37, ])))
+# QC from MS is in clinical ? Nope.
+which(str_detect(rownames(clinic), "7174"))
 
 # Common subject ID with ELISA
 vars_clin <- sort(as.numeric(unlist(vars)))
@@ -315,6 +327,11 @@ plot_venn(c(vars, vars_rna, vars_ms))
 get_intersection(vars_tot)
 
 # Missing data
+# Convert some modalities into NA
+var_na <- c("Unknown", "Not applicable", "Unreported (not tested or unknown)", "Not performed")
+for (i in var_na) {
+    clinic_tot[clinic_tot == i] <- NA
+}
 # find_na(clinic_tot)
 # set_missing
 clinic_tot_proc <- best_na_percent(clinic_tot, 50)
@@ -337,12 +354,6 @@ clinic_code_proc <- clean_data(clinic_code[[1]])
 # vis_miss(best_na_percent(clinic_tot_proc, 0))
 # Imputation
 # res <- summary(aggr(clinic_tot, sortVar = TRUE))$combinations
-
-# Convert some modalities into NA
-var_na <- c("Unknown", "Not applicable", "Unreported (not tested or unknown)", "Not performed")
-for (i in var_na) {
-    clinic_tot_proc[clinic_tot_proc == i] <- NA
-}
 
 # Numeric
 var_num <- get_name_num(clinic_tot_proc)
@@ -473,6 +484,8 @@ ggcorrmat(clinic_tot_proc)
 
 # Stats / outliers
 var_num <- get_name_num(clinic_tot_proc)
+# slice(clinic, which(clinic$bmi_automatic > 100)) %>%
+#   select ("weight_kg", "height_cm", "bmi_automatic", "age_at_inclusion_tim")
 
 col_outliers <- explore_outliers(clinic_tot_proc)
 i <- col_outliers[1] # "C_2643_3804"
@@ -483,16 +496,31 @@ get_outliers(clinic_tot_proc, i)
 # get_outliers(clinic_tot_proc, j, probs = c(.025, .975), method = "percentiles")
 # get_outliers(clinic_tot_proc, j, , method = "hampel", c = 3)
 
-clinic_tot_proc <- rename_with(
-  clinic_tot_proc,
-  ~ str_sub(.x, 1, 20)
-)
-colnames(clinic_tot_proc) <- get_var_names(colnames(clinic_tot_proc), clinic_code[[1]])
-clinic <- tibble(clinic_tot_proc, .name_repair = vctrs::vec_as_names)
-row.names(clinic) <- clinic_tot_proc$immun_aid_identifier
-
-clinic <- clinic_tot_proc
+colnames(clinic_tot_proc) <- get_var_names(
+    colnames(clinic_tot_proc),
+    clinic_code[[1]]
+) %>%
+    str_sub(1, 20)
+clinic <- finalise_data(clinic_tot_proc, row_name = 2)
 use_data(clinic, overwrite = TRUE)
+```
+## Clinical0
+```{r}
+clinic0 <- read_tsv(file.path(path, "CleanBiologicalValues.tsv"))
+clinic0 <- arrange(clinic0, ID) %>%
+    clean_names()
+colnames(clinic0) <- str_sub(colnames(clinic0), 1, 20)
+clinic <- arrange(clinic, immun_aid_identifier)
+# identical(clinic0$ID, clinic$immun_aid_identifier)
+clinic0 <- select(clinic0, -c(batch, days_from_inclusion, date_of_biological_a)) %>% select(-all_of(colnames(clinic0)[c(18:20, 22, 25, 29, 48:56)]))
+# ,saa_serum_amyloid_a
+clinic1 <- select(clinic, all_of(c("immun_aid_identifier", "disease", "age_at_inclusion_tim", "gender", "type", colnames(clinic)[85:118][-13])))
+colnames(clinic0) <- str_sub(colnames(clinic0), 1, 18)
+colnames(clinic1)[c(1, 3:4)] <- c("id", "age", "sex")
+colnames(clinic1) <- str_sub(colnames(clinic1), 1, 18)
+get_intersection0(list(A = colnames(clinic1), B = colnames(clinic0)))
+clinic0[clinic0 == "Not performed"] <- NA
+# i_rows <- which(!mapply(identical, as.numeric(clinic0$urea_mmol_l), as.numeric(clinic1$urea_mmol_l)))
 ```
 
 ## PedsQL
@@ -577,9 +605,8 @@ for (i in 0:4) {
     pql_tot[pql_tot == level_[i + 1]] <- paste0(i)
 }
 
-pql <- clean_data(pql_tot)
-rownames(pql) <- as.data.frame(pql[, 1])[[1]]
-use_data(pql, overwrite = TRUE)
+pedsql <- finalise_data(pql_tot)
+use_data(pedsql, overwrite = TRUE)
 ```
 
 ## SF36
@@ -611,8 +638,7 @@ group_codes <- sf36_code[[1]]$group_code
 get_group_occ(group_codes, "SF36_")
 
 # Save
-colnames(sf36_tot) <- group_codes
-sf36 <- clean_data(sf36_tot)
+sf36 <- finalise_data(sf36_tot, group_codes)
 use_data(sf36, overwrite = TRUE)
 ```
 
@@ -652,8 +678,7 @@ for (i in (seq(haq_level0) - 1)) {
 }
 
 # Save
-colnames(haq_tot) <- group_codes
-haq <- clean_data(haq_tot)
+haq <- finalise_data(haq_tot, group_codes)
 use_data(haq, overwrite = TRUE)
 ```
 
@@ -703,8 +728,7 @@ for (i in seq(chaq_level0)) {
 }
 
 # Save
-colnames(chaq_tot) <- group_codes
-chaq <- clean_data(chaq_tot)
+chaq <- finalise_data(chaq_tot, group_codes)
 use_data(chaq, overwrite = TRUE)
 ```
 
@@ -737,8 +761,7 @@ group_codes <- behcet_code[[1]]$group_code
 get_group_occ(group_codes, "behcet")
 
 # Save
-colnames(behcet_tot) <- group_codes
-behcet <- clean_data(behcet_tot)
+behcet <- finalise_data(behcet_tot, group_codes)
 use_data(behcet, overwrite = TRUE)
 ```
 
@@ -779,8 +802,7 @@ diet_tot <- update_columns(diet_tot, cols_diet, tolower)
 group_codes <- diet_code[[1]]$group_code
 
 # Save
-colnames(diet_tot) <- group_codes
-diet <- clean_data(diet_tot)
+diet <- finalise_data(diet_tot, group_codes)
 use_data(diet, overwrite = TRUE)
 ```
 

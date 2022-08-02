@@ -105,11 +105,13 @@ perc_autocorr <- function(x, threshold = 0.8) {
 
 get_not_normal0 <- function(x, threshold = 0.05) {
     sapply(
-        x, function(i)
-        tryCatch(
-            shapiro_test(as.data.frame(i)[[1]])$p.value < threshold,
-            error = function(e) NA
-        ))
+        x, function(i) {
+              tryCatch(
+                  shapiro_test(as.data.frame(i)[[1]])$p.value < threshold,
+                  error = function(e) NA
+              )
+          }
+    )
 }
 
 percent_not_normal <- function(x, threshold = 0.05) {

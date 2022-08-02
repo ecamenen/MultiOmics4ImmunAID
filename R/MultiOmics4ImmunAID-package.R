@@ -8,6 +8,6 @@
 #' @rawNamespace import(skimr, except = n_complete)
 #' @rawNamespace import(stats, except = c(filter, lag, lowess))
 #' @rawNamespace import(tidyr, except = extract)
-#' @rawNamespace import(rstatix, except = make_clean_names)
+#' @rawNamespace import(rstatix, except = c(make_clean_names, cor_test))
 #' @keywords internal
 "_PACKAGE"

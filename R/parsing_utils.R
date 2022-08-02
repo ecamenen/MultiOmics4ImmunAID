@@ -39,12 +39,13 @@ get_name_num0 <- function(x) {
 
 #' @export
 get_name_num <- function(x) {
+    x <- as.data.frame(x)
     colnames(x)[
         sapply(
             colnames(x),
             function(i) {
                 !any(
-                    c(x[, i])[[1]] %>%
+                    x[, i] %>%
                         na.omit() %>%
                         as.character() %>%
                         as.numeric() %>%
@@ -299,5 +300,25 @@ complete_date <- function(x, sep = "/") {
     for (i in seq_along(keys)) {
         x <- str_replace_all(x, keys[i], values[i])
     }
+    return(x)
+}
+
+#' @export
+detect_row <- function(x, p) {
+    str_detect(rownames(x), paste0("^(\\d{5})", p))
+}
+
+#' @export
+length_detect_row <- function(x, p) {
+    length(which(detect_row(x, p)))
+}
+
+#' @export
+finalise_data <- function(x, col_name = NULL, clean_name = TRUE, row_name = 1) {
+    if (!is.null(col_name)) {
+        colnames(x) <- col_name
+    }
+    x <- clean_data(x, clean_name)
+    rownames(x) <- as.data.frame(x[, row_name])[[1]]
     return(x)
 }
