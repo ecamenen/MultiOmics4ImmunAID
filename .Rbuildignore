@@ -13,3 +13,6 @@
 ^.local$
 ^.config$
 ^.cache$
+^.~lock.*
+^.*\.temp$
+docker_launch.sh
