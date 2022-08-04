@@ -19,6 +19,7 @@ suppressPackageStartupMessages(library(MultiOmics4ImmunAID))
 load_libraries(
     c(
         "corrplot",
+        "cowplot",
         # "datawizard",
         "DataExplorer",
         "dlookr",
@@ -488,10 +489,19 @@ var_num <- get_name_num(clinic_tot_proc)
 #   select ("weight_kg", "height_cm", "bmi_automatic", "age_at_inclusion_tim")
 
 col_outliers <- explore_outliers(clinic_tot_proc)
+var_socio <- c("C_2643_3803", "C_2643_3804", "C_2649_3889", "C_2649_3890")
 i <- col_outliers[1] # "C_2643_3804"
 j <- col_outliers[2] # "C_2649_3889"
 clin_melt <- melt(clinic_tot_proc) %>% select(variable, value)
-(clin_melt %>% filter(variable == i) %>% boxplot())$out
+outliers <- (clin_melt %>% filter(variable == var_socio[4]) %>% boxplot())$out
+# Fix height and bmi errors
+tab <- clinic_tot_proc %>%
+    filter(C_2649_3890 > 100) %>%
+    select(var_socio)
+to_fix <- clinic_tot_proc$C_2649_3890 %in% tab$C_2649_3890
+clinic_tot_proc$C_2649_3889[to_fix] <- clinic_tot_proc$C_2649_3889[to_fix] + 100
+clinic_tot_proc$C_2649_3890[to_fix] <- clinic_tot_proc$C_2643_3804[to_fix] / ((clinic_tot_proc$C_2649_3889[to_fix] / 100)^2)
+
 get_outliers(clinic_tot_proc, i)
 # get_outliers(clinic_tot_proc, j, probs = c(.025, .975), method = "percentiles")
 # get_outliers(clinic_tot_proc, j, , method = "hampel", c = 3)
@@ -503,7 +513,41 @@ colnames(clinic_tot_proc) <- get_var_names(
     str_sub(1, 20)
 clinic <- finalise_data(clinic_tot_proc, row_name = 2)
 use_data(clinic, overwrite = TRUE)
+
+# Transformations
+clinic_num <- select(clinic, sort(get_name_num(clinic)))
+
+var_ord <- ordinal_variables(clinic_num)
+var_not_ord <- colnames(select(clinic_num, -all_of(var_ord)))
+plot_histo(log(select(clinic_num, all_of(var_not_ord))), colors = rep("blue", 250))
+
+var_max <- c("creatinine_mmol_l", "alat_uln_upper_limi", "leucocytes_mm3", "neutrophils_mm3", "ggt_ui_l", "cardiac_manifestatio", "vascular_involvement", "other_neurological_m")
+(out <- sapply(var_max, function(i) which.max(as.data.frame(clinic_num[, i])[[1]])))
+
+p <- ggdraw()
+for (i in seq(var_max)) {
+    p <- p + plot_violin2(as.data.frame(clinic[-out[i], var_max[i]]))
+}
+p
+
+get_not_normal0(log(select(clinic, all_of(var_not_ord)) + 0.00001))
+
+# levels from ordinal data
+sapply(var_ord, function(i) unique(sort(as.data.frame(clinic_num[, i])[, 1])))
+diagnose_category(as.data.frame(sapply(var_ord, function(i) as.factor(as.data.frame(clinic_num[, i])[, 1]))))
+
+# Outliers removing
+# plot_violin(select(clinic, alat_uln_upper_limi) %>% filter(alat_uln_upper_limi < 140))
+clinic$alat_uln_upper_limi[which(clinic$alat_uln_upper_limi == 269)] <- NA
+
+# X2 transformation
+clinic_transf <- update_columns(clinic, "height_cm", function(i) i^2)
+# Log transformation
+var_log <- colnames(clinic_num)[c(1, 3, 5:7, 10:13, 15:18, 20, 22, 25, 33, 36:39, 44, 46:48, 50, 52)]
+clinic_transf <- update_columns(clinic_transf, var_log, log)
+use_data(clinic_transf, overwrite = TRUE)
 ```
+
 ## Clinical0
 ```{r}
 clinic0 <- read_tsv(file.path(path, "CleanBiologicalValues.tsv"))

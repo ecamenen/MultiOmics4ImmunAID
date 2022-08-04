@@ -21,6 +21,7 @@ Depends:
 Imports:
     correlation,
     corrplot,
+    cowplot,
     DataExplorer,
     dlookr,
     dplyr,

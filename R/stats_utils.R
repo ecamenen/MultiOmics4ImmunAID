@@ -103,14 +103,15 @@ perc_autocorr <- function(x, threshold = 0.8) {
     round(nrow(get_correlation(x, threshold)) / (ncol(x)^2 - ncol(x)), 2)
 }
 
+#' @export
 get_not_normal0 <- function(x, threshold = 0.05) {
     sapply(
         x, function(i) {
-              tryCatch(
-                  shapiro_test(as.data.frame(i)[[1]])$p.value < threshold,
-                  error = function(e) NA
-              )
-          }
+            tryCatch(
+                shapiro_test(as.data.frame(i)[[1]])$p.value, # < threshold,
+                error = function(e) NA
+            )
+        }
     )
 }
 
