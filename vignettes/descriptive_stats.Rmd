@@ -548,6 +548,71 @@ clinic_transf <- update_columns(clinic_transf, var_log, log)
 use_data(clinic_transf, overwrite = TRUE)
 ```
 
+## Extraction for Geneve lab
+
+```{r}
+codes <- clinic_code[[3]] %>% select(!(starts_with("repeat")))
+l_codes <- c()
+
+# Visite 1
+## 1.7 Disease activity
+vis1 <- codes %>% slice(-detect_difficulty(., "second"))
+vis1 %>% filter(str_detect(item_name, "fatigue|global"))
+vis1 %>% slice(detect_difficulty(., "aidai"))
+
+## 2. Clinical manifestations
+codes %>% slice(detect_difficulty(., "triggering"))
+codes %>%
+    filter(str_detect(item_name, "Fever")) %>%
+    filter(str_detect(group_code, "IMA_General_pyrexia"))
+codes %>% slice(detect_difficulty(., "response to therapie"))
+vis1 %>% slice(detect_difficulty(., "weight loss"))
+codes %>% slice(detect_difficulty(., "other signs"))
+
+## 4.1 General biology
+vis1 %>%
+    slice(detect_difficulty(., "CRP")) %>%
+    filter(str_detect(group_name, "General biology"))
+codes %>% slice(detect_difficulty(., "\tferritin"))
+codes %>% slice(detect_difficulty(., "Erythrocyte"))
+codes %>%
+    filter(str_detect(item_name, "Date")) %>%
+    filter(str_detect(group_name, "General biology"))
+codes %>% slice(detect_difficulty(., "date of inclusion"))
+
+## 5. Systemic therapies
+sys <- codes %>% filter(str_detect(group_code, "SystemicTherapies"))
+sys %>% filter(str_detect(item_name, "Treatment group|Date of beginning|Response|over|Treatment category|Every|Period"))
+sys %>% slice(detect_difficulty(., "\tadministrated"))
+
+sys %>%
+    filter(str_detect(item_name, "Every|Period")) %>%
+    count("group_name")
+unique((sys %>% slice(detect_difficulty(., "dose")))$item_name)
+sys %>%
+    slice(detect_difficulty(., "dose")) %>%
+    count("group_name")
+sys %>%
+    slice(detect_difficulty(., "\tadministrated")) %>%
+    count("group_name")
+sys %>%
+    filter(str_detect(group_name, "Corticosteroid")) %>%
+    slice(detect_difficulty(., "dose")) %>%
+    count("item_name")
+
+# Visite 2 & follow up
+
+# evolution of the disease
+codes %>% slice(detect_difficulty(., "date of the visit"))
+codes %>%
+    slice(detect_difficulty(., "evolution")) %>%
+    filter(!str_detect(item_name, "Persistant"))
+
+## 3.3 Biological values
+vis2 <- codes %>% slice(detect_difficulty(., "second|followup"))
+vis2 %>% slice(detect_difficulty(., "CRP|SAA"))
+```
+
 ## Clinical0
 ```{r}
 clinic0 <- read_tsv(file.path(path, "CleanBiologicalValues.tsv"))
