@@ -562,16 +562,14 @@ vis1 %>% slice(detect_difficulty(., "aidai"))
 
 ## 2. Clinical manifestations
 codes %>% slice(detect_difficulty(., "triggering"))
-codes %>%
-    filter(str_detect(item_name, "Fever")) %>%
-    filter(str_detect(group_code, "IMA_General_pyrexia"))
+vis1 %>% filter(str_detect(group_name, "Fever"))
 codes %>% slice(detect_difficulty(., "response to therapie"))
 vis1 %>% slice(detect_difficulty(., "weight loss"))
 codes %>% slice(detect_difficulty(., "other signs"))
 
 ## 4.1 General biology
 vis1 %>%
-    slice(detect_difficulty(., "CRP")) %>%
+    slice(detect_difficulty(., "CRP|SAA")) %>%
     filter(str_detect(group_name, "General biology"))
 codes %>% slice(detect_difficulty(., "\tferritin"))
 codes %>% slice(detect_difficulty(., "Erythrocyte"))
@@ -582,9 +580,12 @@ codes %>% slice(detect_difficulty(., "date of inclusion"))
 
 ## 5. Systemic therapies
 sys <- codes %>% filter(str_detect(group_code, "SystemicTherapies"))
-sys %>% filter(str_detect(item_name, "Treatment group|Date of beginning|Response|over|Treatment category|Every|Period"))
+sys %>% filter(str_detect(item_name, "Treatment group|Date of beginning|Response|over|Treatment category|Treatment$|Every|Period"))
 sys %>% slice(detect_difficulty(., "\tadministrated"))
 
+sys %>% filter(str_detect(item_name, "Treatment$")) %>%
+     filter(str_detect(group_name, "Biologic$"))  %>%
+          count("item_code")
 sys %>%
     filter(str_detect(item_name, "Every|Period")) %>%
     count("group_name")
@@ -637,12 +638,18 @@ clinic0[clinic0 == "Not performed"] <- NA
 # Extract items
 block <- "PedsQL"
 peds_files <- files[grepl(block, files)]
-batch <- unique(sapply(peds_files, function(i) { i[5] }))
+batch <- unique(sapply(peds_files, function(i) {
+    i[5]
+}))
 max(gsub("batch(\\d)", "\\1", batch))
 peds_files <- peds_files[grepl("batch1", peds_files)]
-ql <- unique(sapply(peds_files, function(i) { i[2] }))
+ql <- unique(sapply(peds_files, function(i) {
+    i[2]
+}))
 (ql <- sort(as.numeric(gsub("PedsQL(\\d+)", "\\1", ql))))
-years <- unique(sapply(peds_files, function(i) { i[3] }))
+years <- unique(sapply(peds_files, function(i) {
+    i[3]
+}))
 (years <- sort(as.numeric(gsub("(\\d+)years", "\\1", years))))
 
 # Load data
