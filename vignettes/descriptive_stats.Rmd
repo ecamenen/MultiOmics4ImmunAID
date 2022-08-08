@@ -551,37 +551,43 @@ use_data(clinic_transf, overwrite = TRUE)
 ## Extraction for Geneve lab
 
 ```{r}
+clinic <- read_batches()
+clinic_tot <- Reduce(rbind, clinic)
 codes <- clinic_code[[3]] %>% select(!(starts_with("repeat")))
 l_codes <- c()
+
+l_codes <- c(l_codes, (codes %>% filter(str_detect(item_name, "identifier")) %>%
+    filter(str_detect(group_name, "Patient information")))$column_code)
+# l_codes <- c(l_codes, (codes %>% filter(str_detect(item_name, "Gender")))$column_code)
 
 # Visite 1
 ## 1.7 Disease activity
 vis1 <- codes %>% slice(-detect_difficulty(., "second"))
-vis1 %>% filter(str_detect(item_name, "fatigue|global"))
-vis1 %>% slice(detect_difficulty(., "aidai"))
+l_codes <- c(l_codes, (vis1 %>% filter(str_detect(item_name, "fatigue|global")))$column_code)
+l_codes <- c(l_codes, (vis1 %>% slice(detect_difficulty(., "aidai")))$column_code)
 
 ## 2. Clinical manifestations
-codes %>% slice(detect_difficulty(., "triggering"))
-vis1 %>% filter(str_detect(group_name, "Fever"))
-codes %>% slice(detect_difficulty(., "response to therapie"))
-vis1 %>% slice(detect_difficulty(., "weight loss"))
-codes %>% slice(detect_difficulty(., "other signs"))
+l_codes <- c(l_codes, (codes %>% slice(detect_difficulty(., "triggering")))$column_code)
+l_codes <- c(l_codes, (vis1 %>% filter(str_detect(group_name, "Fever")))$column_code)
+l_codes <- c(l_codes, (codes %>% slice(detect_difficulty(., "response to therapie")))$column_code)
+l_codes <- c(l_codes, (vis1 %>% slice(detect_difficulty(., "weight loss")))$column_code)
+l_codes <- c(l_codes, (codes %>% slice(detect_difficulty(., "other signs")))$column_code)
 
 ## 4.1 General biology
-vis1 %>%
+l_codes <- c(l_codes, (vis1 %>%
     slice(detect_difficulty(., "CRP|SAA")) %>%
-    filter(str_detect(group_name, "General biology"))
-codes %>% slice(detect_difficulty(., "\tferritin"))
-codes %>% slice(detect_difficulty(., "Erythrocyte"))
-codes %>%
+    filter(str_detect(group_name, "General biology")))$column_code)
+l_codes <- c(l_codes, (codes %>% slice(detect_difficulty(., "\tferritin")))$column_code)
+l_codes <- c(l_codes, (codes %>% slice(detect_difficulty(., "Erythrocyte")))$column_code)
+l_codes <- c(l_codes, (codes %>%
     filter(str_detect(item_name, "Date")) %>%
-    filter(str_detect(group_name, "General biology"))
-codes %>% slice(detect_difficulty(., "date of inclusion"))
+    filter(str_detect(group_name, "General biology")))$column_code)
+l_codes <- c(l_codes, (codes %>% slice(detect_difficulty(., "date of inclusion")))$column_code)
 
 ## 5. Systemic therapies
 sys <- codes %>% filter(str_detect(group_code, "SystemicTherapies"))
-sys %>% filter(str_detect(item_name, "Treatment group|Date of beginning|Response|over|Treatment category|Treatment$|Every|Period"))
-sys %>% slice(detect_difficulty(., "\tadministrated"))
+l_codes <- c(l_codes, (sys %>% filter(str_detect(item_name, "Treatment group|Date of beginning|Response|over|Treatment category|Treatment$|Every|Period")))$column_code)
+l_codes <- c(l_codes, (sys %>% slice(detect_difficulty(., "dose")))$column_code)
 
 sys %>% filter(str_detect(item_name, "Treatment$")) %>%
      filter(str_detect(group_name, "Biologic$"))  %>%
@@ -604,14 +610,29 @@ sys %>%
 # Visite 2 & follow up
 
 # evolution of the disease
-codes %>% slice(detect_difficulty(., "date of the visit"))
-codes %>%
+l_codes <- c(l_codes, (codes %>% slice(detect_difficulty(., "date of the visit")))$column_code)
+l_codes <- c(l_codes, (codes %>%
     slice(detect_difficulty(., "evolution")) %>%
-    filter(!str_detect(item_name, "Persistant"))
+    filter(!str_detect(item_name, "Persistant")))$column_code)
 
 ## 3.3 Biological values
 vis2 <- codes %>% slice(detect_difficulty(., "second|followup"))
-vis2 %>% slice(detect_difficulty(., "CRP|SAA"))
+l_codes <- c(l_codes, (vis2 %>% slice(detect_difficulty(., "CRP|SAA")))$column_code)
+
+# Extraction codes
+codes_extraction <- codes %>% filter(str_detect(column_code, paste(l_codes, collapse = "|")))
+clinic_extraction <- clinic_tot %>% select(all_of(l_codes))
+library(openxlsx)
+file_path <- file.path(golem::get_golem_wd(), "clinic_extraction.xlsx")
+write.xlsx(clinic_extraction, file = file_path)
+
+common_vars <- setdiff(colnames(clinic_tot_proc), l_codes)
+sapply(
+  common_vars, 
+  function(i) clinic_code[[1]] %>%
+    filter(str_detect(column_code, paste0("^", i, "$"))) %>% 
+    select(item_name)
+) %>% unlist() %>% unname()
 ```
 
 ## Clinical0
