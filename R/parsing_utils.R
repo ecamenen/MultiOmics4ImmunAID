@@ -65,7 +65,7 @@ get_var_names <- function(x, y) {
         filter(
             str_detect(
                 y[, 1],
-                paste0("^", paste0(c(x), collapse = "|"), "$")
+                paste0("^", c(x), "$", collapse = "|")
             )
         )
     )$item_name
@@ -324,6 +324,21 @@ finalise_data <- function(x, col_name = NULL, clean_name = TRUE, row_name = 1) {
 }
 
 #' @export
-ordinal_variables <- function(x, n = nrow(x) / 2 ^ 3) {
+ordinal_variables <- function(x, n = nrow(x) / 2^3) {
     which(sapply(colnames(x), function(i) length(unique(sort(as.data.frame(x[, i])[, 1])))) < n)
+}
+
+#' @export
+find_dates <- function(x) {
+    x <- as.data.frame(x)
+    sapply(
+        seq_along(x),
+        function(i) any(str_detect(na.omit(x[, i]), "\\d{2}/\\d{2}/\\d{4}"))
+    )
+}
+
+#' @export
+replace_parenthesis <- function(x) {
+    str_replace_all(x, "\\(", "\\\\(") %>%
+        str_replace_all("\\)", "\\\\)")
 }

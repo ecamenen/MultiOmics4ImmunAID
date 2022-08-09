@@ -1,5 +1,5 @@
 #' @import correlation corrplot cowplot DataExplorer dlookr dplyr ggplot2 golem
-#' @import ggstatsplot ggpubr grDevices lubridate naniar readr readxl
+#' @import ggstatsplot ggpubr grDevices lubridate naniar openxlsx readr readxl
 #' @import RColorBrewer reshape2 see VIM stringr tidyverse usethis venn viridis
 #' @importFrom magrittr %>%
 #' @importFrom plyr ldply .
