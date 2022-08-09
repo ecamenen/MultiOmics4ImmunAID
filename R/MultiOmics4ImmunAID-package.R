@@ -1,5 +1,5 @@
 #' @import correlation corrplot cowplot DataExplorer dlookr dplyr ggplot2 golem
-#' @import ggstatsplot ggpubr grDevices lubridate naniar openxlsx readr readxl
+#' @import ggstatsplot grDevices naniar openxlsx readr readxl
 #' @import RColorBrewer reshape2 see VIM stringr tidyverse usethis venn viridis
 #' @importFrom magrittr %>%
 #' @importFrom plyr ldply .
@@ -9,5 +9,7 @@
 #' @rawNamespace import(stats, except = c(filter, lag, lowess))
 #' @rawNamespace import(tidyr, except = extract)
 #' @rawNamespace import(rstatix, except = c(make_clean_names, cor_test))
+#' @rawNamespace import(ggpubr, except = get_legend)
+#' @rawNamespace import(lubridate, except = stamp)
 #' @keywords internal
 "_PACKAGE"

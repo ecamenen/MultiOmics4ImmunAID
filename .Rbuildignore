@@ -14,5 +14,5 @@
 ^.config$
 ^.cache$
 ^.~lock.*
-^.*\.temp$
+^.*\.temp
 docker_launch.sh

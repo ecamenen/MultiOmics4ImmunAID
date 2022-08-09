@@ -5,7 +5,7 @@
 .Rproj.user
 .idea/
 *.tar.gz
-*.temp
+*.temp*
 inst/doc
 inst/extdata/
 Meta

@@ -694,7 +694,7 @@ clinic_geneve <- cbind(clinic_geneve, temp)
 
 # Output
 library(openxlsx)
-file_path <- file.path(golem::get_golem_wd(), "clinic_extraction.xlsx")
+file_path <- file.path(golem::get_golem_wd(), "clinic_extraction.temp.xlsx")
 wb <- createWorkbook()
 addWorksheet(wb, "Sheet 1")
 writeData(wb, "Sheet 1", clinic_geneve)
@@ -710,18 +710,12 @@ saveWorkbook(wb, file = file_path, overwrite = TRUE)
 # Extract items
 block <- "PedsQL"
 peds_files <- files[grepl(block, files)]
-batch <- unique(sapply(peds_files, function(i) {
-    i[5]
-}))
+batch <- unique(sapply(peds_files, function(i) i[5]))
 max(gsub("batch(\\d)", "\\1", batch))
 peds_files <- peds_files[grepl("batch1", peds_files)]
-ql <- unique(sapply(peds_files, function(i) {
-    i[2]
-}))
+ql <- unique(sapply(peds_files, function(i) i[2]))
 (ql <- sort(as.numeric(gsub("PedsQL(\\d+)", "\\1", ql))))
-years <- unique(sapply(peds_files, function(i) {
-    i[3]
-}))
+years <- unique(sapply(peds_files, function(i) i[3]))
 (years <- sort(as.numeric(gsub("(\\d+)years", "\\1", years))))
 
 # Load data
