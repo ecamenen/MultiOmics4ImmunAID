@@ -556,7 +556,7 @@ clinic_tot <- Reduce(rbind, clinic)
 codes <- clinic_code[[3]] %>% select(!(starts_with("repeat")))
 l_codes <- c()
 
-l_codes <- c(l_codes, (codes %>% filter(str_detect(item_name, "identifier")) %>%
+l_codes <- c(l_codes, (codes %>% filter(str_detect(item_name, "identifier|Disease|Date of inclusion")) %>%
     filter(str_detect(group_name, "Patient information")))$column_code)
 # l_codes <- c(l_codes, (codes %>% filter(str_detect(item_name, "Gender")))$column_code)
 
@@ -582,12 +582,21 @@ l_codes <- c(l_codes, (codes %>% slice(detect_difficulty(., "Erythrocyte")))$col
 l_codes <- c(l_codes, (codes %>%
     filter(str_detect(item_name, "Date")) %>%
     filter(str_detect(group_name, "General biology")))$column_code)
-l_codes <- c(l_codes, (codes %>% slice(detect_difficulty(., "date of inclusion")))$column_code)
 
 ## 5. Systemic therapies
 sys <- codes %>% filter(str_detect(group_code, "SystemicTherapies"))
-l_codes <- c(l_codes, (sys %>% filter(str_detect(item_name, "Treatment group|Date of beginning|Response|over|Treatment category|Treatment$|Every|Period")))$column_code)
-l_codes <- c(l_codes, (sys %>% slice(detect_difficulty(., "dose")))$column_code)
+vars <- c(
+  "Treatment group",
+"Date of beginning",
+"Response",
+"over",
+"Treatment category",
+"Treatment$",
+"Every",
+"[Dd]ose",
+"Period"
+)
+l_codes <- c(l_codes, (sys %>% filter(str_detect(item_name, paste(vars, collapse = "|"))))$column_code)
 
 sys %>% filter(str_detect(item_name, "Treatment$")) %>%
      filter(str_detect(group_name, "Biologic$"))  %>%
@@ -610,9 +619,8 @@ sys %>%
 # Visite 2 & follow up
 
 # evolution of the disease
-l_codes <- c(l_codes, (codes %>% slice(detect_difficulty(., "date of the visit")))$column_code)
 l_codes <- c(l_codes, (codes %>%
-    slice(detect_difficulty(., "evolution")) %>%
+    slice(detect_difficulty(., "date of the visit|evolution")) %>%
     filter(!str_detect(item_name, "Persistant")))$column_code)
 
 ## 3.3 Biological values
@@ -620,19 +628,45 @@ vis2 <- codes %>% slice(detect_difficulty(., "second|followup"))
 l_codes <- c(l_codes, (vis2 %>% slice(detect_difficulty(., "CRP|SAA")))$column_code)
 
 # Extraction codes
-codes_extraction <- codes %>% filter(str_detect(column_code, paste(l_codes, collapse = "|")))
 clinic_extraction <- clinic_tot %>% select(all_of(l_codes))
+clinic_geneve <- clean_data(clinic_extraction, FALSE, FALSE)
+codes_extraction <- clinic_code[[3]] %>%
+  slice(
+    sapply(
+      colnames(clinic_geneve), 
+      function(i) str_which(clinic_code[[3]]$column_code, paste0("^", i, "$"))))
+code_names <- sapply(
+            seq(nrow(codes_extraction)),
+            function(i) 
+                    paste0(codes_extraction[i, "group_name"], " - ", codes_extraction[i, "item_name"], {res <- codes_extraction[i, "repeat_inds"]; ifelse(is.na(res), "", paste0(" - ", res))})
+        )
+
+code_names <- str_replace(code_names, "Biological values", "Second visit general biology")
+
+date_vars <- colnames(clinic_geneve)[which(find_dates(clinic_geneve))]
+clinic_geneve <- update_columns(clinic_geneve, date_vars, dmy)
+res <- sapply(2:5, function(i) as.numeric(as.data.frame(clinic_geneve[, date_vars[1]] - clinic_geneve[, date_vars[i]])[, 1]))
+which_min <- sapply(seq(nrow(res)), function(i) which.min(abs(res[i, ])))
+which_min <- sapply(which_min, function(i) ifelse(length(i) == 0, NA, i))
+
+t_clinic_geneve <- as.tibble(t(clinic_geneve))
+colnames(t_clinic_geneve) <- clinic_geneve$C_2643_3796
+t_clinic_geneve <- as.tibble(cbind(codes_extraction, t_clinic_geneve))
+
+colnames(clinic_geneve) <- code_names
+
+# Output
 library(openxlsx)
 file_path <- file.path(golem::get_golem_wd(), "clinic_extraction.xlsx")
-write.xlsx(clinic_extraction, file = file_path)
+wb <- createWorkbook()
+addWorksheet(wb, "Sheet 1")
+writeData(wb, "Sheet 1", clinic_geneve)
+addWorksheet(wb, "Sheet 2")
+writeData(wb, "Sheet 2", t_clinic_geneve)
+saveWorkbook(wb, file = file_path, overwrite = TRUE)
 
 common_vars <- setdiff(colnames(clinic_tot_proc), l_codes)
-sapply(
-  common_vars, 
-  function(i) clinic_code[[1]] %>%
-    filter(str_detect(column_code, paste0("^", i, "$"))) %>% 
-    select(item_name)
-) %>% unlist() %>% unname()
+get_var_names(common_vars, clinic_code[[1]])
 ```
 
 ## Clinical0
