@@ -497,7 +497,7 @@ outliers <- (clin_melt %>% filter(variable == var_socio[4]) %>% boxplot())$out
 # Fix height and bmi errors
 tab <- clinic_tot_proc %>%
     filter(C_2649_3890 > 100) %>%
-    select(var_socio)
+    select(all_of(var_socio))
 to_fix <- clinic_tot_proc$C_2649_3890 %in% tab$C_2649_3890
 clinic_tot_proc$C_2649_3889[to_fix] <- clinic_tot_proc$C_2649_3889[to_fix] + 100
 clinic_tot_proc$C_2649_3890[to_fix] <- clinic_tot_proc$C_2643_3804[to_fix] / ((clinic_tot_proc$C_2649_3889[to_fix] / 100)^2)
@@ -661,16 +661,18 @@ code_names[i_rows] <- str_trim(paste(pat, code_names[i_rows]))
 i_rows <- which(code_names %>% str_detect("Biological values"))
 code_names[i_rows] <- paste0(rep(c("Second visit", "Follow up"), each = 3), " general biology", str_replace(code_names[i_rows], "Biological values", ""))
   
-t_clinic_geneve <- as.tibble(t(clinic_geneve))
+t_clinic_geneve <- as_tibble(t(clinic_geneve))
 colnames(t_clinic_geneve) <- clinic_geneve$C_2643_3796
-t_clinic_geneve <- as.tibble(cbind(codes_extraction, t_clinic_geneve))
+t_clinic_geneve <- as_tibble(cbind(codes_extraction, t_clinic_geneve))
 
 colnames(clinic_geneve) <- code_names
 
 # Closest date for general biology
 date_vars <- colnames(clinic_geneve)[which(find_dates(clinic_geneve))]
 clinic_geneve <- update_columns(clinic_geneve, date_vars, dmy)
-res <- sapply(2:5, function(i) as.numeric(as.data.frame(clinic_geneve[, date_vars[1]] - clinic_geneve[, date_vars[i]])[, 1]))
+res0 <- sapply(2:5, function(i) as.numeric(as.data.frame(clinic_geneve[, date_vars[1]] - clinic_geneve[, date_vars[i]])[, 1]))
+res <- sapply(seq(4), function(i) ifelse(abs(res0[, i]) > 7, NA, res0[, i]))
+colnames(res) <- paste("inclusion - general biology", seq(4))
 which_min <- sapply(seq(nrow(res)), function(i) which.min(abs(res[i, ])))
 which_min <- sapply(which_min, function(i) ifelse(length(i) == 0, 1, i))
 
@@ -690,7 +692,7 @@ vars <- c("CRP \\(", "Max CRP", "SAA", "Ferritin", "Erythrocyte")
 temp <- sapply(vars, get_min)
 colnames(temp) <- paste("closest", str_replace(vars,  " \\\\\\(", ""))
 # sapply(seq(ncol(temp3)), function(i) length(which(is.na(temp3[, i]))))
-clinic_geneve <- cbind(clinic_geneve, temp) 
+clinic_geneve <- cbind(clinic_geneve, res, temp) 
 
 # Output
 library(openxlsx)

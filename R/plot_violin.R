@@ -8,6 +8,7 @@ plot_histo <- function(
     p <- gghistogram(
         get_melt(x),
         x = "value",
+        bins = 30,
         add = "mean",
         rug = TRUE,
         color = "grey",
