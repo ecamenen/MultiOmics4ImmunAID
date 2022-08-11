@@ -33,7 +33,8 @@ get_corr <- function(x, pval = FALSE, method = "pearson") {
                     if (is.numeric(x[, i]) & is.numeric(x[, j])) {
                         tryCatch(
                             {
-                                res <- cor.test(x[, i], x[, j], method = method)
+                                res <- cor.test(x[, i], x[, j], method = method) %>%
+                                    suppressWarnings()
                                 if (pval) {
                                     res$estimate
                                 } else {

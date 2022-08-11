@@ -342,3 +342,14 @@ replace_parenthesis <- function(x) {
     str_replace_all(x, "\\(", "\\\\(") %>%
         str_replace_all("\\)", "\\\\)")
 }
+
+#' @export
+extract_codes <- function(x, y) {
+    slice(
+        y,
+        sapply(
+            x,
+            function(i) str_which(y$column_code, paste0("^", i, "$"))
+        )
+    )
+}
