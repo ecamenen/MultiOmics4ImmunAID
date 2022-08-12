@@ -403,7 +403,7 @@ j_rows <- seq(nrow(l_level_cols))[-unlist(i_rows)]
 tot_rows <- c(i_rows, list(j_rows))
 l_levels <- lapply(tot_rows, function(i) reformat(l_level_cols[i, ]))
 lapply(tot_rows, function(i) unlist(get_level_name(cols_sim, clinic_code[[3]])[i]))
-get_table_occ(clin_categorial, clinic_code, seq(nrow(l_level_cols))[-j_rows], FALSE)
+# get_table_occ(clin_categorial, clinic_code, seq(nrow(l_level_cols))[-j_rows], FALSE)
 
 var_categorial <- unlist(cols_sim)
 clinic_tot_proc <- update_columns(clinic_tot_proc, var_categorial, as.factor)
@@ -544,9 +544,36 @@ clinic$alat_uln_upper_limi[which(clinic$alat_uln_upper_limi == 269)] <- NA
 # X2 transformation
 clinic_transf <- update_columns(clinic, "height_cm", function(i) i^2)
 # Log transformation
-var_log <- colnames(clinic_num)[c(1, 3, 5:7, 10:13, 15:18, 20, 22, 25, 33, 36:39, 44, 46:48, 50, 52)]
-clinic_transf <- update_columns(clinic_transf, var_log, log) %>%
-    arrange(immun_aid_identifier)
+var_log <- c(
+    "abdominal_pain",
+    "alat_ui_l",
+    "alk_phosphatases_ui",
+    "arthralgia_myalgia",
+    "bone_pain",
+    "cardiac_manifestatio",
+    "charlson_score_auto",
+    "chest_pain",
+    "crp_c_reactive_prot",
+    "diarrhea",
+    "eosinophils_mm3",
+    "eye_manifestations",
+    "fever_38_c_104_f",
+    "ggt_ui_l",
+    "headaches",
+    "nausea_vomiting",
+    "number_of_consecutiv",
+    "other_neurological_m",
+    "overall_symptoms",
+    "painful_nodes",
+    "skin_rash_other_sa",
+    "sore_throat_other",
+    "swelling_of_the_join",
+    "total_bilirubin_mmo",
+    "vascular_involvement",
+    "weight_loss_uninten"
+)
+clinic_transf <- update_columns(clinic_transf, var_log, log)# %>%
+    # arrange(immun_aid_identifier)
 clinic_transf[clinic_transf == -Inf] <- -1
 colnames(clinic_transf) <- codes_proc
 
@@ -556,7 +583,7 @@ temp <- str_replace(code_extracted$item_name, " \\(.+\\)|^\\d{1,2}\\. ", "")
 names(temp) <- codes_proc
 temp <- sort(temp)
 codes_temp <- names(temp)
-temp <- make_clean_names(temp)
+temp <- janitor::make_clean_names(temp)
 names(temp) <- codes_temp
 temp <- temp[codes_proc]
 
@@ -572,7 +599,7 @@ for (i in seq_along(keys)) {
 keys <- c("chf", "cva", "copd", "crp", "hb", "uln")
 values <- c("Congestive Heart Failure", "Cerebrovascular Accident or Transient Ischemic Attack", "Chronic Obstructive Pulmonary Disease", "C-reactive protein", "Hemoglobine", "Upper Limit of Normal")
 for (i in seq_along(keys)) {
-    temp <- str_replace(temp, keys[i], make_clean_names(values[i]))
+    temp <- str_replace(temp, keys[i], janitor::make_clean_names(values[i]))
 }
 
 for (i in c(temp[sapply(temp, function(i) str_length(i) < 5)])) {
@@ -581,41 +608,133 @@ for (i in c(temp[sapply(temp, function(i) str_length(i) < 5)])) {
       }
 }
 
+temp <- str_replace(temp, "^(neutrophils)_2$", "\\1_percent")
+
 names(temp) <- codes_temp
 
 # code_extracted %>% filter(str_detect(item_name, regex(paste0("^", temp[sapply(temp, function(i) str_length(i) < 5)][-6], collapse = "|"), ignore_case = TRUE))) %>% select(c(group_name, item_name))
 
-
-# Save
+# Codes
 code_info <- clinic_code[[3]] %>%
     filter(str_detect(column_code, paste0("^", codes_temp, "$", collapse = "|"))) %>%
     select(column_code, group_name)
 code_info$group_name <- str_replace(code_info$group_name, " \\(.+\\)", "") %>%
     snakecase::to_any_case(unique_sep = NULL, parsing_option = 3) %>%
     as.factor()
-
-clinic_transf <- finalise_data(clinic_transf, row_name = "C_2643_3796", clean_name = FALSE)
 colnames(clinic_transf) <- temp
-attributes(clinic_transf)$codes <- cbind(code_info, item_name = as.character(temp))
+temp2 <- cbind(code_info, item_name = as.character(temp))
+
+# Dates
+# date_vars <- clinic_transf %>% select(which(sapply(colnames(.), function(i) is.Date(as.data.frame(.[, i])[, 1]))))
+# cou2 <- (temp2 %>% filter(str_detect(item_name, paste0("^", colnames(date_vars), "$", collapse = "|"))) %>% select(column_code))$column_code
+# clinic_code[[3]] %>% filter(str_detect(column_code, paste0("^", cou2, "$", collapse = "|")))
+
+date_biol <- (clinic_code[[3]] %>% filter(str_detect(group_name, "General biology")) %>% filter(str_detect(item_name, "Date")))$column_code
+biol <- (temp2 %>% filter(str_detect(group_name, "biology")) %>% filter(!str_detect(item_name, "date")))$item_name
+clinic_tot2 <- update_columns(clinic_tot, date_biol, dmy)
+date_diff <- sapply(seq(4), function(i) clinic$date_of_inclusion - as.data.frame(clinic_tot2 %>% select(all_of(date_biol)))[, i])
+# which(abs(date_diff) > 7)
+# Closest date is not the first date only for  around 10 elements. And most of the data at these date are NA. So keep the first date that do not influence too much and to know for sure at which date the data are from.
+date_corr <- sapply(seq(4), function(i) ifelse(abs(date_diff[, i]) > 7, NA, date_diff[, i]))
+colnames(date_corr) <- paste("inclusion - general biology", seq(4))
+which_min <- sapply(seq(nrow(date_corr)), function(i) which.min(abs(date_corr[i, ])))
+which_min <- sapply(which_min, function(i) ifelse(length(i) == 0, 1, i))
+# which(which_min > 1)
+# which_min[which_min > 1]
+# image(seq(213), 1, as.matrix(which_min), yaxt = "n", labels = FALSE); axis(1, las = 2, at = seq(213), labels = FALSE); axis(1, las = 2, at = seq(0, 213, 5), lwd.ticks = 3)
+# as_tibble(date_diff) %>% slice(intersect(which(abs(date_diff) > 7), which(which_min > 1)))
+# (clinic_tot %>% select(all_of(bloup2)) %>% slice(setdiff(which(which_min > 1), which(abs(date_diff) > 7))))[, (1+(8*k)):(8+(8*k))]
+
+filter_week <- abs(date_diff) > 7
+filter_week1 <- which(filter_week[, 1])
+
+for (i in biol) {
+  clinic_transf[filter_week1, i] <- NA
+}
+
+#  clinic_transf %>% select(all_of(biol)) %>% slice(intersect(which(abs(date_diff) > 7), which(which_min > 1)))
+# clinic_transf %>% select(date_biology) %>% slice(intersect(which(abs(date_diff) > 7), which(which_min > 1)))
+
+# Save
+clinic_transf <- finalise_data(clinic_transf, row_name = "immun_aid_identifier", clean_name = FALSE)
+attributes(clinic_transf)$codes <- temp2
 use_data(clinic_transf, overwrite = TRUE)
 ```
 
 ## Clinical0
+
 ```{r}
 clinic0 <- read_tsv(file.path(path, "CleanBiologicalValues.tsv"))
 clinic0 <- arrange(clinic0, ID) %>%
     clean_names()
 colnames(clinic0) <- str_sub(colnames(clinic0), 1, 20)
 clinic <- arrange(clinic, immun_aid_identifier)
-# identical(clinic0$ID, clinic$immun_aid_identifier)
-clinic0 <- select(clinic0, -c(batch, days_from_inclusion, date_of_biological_a)) %>% select(-all_of(colnames(clinic0)[c(18:20, 22, 25, 29, 48:56)]))
+# identical(clinic0$id, clinic$immun_aid_identifier)
+to_exclude <- c(
+  "description",
+  "precise",
+  "coombs_test_positive",
+  "conj_bili_mmol_l",
+  "in",
+  "antibody_structure",
+  "isotype",
+  "light_chain",
+  "serum_peak_g_l",
+  "ldh_u_l",
+  "triglycerides_mmol_l",
+  "crp_2nd_visit",
+  "saa_2nd_visit"
+)
+#  "neutrophils_mm3"    "schizocytes_percen" "erythrocyte_sedime"
+to_select <- c(
+    "immun_aid_identifier",
+    "disease",
+    "age_at_inclusion_tim",
+    "gender",
+    "type",
+    "hb_g_d_l",
+    "mean_red_cell_volume",
+    "leucocytes_mm3",
+    "lymphocytes_mm3",
+    "neutrophils_percent",
+    "eosinophils_mm3",
+    "platelets_mm3",
+    "cytological_signs_of",
+    "evidence_of_active",
+    "crp_c_reactive_prot",
+    "max_crp_value_due_to",
+    # "saa_serum_amyloid_a",
+    # "fibrinogen_level_g",
+    "total_bilirubin_mmo",
+    "sodium_mmol_l",
+    "potassium_mmol_l",
+    # "protidemia_g_l",
+    # "albuminemia_g_l",
+    "creatinine_mmol_l",
+    "gfr_glomerular_fil",
+    "urea_mmol_l",
+    "alat_ui_l",
+    "alat_uln_upper_limi",
+    "asat_ui_l",
+    "asat_uln_ui_l",
+    "ggt_ui_l",
+    "ggt_uln_ui_l",
+    # "alk_phosphatases_uln",
+    # "ferritin_mg_l",
+    # "glycosylated_ferriti",
+    # "monoclonal_gammapath",
+    "alk_phosphatases_ui"
+)
+clinic0 <- select(clinic0, -c(batch, days_from_inclusion, date_of_biological_a)) %>% select(-all_of(to_exclude))
 # ,saa_serum_amyloid_a
-clinic1 <- select(clinic, all_of(c("immun_aid_identifier", "disease", "age_at_inclusion_tim", "gender", "type", colnames(clinic)[85:118][-13])))
+clinic1 <- select(clinic, all_of(c(to_select)))
 colnames(clinic0) <- str_sub(colnames(clinic0), 1, 18)
 colnames(clinic1)[c(1, 3:4)] <- c("id", "age", "sex")
 colnames(clinic1) <- str_sub(colnames(clinic1), 1, 18)
 get_intersection0(list(A = colnames(clinic1), B = colnames(clinic0)))
 clinic0[clinic0 == "Not performed"] <- NA
+# save_tsv(clinic0, filename = "clinic0.temp")
+# save_tsv(clinic1, filename = "clinic1.temp")
 # i_rows <- which(!mapply(identical, as.numeric(clinic0$urea_mmol_l), as.numeric(clinic1$urea_mmol_l)))
 ```
 
@@ -737,10 +856,10 @@ colnames(clinic_geneve) <- code_names
 # Closest date for general biology
 date_vars <- colnames(clinic_geneve)[which(find_dates(clinic_geneve))]
 clinic_geneve <- update_columns(clinic_geneve, date_vars, dmy)
-res0 <- sapply(2:5, function(i) as.numeric(as.data.frame(clinic_geneve[, date_vars[1]] - clinic_geneve[, date_vars[i]])[, 1]))
-res <- sapply(seq(4), function(i) ifelse(abs(res0[, i]) > 7, NA, res0[, i]))
-colnames(res) <- paste("inclusion - general biology", seq(4))
-which_min <- sapply(seq(nrow(res)), function(i) which.min(abs(res[i, ])))
+date_diff <- sapply(2:5, function(i) as.numeric(as.data.frame(clinic_geneve[, date_vars[1]] - clinic_geneve[, date_vars[i]])[, 1]))
+date_corr <- sapply(seq(4), function(i) ifelse(abs(date_diff[, i]) > 7, NA, date_diff[, i]))
+colnames(date_corr) <- paste("inclusion - general biology", seq(4))
+which_min <- sapply(seq(nrow(date_corr)), function(i) which.min(abs(date_corr[i, ])))
 which_min <- sapply(which_min, function(i) ifelse(length(i) == 0, 1, i))
 
 get_min <- function(x) {
@@ -753,6 +872,7 @@ get_min <- function(x) {
         res <- temp[i, which_min[i]]
         ifelse(is.na(res), ifelse(is.na(temp[i, 1]), temp[i, 2], temp[i, 1]), res)
     }))
+    #View(cbind(which_min, temp, temp2))
 }
 
 vars <- c("CRP \\(", "Max CRP", "SAA", "Ferritin", "Erythrocyte")
@@ -760,7 +880,7 @@ temp <- sapply(vars, get_min)
 colnames(temp) <- paste("closest", str_replace(vars, " \\\\\\(", ""))
 colnames(clinic_geneve) <- code_names0
 # sapply(seq(ncol(temp3)), function(i) length(which(is.na(temp3[, i]))))
-clinic_geneve <- cbind(clinic_geneve, res, temp)
+clinic_geneve <- cbind(clinic_geneve, date_corr, temp)
 
 # Output
 library(openxlsx)
