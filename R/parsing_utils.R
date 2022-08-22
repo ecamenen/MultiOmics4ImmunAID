@@ -232,7 +232,7 @@ detect_difficulty <- function(x, pattern = "difficulty") {
             seq(nrow(x)),
             function(i) {
                 str_detect(
-                    paste(as.data.frame(x)[i, ], collapse = "\t"),
+                    paste(as.character(as.matrix(x[i, ])), collapse = "\t"),
                     regex(pattern, ignore_case = TRUE)
                 )
             }
@@ -325,11 +325,12 @@ finalise_data <- function(x, col_name = NULL, clean_name = TRUE, row_name = 1) {
 
 #' @export
 ordinal_variables <- function(x, n = nrow(x) / 2^3) {
-    sapply(
-        colnames(x),
-        function(i) length(unique(sort(as.data.frame(x[, i])[, 1])))
-    ) %>%
-    which(. < n)
+    which(
+        sapply(
+            colnames(x),
+            function(i) length(unique(sort(as.data.frame(x[, i])[, 1])))
+        ) < n
+    )
 }
 
 #' @export

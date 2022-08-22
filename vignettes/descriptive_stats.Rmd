@@ -499,7 +499,7 @@ tab <- clinic_tot_proc %>%
     filter(C_2649_3890 > 100) %>%
     select(all_of(var_socio))
 to_fix <- clinic_tot_proc$C_2649_3890 %in% tab$C_2649_3890
-clinic_tot_proc$C_2649_3889[to_fix] <- clinic_tot_proc$C_2649_3889[to_fix] + 100
+clinic_tot_proc$C_2649_3889[to_fix] <- c(173, 151)
 clinic_tot_proc$C_2649_3890[to_fix] <- clinic_tot_proc$C_2643_3804[to_fix] / ((clinic_tot_proc$C_2649_3889[to_fix] / 100)^2)
 
 get_outliers(clinic_tot_proc, i)
@@ -604,8 +604,8 @@ for (i in seq_along(keys)) {
 
 for (i in c(temp[sapply(temp, function(i) str_length(i) < 5)])) {
     if (!i %in% c("type", "urea")) {
-          temp <- str_replace(temp, i, toupper(i))
-      }
+        temp <- str_replace(temp, i, toupper(i))
+    }
 }
 
 temp <- str_replace(temp, "^(neutrophils)_2$", "\\1_percent")
@@ -819,25 +819,25 @@ codes_extraction <- extract_codes(colnames(clinic_geneve), clinic_code[[3]])
 code_names0 <- sapply(
     seq(nrow(codes_extraction)),
     function(i) {
-          paste0(
-              codes_extraction[i, "item_name"],
-              {
-                  res <- codes_extraction[i, "repeat_inds"]
-                  ifelse(is.na(res), "", paste0(" - ", res))
-              }
-          )
-      }
+        paste0(
+            codes_extraction[i, "item_name"],
+            {
+                res <- codes_extraction[i, "repeat_inds"]
+                ifelse(is.na(res), "", paste0(" - ", res))
+            }
+        )
+    }
 )
 
 code_names <- sapply(
     seq(nrow(codes_extraction)),
     function(i) {
-          paste0(
-              codes_extraction[i, "group_name"],
-              " - ",
-              code_names0[i]
-          )
-      }
+        paste0(
+            codes_extraction[i, "group_name"],
+            " - ",
+            code_names0[i]
+        )
+    }
 )
 
 i_rows <- which(code_names %>% str_detect("Biologic - Treatment"))

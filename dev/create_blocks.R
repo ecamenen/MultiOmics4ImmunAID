@@ -33,10 +33,6 @@ blocks[["CLINIC"]] <- get_name_num(blocks[["CLINIC"]]) %>%
 # All cofonding variables in numeric
 blocks[["CLINIC"]]$gender <- as.numeric(as.character(blocks[["CLINIC"]]$gender))
 row_names <- rownames(blocks[["CLINIC"]])
-# Transform
-blocks[["CLINIC"]][-seq(6), ] <- as.data.frame(sapply(blocks[["CLINIC"]][-seq(6), ], log))
-blocks[["CLINIC"]][blocks[["CLINIC"]] == "-Inf"] <- 0
-rownames(blocks[["CLINIC"]]) <- row_names
 
 # Remove missing samples from cofonding variables
 # vars <- c("gender", "age_at_inclusion_tim", "bmi_automatic")
@@ -44,6 +40,7 @@ vars <- c("gender", "age_at_inclusion_time", "BMI")
 to_remove <- sapply(vars, function(i) which(is.na(blocks[["CLINIC"]][, i])))
 to_remove <- unique(Reduce(c, to_remove))
 blocks <- lapply(blocks, function(i) i[-to_remove, ])
+# clinic[to_remove, ] %>% select(1:3, vars)
 cl <- blocks[["CLINIC"]]
 
 # Weight by the cofunding effect residuals
