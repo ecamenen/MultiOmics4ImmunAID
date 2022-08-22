@@ -572,8 +572,8 @@ var_log <- c(
     "vascular_involvement",
     "weight_loss_uninten"
 )
-clinic_transf <- update_columns(clinic_transf, var_log, log)# %>%
-    # arrange(immun_aid_identifier)
+clinic_transf <- update_columns(clinic_transf, var_log, log) # %>%
+# arrange(immun_aid_identifier)
 clinic_transf[clinic_transf == -Inf] <- -1
 colnames(clinic_transf) <- codes_proc
 
@@ -649,7 +649,7 @@ filter_week <- abs(date_diff) > 7
 filter_week1 <- which(filter_week[, 1])
 
 for (i in biol) {
-  clinic_transf[filter_week1, i] <- NA
+    clinic_transf[filter_week1, i] <- NA
 }
 
 #  clinic_transf %>% select(all_of(biol)) %>% slice(intersect(which(abs(date_diff) > 7), which(which_min > 1)))
@@ -671,19 +671,19 @@ colnames(clinic0) <- str_sub(colnames(clinic0), 1, 20)
 clinic <- arrange(clinic, immun_aid_identifier)
 # identical(clinic0$id, clinic$immun_aid_identifier)
 to_exclude <- c(
-  "description",
-  "precise",
-  "coombs_test_positive",
-  "conj_bili_mmol_l",
-  "in",
-  "antibody_structure",
-  "isotype",
-  "light_chain",
-  "serum_peak_g_l",
-  "ldh_u_l",
-  "triglycerides_mmol_l",
-  "crp_2nd_visit",
-  "saa_2nd_visit"
+    "description",
+    "precise",
+    "coombs_test_positive",
+    "conj_bili_mmol_l",
+    "in",
+    "antibody_structure",
+    "isotype",
+    "light_chain",
+    "serum_peak_g_l",
+    "ldh_u_l",
+    "triglycerides_mmol_l",
+    "crp_2nd_visit",
+    "saa_2nd_visit"
 )
 #  "neutrophils_mm3"    "schizocytes_percen" "erythrocyte_sedime"
 to_select <- c(
@@ -872,7 +872,7 @@ get_min <- function(x) {
         res <- temp[i, which_min[i]]
         ifelse(is.na(res), ifelse(is.na(temp[i, 1]), temp[i, 2], temp[i, 1]), res)
     }))
-    #View(cbind(which_min, temp, temp2))
+    # View(cbind(which_min, temp, temp2))
 }
 
 vars <- c("CRP \\(", "Max CRP", "SAA", "Ferritin", "Erythrocyte")

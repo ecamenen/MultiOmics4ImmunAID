@@ -31,8 +31,7 @@ get_corr <- function(x, pval = FALSE, method = "pearson") {
                 vars,
                 function(j) {
                     if (is.numeric(x[, i]) & is.numeric(x[, j])) {
-                        tryCatch(
-                            {
+                        tryCatch({
                                 res <- cor.test(x[, i], x[, j], method = method) %>%
                                     suppressWarnings()
                                 if (pval) {
@@ -123,11 +122,11 @@ percent_not_normal <- function(x, threshold = 0.05) {
 
 get_corr0 <- function(x, p = NULL) {
     r <- get_corr(x, TRUE)
-    r[r == NA] <- 0
+    r[is.na(r)] <- 0
     colnames(r) <- colnames(x) -> row.names(r)
     if (!is.null(p)) {
         p <- get_corr(x)
-        p[p == NA] <- 1
+        p[is.na(p)] <- 1
     }
     list(r, p)
 }

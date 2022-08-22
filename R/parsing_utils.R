@@ -278,7 +278,8 @@ get_level_pattern <- function(levels, regex) {
 
 #' @export
 get_table_occ0 <- function(x, y, levels, regex) {
-    get_table_occ(x, y, seq(nrow(levels))[-detect_difficulty(levels, regex)], FALSE)
+    i_rows <- seq(nrow(levels))[-detect_difficulty(levels, regex)]
+    get_table_occ(x, y, i_rows, FALSE)
 }
 
 #' @export
@@ -286,7 +287,6 @@ complete_date <- function(x, sep = "/") {
     r_y <- "((?:19|20)\\d{2})"
     r_m <- "([01]\\d)"
     r_d <- "(\\d{2})"
-    regex_date <- paste(r_d, r_m, r_y, sep = sep)
     values0 <- sapply(2:0, function(x) paste(rep(paste0("01", sep), x), collapse = ""))
     values <- sapply(seq(3), function(x) paste0("\\", seq(x), collapse = sep))
     values <- mapply(paste0, values0, values)
@@ -325,7 +325,11 @@ finalise_data <- function(x, col_name = NULL, clean_name = TRUE, row_name = 1) {
 
 #' @export
 ordinal_variables <- function(x, n = nrow(x) / 2^3) {
-    which(sapply(colnames(x), function(i) length(unique(sort(as.data.frame(x[, i])[, 1])))) < n)
+    sapply(
+        colnames(x),
+        function(i) length(unique(sort(as.data.frame(x[, i])[, 1])))
+    ) %>%
+    which(. < n)
 }
 
 #' @export

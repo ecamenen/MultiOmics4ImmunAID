@@ -1,5 +1,12 @@
 #' @export
-plot_corr <- function(x, y, clean_name = TRUE, mat = NULL, p_mat = NULL, col = brewer.pal(n = 7, name = "RdBu")) {
+plot_corr <- function(
+    x,
+    y,
+    clean_name = TRUE,
+    mat = NULL,
+    p_mat = NULL,
+    col = brewer.pal(n = 7, name = "RdBu")
+) {
     if (clean_name) {
         colnames(x) <- get_var_names(colnames(x), y)
         x <- clean_names(x)
@@ -163,7 +170,13 @@ plot_qq0 <- function(
 }
 
 
-plot_corr0 <- function(x, n = ncol(x), cols = c("black", brewer.pal(n = 7, name = "RdBu"), "#000000"), method = "pearson", p_adjust = "holm") {
+plot_corr0 <- function(
+    x,
+    n = ncol(x),
+    cols = c("black", brewer.pal(n = 7, name = "RdBu"), "#000000"),
+    method = "pearson",
+    p_adjust = "holm"
+) {
     res <- correlation(x[, seq(n)], method = method, p_adjust = p_adjust)
     plot_corr(
         x[, seq(n)],
