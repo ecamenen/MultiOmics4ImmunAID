@@ -17,11 +17,13 @@ for (i in omics) {
     rownames(blocks[[i]]) <- get_patient_id(blocks[[i]])
 }
 
-blocks <- blocks[c("MS", "RNA", "CLINIC")]
+blocks[c("CLINIC")] <- blocks[c("CLINIC_TRANSF")]
+blocks <- blocks[c("CLINIC")]
+# blocks <- blocks[c("MS", "RNA", "CLINIC")]
 common_rows <- Reduce(intersect, lapply(blocks, row.names))
 blocks <- lapply(blocks, function(x) clean_data(x[common_rows, ], FALSE))
 
-disease <- c("Still", "osteitis")
+diseases <- c("control", "Still", "osteitis")
 # Select the numerical variables
 blocks[["ELISA"]] <- select(blocks[["ELISA"]], c(4, 5))
 levels(blocks[["CLINIC"]]$gender) <- c(0, 1)
@@ -37,7 +39,8 @@ blocks[["CLINIC"]][blocks[["CLINIC"]] == "-Inf"] <- 0
 rownames(blocks[["CLINIC"]]) <- row_names
 
 # Remove missing samples from cofonding variables
-vars <- c("gender", "age_at_inclusion_tim", "bmi_automatic")
+# vars <- c("gender", "age_at_inclusion_tim", "bmi_automatic")
+vars <- c("gender", "age_at_inclusion_time", "BMI")
 to_remove <- sapply(vars, function(i) which(is.na(blocks[["CLINIC"]][, i])))
 to_remove <- unique(Reduce(c, to_remove))
 blocks <- lapply(blocks, function(i) i[-to_remove, ])
@@ -50,7 +53,7 @@ blocks.df <- lapply(
         lapply(
             seq(ncol(x)),
             function(y) {
-                  lm(x[, y] ~ cl$age_at_inclusion_tim + cl$bmi_automatic, na.action = "na.exclude")$residuals
+                  lm(x[, y] ~ cl$age_at_inclusion_time + cl$BMI, na.action = "na.exclude")$residuals
               }
         )
     }
@@ -82,12 +85,12 @@ for (k in seq(length(blocks))) {
     )
 }
 blocks <- blocks.df
-blocks[["CLINIC"]] <- select(blocks[["CLINIC"]], -seq(6)) # %>%
-# filter(str_detect(blocks[["CLINIC"]]$disease, disease[1]))
+inds <- (clinic %>% filter(str_detect(disease, paste(c(diseases[1], diseases[2]), collapse = "|"))))$immun_aid_identifier
+blocks[["CLINIC"]] <- select(blocks[["CLINIC"]], -seq(6)) # [rownames(blocks[["CLINIC"]]) %in% inds, ]
 
 blocks <- lapply(blocks, function(x) clean_data(x, FALSE))
-# blocks_w_ms <- blocks
-use_data(blocks, overwrite = TRUE)
+blocks_clinic <- blocks
+use_data(blocks_clinic, overwrite = TRUE)
 
 # plot_violin(blocks[["CLINIC"]] %>% select(1:4), colors = rep("blue", 200))
 # plot_network(blocks, colors =  c("#eee685", "white"))
