@@ -458,6 +458,9 @@ clinic_tot_proc %>%
     select(C_2643_3797) %>%
     plot_bar()
 
+# clinic_tot_proc %>%
+#     filter(str_detect(C_2643_3797, "Paris|Bordeaux|Nantes|Lyon|Lille|Strasbourg")) %>% select(C_2643_3797) %>% group_by(C_2643_3797) %>% summarise(n = n()) %>% arrange(desc(n))
+
 # By French cities
 clinic_tot_proc %>%
     mutate(
@@ -520,7 +523,7 @@ clinic_num <- select(clinic, sort(get_name_num(clinic)))
 
 var_ord <- ordinal_variables(clinic_num)
 var_not_ord <- colnames(select(clinic_num, -all_of(var_ord)))
-plot_histo(log(select(clinic_num, all_of(var_not_ord))), colors = rep("blue", 250))
+plot_histo(log1p(select(clinic_num, all_of(var_not_ord))), colors = rep("blue", 250))
 
 var_max <- c("creatinine_mmol_l", "alat_uln_upper_limi", "leucocytes_mm3", "neutrophils_mm3", "ggt_ui_l", "cardiac_manifestatio", "vascular_involvement", "other_neurological_m")
 (out <- sapply(var_max, function(i) which.max(as.data.frame(clinic_num[, i])[[1]])))
@@ -531,7 +534,7 @@ for (i in seq(var_max)) {
 }
 p
 
-get_not_normal0(log(select(clinic, all_of(var_not_ord)) + 0.00001))
+get_not_normal0(log1p(select(clinic, all_of(var_not_ord))))
 
 # levels from ordinal data
 sapply(var_ord, function(i) unique(sort(as.data.frame(clinic_num[, i])[, 1])))
@@ -545,34 +548,37 @@ clinic$alat_uln_upper_limi[which(clinic$alat_uln_upper_limi == 269)] <- NA
 clinic_transf <- update_columns(clinic, "height_cm", function(i) i^2)
 # Log transformation
 var_log <- c(
-    "abdominal_pain",
+    # "abdominal_pain",
     "alat_ui_l",
     "alk_phosphatases_ui",
-    "arthralgia_myalgia",
-    "bone_pain",
-    "cardiac_manifestatio",
-    "charlson_score_auto",
-    "chest_pain",
+    "asat_ui_l",
+    # "arthralgia_myalgia",
+    # "bone_pain",
+    # "cardiac_manifestatio",
+    # "charlson_score_auto",
+    # "chest_pain",
+    "creatinine_mmol_l",
     "crp_c_reactive_prot",
-    "diarrhea",
+    # "diarrhea",
     "eosinophils_mm3",
-    "eye_manifestations",
+    # "eye_manifestations",
     "fever_38_c_104_f",
     "ggt_ui_l",
-    "headaches",
-    "nausea_vomiting",
+    "ggt_uln_ui_l", # bof
+    # "headaches",
+    # "nausea_vomiting",
     "number_of_consecutiv",
-    "other_neurological_m",
-    "overall_symptoms",
-    "painful_nodes",
-    "skin_rash_other_sa",
-    "sore_throat_other",
-    "swelling_of_the_join",
-    "total_bilirubin_mmo",
-    "vascular_involvement",
-    "weight_loss_uninten"
+    # "other_neurological_m",
+    # "overall_symptoms",
+    # "painful_nodes",
+    # "skin_rash_other_sa",
+    # "sore_throat_other",
+    # "swelling_of_the_join",
+    "total_bilirubin_mmo"
+    # "vascular_involvement",
+    # "weight_loss_uninten"
 )
-clinic_transf <- update_columns(clinic_transf, var_log, log) # %>%
+clinic_transf <- update_columns(clinic_transf, var_log, log1p) # %>%
 # arrange(immun_aid_identifier)
 clinic_transf[clinic_transf == -Inf] <- -1
 colnames(clinic_transf) <- codes_proc
@@ -656,6 +662,7 @@ for (i in biol) {
 # clinic_transf %>% select(date_biology) %>% slice(intersect(which(abs(date_diff) > 7), which(which_min > 1)))
 
 # Save
+clinic_transf <- arrange(clinic_transf, immun_aid_identifier)
 clinic_transf <- finalise_data(clinic_transf, row_name = "immun_aid_identifier", clean_name = FALSE)
 attributes(clinic_transf)$codes <- temp2
 use_data(clinic_transf, overwrite = TRUE)

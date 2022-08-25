@@ -82,12 +82,13 @@ for (k in seq(length(blocks))) {
     )
 }
 blocks <- blocks.df
-inds <- (clinic %>% filter(str_detect(disease, paste(c(diseases[1], diseases[2]), collapse = "|"))))$immun_aid_identifier
-blocks[["CLINIC"]] <- select(blocks[["CLINIC"]], -seq(6)) # [rownames(blocks[["CLINIC"]]) %in% inds, ]
+inds <- (clinic %>% filter(str_detect(disease, paste(c(diseases[2]), collapse = "|"))))$immun_aid_identifier
+blocks[["CLINIC"]] <- select(blocks[["CLINIC"]], -seq(6))[rownames(blocks[["CLINIC"]]) %in% inds, ]
 
 blocks <- lapply(blocks, function(x) clean_data(x, FALSE))
 blocks_clinic <- blocks
 use_data(blocks_clinic, overwrite = TRUE)
 
 # plot_violin(blocks[["CLINIC"]] %>% select(1:4), colors = rep("blue", 200))
+# plot_histo(blocks[["CLINIC"]], colors = rep("blue", 250))
 # plot_network(blocks, colors =  c("#eee685", "white"))
