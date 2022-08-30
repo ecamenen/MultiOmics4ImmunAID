@@ -254,7 +254,7 @@ length(qc)
 
 # Transcriptomics
 ```{r}
-rna <- read_tsv(file.path(path, "processed_counts_matrix.tsv"))
+rna <- read_tsv(file.path(path, "processed_gene_matrix.tsv"))
 rna_t <- t(rna)[-1, ] %>%
     t2tibble() %>%
     clean_data(clean_name = FALSE) %>%
@@ -302,11 +302,17 @@ vars <- lapply(clinic, function(i) as.numeric(as.data.frame(i[, 2])[, 1]))
 # vars <- lapply(clinic_code, function(i) as.data.frame(i[, 1])[, 1])
 names(vars) <- seq(3)
 plot_venn(vars)
-get_intersection(vars)
+(inter <- get_intersection(vars))
 # Duplicates are identical ? TRUE
 identical(as.data.frame(t(clinic[[1]][23, ])), as.data.frame(t(clinic[[2]][37, ])))
 # QC from MS is in clinical ? Nope.
 which(str_detect(rownames(clinic), "7174"))
+
+# Create batch variable
+n <- sapply(vars, length)
+batches <- mapply(function(x, y) rep(x, y), seq(3), n)
+t_batch <- cbind(unlist(vars), unlist(batches))
+t_batch <- t_batch[-which(duplicated(t_batch[, 1])), ]
 
 # Common subject ID with ELISA
 vars_clin <- sort(as.numeric(unlist(vars)))
@@ -336,6 +342,7 @@ for (i in var_na) {
 # find_na(clinic_tot)
 # set_missing
 clinic_tot_proc <- best_na_percent(clinic_tot, 50)
+# sapply(seq(nrow(x)), function(i) round((length(which(is.na(x[i, ]))) / ncol(x))*100, 1))
 
 plot_missing(
     clinic_tot_proc,
@@ -545,7 +552,8 @@ diagnose_category(as.data.frame(sapply(var_ord, function(i) as.factor(as.data.fr
 clinic$alat_uln_upper_limi[which(clinic$alat_uln_upper_limi == 269)] <- NA
 
 # X2 transformation
-clinic_transf <- update_columns(clinic, "height_cm", function(i) i^2)
+clinic_transf <- clinic
+# clinic_transf <- update_columns(clinic, "height_cm", function(i) i^2)
 # Log transformation
 var_log <- c(
     # "abdominal_pain",
@@ -578,9 +586,8 @@ var_log <- c(
     # "vascular_involvement",
     # "weight_loss_uninten"
 )
-clinic_transf <- update_columns(clinic_transf, var_log, log1p) # %>%
+# clinic_transf <- update_columns(clinic_transf, var_log, log1p) # %>%
 # arrange(immun_aid_identifier)
-clinic_transf[clinic_transf == -Inf] <- -1
 colnames(clinic_transf) <- codes_proc
 
 # Rename
@@ -615,6 +622,7 @@ for (i in c(temp[sapply(temp, function(i) str_length(i) < 5)])) {
 }
 
 temp <- str_replace(temp, "^(neutrophils)_2$", "\\1_percent")
+temp <- str_replace(temp, "value_due_to_the_disease", "")
 
 names(temp) <- codes_temp
 
@@ -654,15 +662,18 @@ which_min <- sapply(which_min, function(i) ifelse(length(i) == 0, 1, i))
 filter_week <- abs(date_diff) > 7
 filter_week1 <- which(filter_week[, 1])
 
-for (i in biol) {
-    clinic_transf[filter_week1, i] <- NA
-}
+# for (i in biol) {
+#     clinic_transf[filter_week1, i] <- NA
+# }
 
 #  clinic_transf %>% select(all_of(biol)) %>% slice(intersect(which(abs(date_diff) > 7), which(which_min > 1)))
 # clinic_transf %>% select(date_biology) %>% slice(intersect(which(abs(date_diff) > 7), which(which_min > 1)))
 
+t_batch <- arrange(as.data.frame(t_batch), V1)[, 2]
+
 # Save
-clinic_transf <- arrange(clinic_transf, immun_aid_identifier)
+clinic_transf <- arrange(clinic_transf, immun_aid_identifier) %>%
+    mutate(batch = t_batch)
 clinic_transf <- finalise_data(clinic_transf, row_name = "immun_aid_identifier", clean_name = FALSE)
 attributes(clinic_transf)$codes <- temp2
 use_data(clinic_transf, overwrite = TRUE)
