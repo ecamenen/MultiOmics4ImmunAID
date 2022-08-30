@@ -1,5 +1,5 @@
 path <- file.path(get_golem_wd(), "data")
-files <- list.files(path)[!str_detect(list.files(path), "blocks|behavioral|code")] %>%
+files <- list.files(path)[!str_detect(list.files(path), "blocks|behavioral|code|0")] %>%
     sort() %>%
     str_replace_all(".rda", "")
 
@@ -18,12 +18,15 @@ for (i in omics) {
 }
 
 blocks[c("CLINIC")] <- blocks[c("CLINIC_TRANSF")]
-blocks <- blocks[c("CLINIC")]
-# blocks <- blocks[c("MS", "RNA", "CLINIC")]
+# blocks <- blocks[c("CLINIC")]
+diseases <- c("control", "Still", "juvenile", "osteitis")
+inds <- (clinic %>% filter(str_detect(disease, paste(c(diseases[2:3]), collapse = "|"))))$immun_aid_identifier
+blocks[["CLINIC"]] <- blocks[["CLINIC"]][rownames(blocks[["CLINIC"]]) %in% inds, ]
+
+blocks <- blocks[c("RNA", "CLINIC")]
 common_rows <- Reduce(intersect, lapply(blocks, row.names))
 blocks <- lapply(blocks, function(x) clean_data(x[common_rows, ], FALSE))
 
-diseases <- c("control", "Still", "osteitis")
 # Select the numerical variables
 blocks[["ELISA"]] <- select(blocks[["ELISA"]], c(4, 5))
 levels(blocks[["CLINIC"]]$gender) <- c(0, 1)
@@ -33,13 +36,17 @@ blocks[["CLINIC"]] <- get_name_num(blocks[["CLINIC"]]) %>%
 # All cofonding variables in numeric
 blocks[["CLINIC"]]$gender <- as.numeric(as.character(blocks[["CLINIC"]]$gender))
 row_names <- rownames(blocks[["CLINIC"]])
+# Transform
+blocks[["CLINIC"]][, -seq(1)] <- as.data.frame(sapply(blocks[["CLINIC"]][, -seq(1)], log1p))
+rownames(blocks[["CLINIC"]]) <- row_names
 
 # Remove missing samples from cofonding variables
 # vars <- c("gender", "age_at_inclusion_tim", "bmi_automatic")
 vars <- c("gender", "age_at_inclusion_time", "BMI")
 to_remove <- sapply(vars, function(i) which(is.na(blocks[["CLINIC"]][, i])))
 to_remove <- unique(Reduce(c, to_remove))
-blocks <- lapply(blocks, function(i) i[-to_remove, ])
+if (length(to_remove) > 0)
+    blocks <- lapply(blocks, function(i) i[-to_remove, ])
 # clinic[to_remove, ] %>% select(1:3, vars)
 cl <- blocks[["CLINIC"]]
 
@@ -82,12 +89,11 @@ for (k in seq(length(blocks))) {
     )
 }
 blocks <- blocks.df
-inds <- (clinic %>% filter(str_detect(disease, paste(c(diseases[2]), collapse = "|"))))$immun_aid_identifier
-blocks[["CLINIC"]] <- select(blocks[["CLINIC"]], -seq(6))[rownames(blocks[["CLINIC"]]) %in% inds, ]
+blocks[["CLINIC"]] <- select(blocks[["CLINIC"]], -seq(6))
 
 blocks <- lapply(blocks, function(x) clean_data(x, FALSE))
-blocks_clinic <- blocks
-use_data(blocks_clinic, overwrite = TRUE)
+# blocks_clinic <- blocks
+use_data(blocks, overwrite = TRUE)
 
 # plot_violin(blocks[["CLINIC"]] %>% select(1:4), colors = rep("blue", 200))
 # plot_histo(blocks[["CLINIC"]], colors = rep("blue", 250))
