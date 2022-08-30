@@ -74,6 +74,7 @@ plot_violin <- function(
         name,
         value,
         outlier.tagging = TRUE,
+        outlier.label = value,
         results.subtitle = FALSE,
         pairwise.comparisons = FALSE,
         centrality.point.args = list(size = 3, color = "red"),

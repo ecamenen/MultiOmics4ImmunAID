@@ -9,30 +9,39 @@ get_nodes <- function(x) {
     dims <- sapply(x, dim)
     values <- list(names(x), dims[2, ], dims[1, ])
     nodes <- as.data.frame(matrix(unlist(values), length(x), length(values)))
-    colnames(nodes) <- c("id", "P", "N")
+    colnames(nodes) <- c("id", "p", "n")
     return(nodes)
 }
 
 # Creates the edges for a design matrix
 #
 # @return A dataframe with tuples of connected x
-get_edges <- function(x, C) {
+get_edges <- function(x, C, p = NULL) {
     J <- NCOL(C)
     edges <- list()
 
     k <- 0
     for (j in seq(J)) {
         for (i in seq(J)) {
-            if (i > k && C[i, j] > 0) {
-                edges[[length(edges) + 1]] <- c(names(x)[j], names(x)[i], C[i, j])
+            if (i > k && abs(C[i, j]) > 0) {
+                if (is.null(p)) {
+                    d <- NULL
+                } else {
+                    d <- p[i, j]
+                }
+                edges[[length(edges) + 1]] <- c(names(x)[j], names(x)[i], C[i, j], d)
             }
         }
         k <- k + 1
     }
 
-    edges <- as.data.frame(t(matrix(unlist(edges), 3, length(edges))))
-    colnames(edges) <- c("from", "to", "weight")
+    n <- length(edges[[1]])
+    edges <- as.data.frame(t(matrix(unlist(edges), n, length(edges))))
+    colnames(edges) <- c("from", "to", "weight", "p")[seq(n)]
     edges[, 3] <- as.numeric(edges[, 3])
+    if (!is.null(p)) {
+        edges[, 4] <- as.numeric(edges[, 4])
+    }
 
     return(edges)
 }
@@ -54,13 +63,18 @@ plot_network <- function(
     x,
     C = 1 - diag(length(x)),
     title = paste0(
-      "Common rows between blocks : ",
-      length(Reduce(intersect, lapply(x, row.names)))
+        "Common rows between blocks : ",
+        length(Reduce(intersect, lapply(x, row.names)))
     ),
     cex = 1,
     cex_main = 14 * cex,
     cex_point = 3 * cex,
-    color = c("#eee685", "gray60")
+    cex_nodes = 2 * cex,
+    color = c("#eee685", "gray60"),
+    shape = "square",
+    dashes = TRUE,
+    nodes = NULL,
+    edges = NULL
 ) {
     stopifnot(is(x, "list"))
     stopifnot(all(sapply(x, function(i) is(i, "data.frame"))))
@@ -92,13 +106,15 @@ plot_network <- function(
     V(net)$label <- paste(
         nodes$id,
         "\nP =",
-        nodes$P,
+        nodes$p,
         "\nN =",
-        nodes$N,
+        nodes$n,
         sep = " "
     )
-    V(net)$shape <- "square"
-    E(net)$width <- E(net)$weight * 2
+    V(net)$shape <- shape
+
+
+    E(net)$width <- E(net)$weight * cex_nodes
     plot(
         net,
         edge.color = color[2],
@@ -113,6 +129,42 @@ plot_network <- function(
     )
     title(title, cex.main = cex_main * 0.1)
 }
+
+plot_network20 <- function(x, cutoff = 0.75, ...) {
+    C <- get_corr(x, TRUE)
+    title <- round(mean(C), 2)
+    C[abs(C) < cutoff] <- 0 -> diag(C)
+
+    p <- get_corr(x)
+
+    edges <- get_edges(x, C, p)
+    # edges <- adjust_pvalue(edges, "p")
+    # font <- "14px arial black"
+    # edges$font.bold.mod <- ifelse(edges$p.adj < 0.05, paste(font, "bold"), font)
+    edges$title <- round(edges[, 3], 2) -> edges$label
+    edges$color <- ifelse(edges$weight > 0, "green", "red")
+    id <- unlist(edges[, 1:2])
+    nodes <- data.frame(id) %>%
+        group_by(id) %>%
+        summarise(size = n() * 6) %>%
+        as.data.frame()
+
+
+    color_node <- ifelse(edges$weight > 0, "green", "red")
+
+    plot_network2(
+        x,
+        C,
+        shape = "dot",
+        dashes = FALSE,
+        nodes = nodes,
+        edges = edges,
+        cex_nodes = edges$weight * 20,
+        title = paste("Mean correlation between variables = ", title * 2),
+        ...
+    )
+}
+
 
 #' Plot the connection between blocks (dynamic plot)
 #'
@@ -131,16 +183,21 @@ plot_network2 <- function(
     x,
     C = 1 - diag(length(x)),
     title = paste0(
-      "Common rows between blocks : ",
-      length(Reduce(intersect, lapply(x, row.names)))
+        "Common rows between blocks : ",
+        length(Reduce(intersect, lapply(x, row.names)))
     ),
     cex = 1,
     cex_main = 14 * cex,
     cex_point = 3 * cex,
-    color = c("#eee685", "gray")
+    cex_nodes = 2 * cex,
+    color = c("#eee685", "gray"),
+    shape = "square",
+    dashes = TRUE,
+    nodes = NULL,
+    edges = NULL
 ) {
-    stopifnot(is(x, "list"))
-    stopifnot(all(sapply(x, function(i) is(i, "data.frame"))))
+    # stopifnot(is(x, "list"))
+    # stopifnot(all(sapply(x, function(i) is(i, "data.frame"))))
     title <- paste0(title, collapse = " ")
     RGCCA:::check_colors(color)
     for (i in c("cex_main", "cex_point")) {
@@ -154,21 +211,24 @@ plot_network2 <- function(
     # load_libraries("visNetwork")
     `%>%` <- magrittr::`%>%`
 
-    nodes <- get_nodes(x)
-    edges <- get_edges(x, C)
+    if (is.null(nodes)) {
+        nodes <- get_nodes(x)
+        nodes$label <- paste(
+            nodes$id,
+            "\nP =",
+            nodes$p,
+            "\nN =",
+            nodes$n,
+            sep = " "
+        )
+    }
+    nodes$title <- nodes$id -> nodes$label
+    nodes$color.background <- rep(as.vector(color[1]), nrow(nodes))
 
-    nodes$title <- nodes$id
-    nodes$label <- paste(
-        nodes$id,
-        "\nP =",
-        nodes$P,
-        "\nN =",
-        nodes$N,
-        sep = " "
-    )
-
-    edges$width <- edges$weight * 2
-    nodes$color.background <- rep(as.vector(color[1]), length(x))
+    if (is.null(edges)) {
+        edges <- get_edges(x, C)
+    }
+    edges$width <- edges$weight * cex_nodes
 
     visNetwork::visNetwork(
         nodes,
@@ -184,7 +244,7 @@ plot_network2 <- function(
     ) %>%
         visNetwork::visNodes(
             borderWidth = 2,
-            shape = "square",
+            shape = shape,
             shadow = TRUE,
             size = cex_point * 7.5,
             font = list(size = cex * 14),
@@ -196,7 +256,7 @@ plot_network2 <- function(
         visNetwork::visEdges(
             smooth = FALSE,
             shadow = TRUE,
-            dashes = TRUE,
+            dashes = dashes,
             color = list(color = color[2], highlight = "darkred")
         )
 }
