@@ -1,59 +1,31 @@
 # Creates the nodes for a design matrix
 #
-# @inheritParams plot_var_2D
-# @return A dataframe with rgcca_res$call$blocks in rows and the number of variables, of rows
+# @return A dataframe with x in rows and the number of variables, of rows
 # and tau or sparsity in columns
-get_nodes <- function(rgcca_res) {
-    if (tolower(rgcca_res$call$method) %in% c("sgcca", "spls", "spca")) {
-        par_rgcca <- "sparsity"
-        par_name <- "sparsity"
-    } else {
-          par_rgcca <- par_name <- "tau"
-      }
-
-    if (is.matrix(rgcca_res$call[[par_rgcca]])) {
-          penalty <- unlist(
-              lapply(
-                  seq(NCOL(rgcca_res$call[[par_rgcca]])),
-                  function(x) {
-                        Reduce(paste, round(rgcca_res$call[[par_rgcca]][, x], 2))
-                    }
-              )
-          )
-      } else {
-          penalty <- round(rgcca_res$call[[par_rgcca]], 2)
-      }
-
-    nrow <- unlist(lapply(rgcca_res$call$blocks, function(x) {
-          ifelse(
-              is.null(attributes(x)$nrow),
-              NROW(rgcca_res$call$blocks[[1]]),
-              attributes(x)$nrow
-          )
-      }))
-
-    values <- list(names(rgcca_res$call$blocks), unlist(lapply(rgcca_res$call$blocks, NCOL)), nrow, penalty)
-    nodes <- as.data.frame(matrix(unlist(values), length(rgcca_res$call$blocks), length(values)))
-    colnames(nodes) <- c("id", "P", "nrow", par_name)
-
+get_nodes <- function(x) {
+    if (is.null(names(x))) {
+        names(x) <- seq_along(x)
+    }
+    dims <- sapply(x, dim)
+    values <- list(names(x), dims[2, ], dims[1, ])
+    nodes <- as.data.frame(matrix(unlist(values), length(x), length(values)))
+    colnames(nodes) <- c("id", "P", "N")
     return(nodes)
 }
 
 # Creates the edges for a design matrix
 #
-# @inheritParams plot_ind
-# @return A dataframe with tuples of connected rgcca_res$call$blocks
-get_edges <- function(rgcca_res) {
-    J <- NCOL(rgcca_res$call$connection)
+# @return A dataframe with tuples of connected x
+get_edges <- function(x, C) {
+    J <- NCOL(C)
     edges <- list()
 
     k <- 0
     for (j in seq(J)) {
         for (i in seq(J)) {
-            if (i > k && rgcca_res$call$connection[i, j] > 0) {
-                  edges[[length(edges) + 1]] <-
-                      c(names(rgcca_res$call$blocks)[j], names(rgcca_res$call$blocks)[i], rgcca_res$call$connection[i, j])
-              }
+            if (i > k && C[i, j] > 0) {
+                edges[[length(edges) + 1]] <- c(names(x)[j], names(x)[i], C[i, j])
+            }
         }
         k <- k + 1
     }
@@ -67,36 +39,39 @@ get_edges <- function(rgcca_res) {
 
 #' Plot the connection between blocks
 #'
-#' @inheritParams plot_ind
-#' @inheritParams plot2D
 #' @return A dataframe with tuples of connected blocks
 #' @examples
 #' library(igraph)
+#' library(RGCCA)
 #' data("Russett")
 #' blocks <- list(
 #'     agriculture = Russett[, seq(3)], industry = Russett[, 4:5],
 #'     politic = Russett[, 6:11]
 #' )
-#' rgcca_out <- rgcca(blocks)
-#' plot_network(rgcca_out)
+#' plot_network(blocks)
 #' @export
 plot_network <- function(
-  rgcca_res,
-  title = paste0("Common rows between blocks : ",
-                 NROW(rgcca_res$call$blocks[[1]])),
-  cex = 1,
-  cex_main = 14 * cex,
-  cex_point = 3 * cex,
-  colors =  c("#eee685", "gray60")) {
-    stopifnot(is(rgcca_res, "rgcca"))
+    x,
+    C = 1 - diag(length(x)),
+    title = paste0(
+      "Common rows between blocks : ",
+      length(Reduce(intersect, lapply(x, row.names)))
+    ),
+    cex = 1,
+    cex_main = 14 * cex,
+    cex_point = 3 * cex,
+    color = c("#eee685", "gray60")
+) {
+    stopifnot(is(x, "list"))
+    stopifnot(all(sapply(x, function(i) is(i, "data.frame"))))
     title <- paste0(title, collapse = " ")
-    check_colors(colors)
+    RGCCA:::check_colors(color)
     for (i in c("cex_main", "cex_point")) {
-          check_integer(i, get(i))
-      }
-    check_integer("cex", cex, float = TRUE)
+        RGCCA:::check_integer(i, get(i))
+    }
+    RGCCA:::check_integer("cex", cex, float = TRUE)
 
-    load_libraries("igraph")
+    RGCCA:::load_libraries("igraph")
 
     # Avoid random
     set.seed(1)
@@ -104,10 +79,8 @@ plot_network <- function(
     `E<-` <- igraph::`E<-`
     V <- E <- NULL
 
-    nodes <- get_nodes(rgcca_res)
-    edges <- get_edges(rgcca_res)
-
-    par <- ifelse("sparsity" %in% names(nodes), "sparsity", "tau")
+    nodes <- get_nodes(x)
+    edges <- get_edges(x, C)
 
     net <- igraph::graph_from_data_frame(
         d = edges,
@@ -115,24 +88,22 @@ plot_network <- function(
         directed = FALSE
     )
 
-    V(net)$color <- as.vector(colors[1])
+    V(net)$color <- as.vector(color[1])
     V(net)$label <- paste(
         nodes$id,
         "\nP =",
         nodes$P,
-        paste0("\n", par, " ="),
-        nodes[, par],
         "\nN =",
-        nodes$nrow,
+        nodes$N,
         sep = " "
     )
     V(net)$shape <- "square"
     E(net)$width <- E(net)$weight * 2
     plot(
         net,
-        edge.color = colors[2],
+        edge.color = color[2],
         edge.lty = 2,
-        vertex.frame.color = colors[2],
+        vertex.frame.color = color[2],
         vertex.label.cex = cex,
         vertex.label.color = "black",
         vertex.label.dist = 6,
@@ -145,62 +116,70 @@ plot_network <- function(
 
 #' Plot the connection between blocks (dynamic plot)
 #'
-#' @inheritParams plot_ind
-#' @inheritParams plot2D
 #' @return A dataframe with tuples of connected blocks
 #' @examples
 #' library(visNetwork)
+#' library(RGCCA)
 #' data("Russett")
 #' blocks <- list(
 #'     agriculture = Russett[, seq(3)], industry = Russett[, 4:5],
 #'     politic = Russett[, 6:11]
 #' )
-#' rgcca_out <- rgcca(blocks)
-#' plot_network2(rgcca_out)
+#' plot_network2(blocks)
 #' @export
 plot_network2 <- function(
-  rgcca_res,
-  title = paste0("Common rows between blocks : ",
-                 NROW(rgcca_res$call$blocks[[1]])),
-  cex = 1,
-  cex_main = 14 * cex,
-  cex_point = 3 * cex,
-  colors =  c("#eee685", "gray")) {
-    stopifnot(is(rgcca_res, "rgcca"))
+    x,
+    C = 1 - diag(length(x)),
+    title = paste0(
+      "Common rows between blocks : ",
+      length(Reduce(intersect, lapply(x, row.names)))
+    ),
+    cex = 1,
+    cex_main = 14 * cex,
+    cex_point = 3 * cex,
+    color = c("#eee685", "gray")
+) {
+    stopifnot(is(x, "list"))
+    stopifnot(all(sapply(x, function(i) is(i, "data.frame"))))
     title <- paste0(title, collapse = " ")
-    check_colors(colors)
-    if (length(colors) < 2) {
-          colors <- c(colors, "gray")
-      }
+    RGCCA:::check_colors(color)
+    for (i in c("cex_main", "cex_point")) {
+        RGCCA:::check_integer(i, get(i))
+    }
+    RGCCA:::check_integer("cex", cex, float = TRUE)
+    if (length(color) < 2) {
+        color <- c(color, "gray")
+    }
 
-    load_libraries("visNetwork")
+    # load_libraries("visNetwork")
     `%>%` <- magrittr::`%>%`
 
-    nodes <- get_nodes(rgcca_res)
-    edges <- get_edges(rgcca_res)
-
-    par <- ifelse("sparsity" %in% names(nodes), "sparsity", "tau")
+    nodes <- get_nodes(x)
+    edges <- get_edges(x, C)
 
     nodes$title <- nodes$id
-    nodes$label <- paste(nodes$id,
+    nodes$label <- paste(
+        nodes$id,
         "\nP =",
         nodes$P,
-        paste0("\n", par, " ="),
-        nodes[, par],
         "\nN =",
-        nodes$nrow,
+        nodes$N,
         sep = " "
     )
 
     edges$width <- edges$weight * 2
-    nodes$color.background <- rep(as.vector(colors[1]), length(rgcca_res$call$blocks))
+    nodes$color.background <- rep(as.vector(color[1]), length(x))
 
     visNetwork::visNetwork(
         nodes,
         edges,
         main = list(
             text = title,
-            style = paste0("font-family:sans;font-weight:bold;font-size:", cex_main * 1.4, "px;text-align:center;")
+            style = paste0(
+                "font-family:sans;font-weight:bold;font-size:",
+                cex_main * 1.4,
+                "px;text-align:center;"
+            )
         )
     ) %>%
         visNetwork::visNodes(
@@ -210,7 +189,7 @@ plot_network2 <- function(
             size = cex_point * 7.5,
             font = list(size = cex * 14),
             color = list(
-                border = colors[2],
+                border = color[2],
                 highlight = list(background = "black", border = "darkred")
             )
         ) %>%
@@ -218,6 +197,6 @@ plot_network2 <- function(
             smooth = FALSE,
             shadow = TRUE,
             dashes = TRUE,
-            color = list(color = colors[2], highlight = "darkred")
+            color = list(color = color[2], highlight = "darkred")
         )
 }
