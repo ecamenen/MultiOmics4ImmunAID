@@ -141,3 +141,59 @@ calculate_samplesize <- function(muA, muB, sd, kappa = 1, alpha = 0.05, beta = 0
 calculate_effectsize <- function(muA, muB, sd) {
     (muA - muB) / sd
 }
+
+#' @export
+remove_cofunding <- function(x, vars, block = 1) {
+    # All cofunding variables in numeric
+    for (i in vars) {
+        x[[block]][, i] <- as.numeric(as.character(x[[block]][, i]))
+    }
+
+    # Remove missing samples from cofunding variables
+    to_remove <- sapply(vars, function(i) which(is.na(x[[block]][, i])))
+    to_remove <- unique(Reduce(c, to_remove))
+    if (length(to_remove) > 0)
+        x <- lapply(x, function(i) i[-to_remove, ])
+    cl <- x[[block]]
+    x0 <- lapply(x, log1p)
+
+    # Weight by the cofunding effect residuals
+    blocks.df <- lapply(
+        x0,
+        function(i) lapply(
+            seq(ncol(i)),
+            function(j)   {
+                form <- as.formula(paste0("i[, j] ~" , paste0("cl$", vars, collapse = "+")))
+                lm(form, na.action = "na.exclude")$residuals
+            }
+        )
+    )
+
+    # Position of the NA values in blocks
+    for (k in seq(length(x))) {
+        listNA <- which(is.na(x[[k]]), arr.ind = TRUE)
+
+        # Insert NA
+        for (i in unique(listNA[, 2])) {
+            for (j in listNA[which(listNA[, 2] == i), 1] - 1) {
+                blocks.df[[k]][[i]] <- append(
+                    blocks.df[[k]][[i]],
+                    NA,
+                    j
+                )
+            }
+        }
+
+        # Convert in matrix
+        blocks.df[[k]] <- as.data.frame(
+            matrix(
+                unlist(blocks.df[[k]]),
+                nrow = nrow(x[[k]]),
+                ncol = ncol(x[[k]]),
+                dimnames = list(row.names(x[[k]]), colnames(x[[k]]))
+            )
+        )
+    }
+
+    return(blocks.df)
+}
