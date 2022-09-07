@@ -135,7 +135,7 @@ plot_corr_network <- function(x, cutoff = 0.75, ...) {
     # edges$font.bold.mod <- ifelse(edges$p.adj < 0.05, paste(font, "bold"), font)
     edges$title <- round(edges[, 3], 2) -> edges$label
     edges$color <- ifelse(edges$weight > 0, "green", "red")
-    id <- unlist(edges[, 1:2])
+    id <- unlist(edges[, seq(2)])
     nodes <- data.frame(id) %>%
         group_by(id) %>%
         summarise(size = n() * 6) %>%

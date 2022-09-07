@@ -6,6 +6,8 @@
 .idea/
 *.tar.gz
 *.temp*
+*.tiff*
+*.tsv*
 inst/doc
 inst/extdata/
 Meta

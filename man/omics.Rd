@@ -22,9 +22,9 @@
 \alias{sf36}
 \title{Omics}
 \format{
-An object of class \code{list} of length 3.
+An object of class \code{list} of length 2.
 
-An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 213 rows and 118 columns.
+An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 213 rows and 865 columns.
 
 An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 15 rows and 33 columns.
 
@@ -34,9 +34,9 @@ An object of class \code{list} of length 2.
 
 An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 64 rows and 61 columns.
 
-An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 213 rows and 116 columns.
+An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 213 rows and 866 columns.
 
-An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 213 rows and 118 columns.
+An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 183 rows and 118 columns.
 
 An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 37 rows and 5 columns.
 

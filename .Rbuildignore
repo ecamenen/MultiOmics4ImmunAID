@@ -15,4 +15,6 @@
 ^.cache$
 ^.~lock.*
 ^.*\.temp
+^.*\.tiff
+^.*\.tsv
 docker_launch.sh
