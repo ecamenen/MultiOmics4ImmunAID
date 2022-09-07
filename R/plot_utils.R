@@ -33,7 +33,7 @@ plot_corr <- function(
         # Rotation des etiquettes de textes
         # Combiner avec le niveau de significativité
         p.mat = p_mat,
-        sig.level = 0.01,
+        sig.level = 0.05,
         addgrid.col = NA,
         insig = "pch",
         pch = 4,

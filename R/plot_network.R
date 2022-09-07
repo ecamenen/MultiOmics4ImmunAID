@@ -130,10 +130,11 @@ plot_network <- function(
     title(title, cex.main = cex_main * 0.1)
 }
 
-plot_network20 <- function(x, cutoff = 0.75, ...) {
+plot_corr_network <- function(x, cutoff = 0.75, ...) {
     C <- get_corr(x, TRUE)
-    title <- round(mean(C), 2)
+    title <- round(mean(C, na.rm = TRUE), 2)
     C[abs(C) < cutoff] <- 0 -> diag(C)
+    C[is.na(C)] <- 0
 
     p <- get_corr(x)
 

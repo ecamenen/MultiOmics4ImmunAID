@@ -329,7 +329,7 @@ ordinal_variables <- function(x, n = nrow(x) / 2^3) {
         sapply(
             colnames(x),
             function(i) length(unique(sort(as.data.frame(x[, i])[, 1])))
-        ) < n
+        ) <= n
     )
 }
 
@@ -338,7 +338,7 @@ find_dates <- function(x) {
     x <- as.data.frame(x)
     sapply(
         seq_along(x),
-        function(i) any(str_detect(na.omit(x[, i]), "\\d{2}/\\d{2}/\\d{4}"))
+        function(i) any(str_detect(na.omit(x[, i]), "(([0-3])?\\d/)?(0|1)?\\d/(19|20)\\d{2}"))
     )
 }
 
