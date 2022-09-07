@@ -551,22 +551,24 @@ colnames(clinic_tot_proc) <- get_var_names(codes_proc, clinic_code[[1]]) %>%
     str_sub(1, 20)
 clinic <- clean_names(clinic_tot_proc)
 attributes(clinic)$codes <- tibble(codes = codes_proc, name = colnames(clinic))
-use_data(clinic, overwrite = TRUE)
+# use_data(clinic, overwrite = TRUE)
 ```
 
 ## Descriptive stats by disease
 ```{r}
 # Filter by disease
 diseases <- levels(clinic$disease)
+d1 <- diseases[1]
+d0 <- diseases[14]
 clinic_dis <- clinic %>%
     filter(
         str_detect(
             disease,
-            replace_parenthesis(paste(c(diseases[9], diseases[1]), collapse = "|"))
+            replace_parenthesis(paste(c(d0, d1), collapse = "|"))
         )
     )
-levels(clinic_dis$disease)[diseases[1] == levels(clinic$disease)] <- "1"
-levels(clinic_dis$disease)[diseases[9] == levels(clinic$disease)] <- "0"
+levels(clinic_dis$disease)[d1 == levels(clinic$disease)] <- "1"
+levels(clinic_dis$disease)[d0 == levels(clinic$disease)] <- "0"
 clinic_dis$disease <- clinic_dis$disease %>%
     factor(., levels = unique(.))
 
@@ -635,7 +637,7 @@ perc0 %>% select(-var_occ)
 
 # Remove all ordinal data with low occurrences
 clinic_proc0 <- clinic_proc[, sort(colnames(clinic_proc))] %>%
-    select(-all_of(c(var_occ, "immun_aid_identifier")))
+    select(-all_of(c(var_occ, "immun_aid_identifier", "gender")))
 # clinic_proc0$disease <- factor(clinic_proc0$disease, labels = rev(c(diseases[9], diseases[1])))
 
 # Descriptive statistics
@@ -671,6 +673,16 @@ tests <- clinic_proc0 %>%
 
 # Total statistics
 left_join(stats0, tests[, c(1, 8:10)]) %>% arrange(samplesize)
+
+vars <- c("gender", "age_at_inclusion_tim", "bmi_automatic")
+vars2 <- c("immun_aid_identifier", "weight_kg", "disease", "height_cm")
+
+cl <- clinic_proc
+blocks_cl <- clinic_proc %>% as.data.frame() %>% select(-c(vars2))
+blocks_clinic_still <- remove_cofunding(list(CLINIC = blocks_cl), vars)
+
+blocks_clinic_still[[1]] <- select(blocks_clinic_still[[1]], -all_of(vars))
+use_data(blocks_clinic_still, overwrite = TRUE)
 ```
 
 ## Descriptive stats for each disease
