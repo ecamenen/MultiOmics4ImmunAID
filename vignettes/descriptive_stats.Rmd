@@ -342,7 +342,7 @@ for (i in var_na) {
 # find_na(clinic_tot)
 # set_missing
 clinic_tot_proc <- best_na_percent(clinic_tot, 50)
-# sapply(seq(nrow(x)), function(i) round((length(which(is.na(x[i, ]))) / ncol(x))*100, 1))
+# clinic_tot_proc <- clinic
 
 plot_missing(
     clinic_tot_proc,
@@ -493,6 +493,15 @@ clinic_tot_proc %>%
 plot_corr(clinic_tot_proc, stats)
 ggcorrmat(clinic_tot_proc)
 
+# Format conversion
+var_dates <- colnames(clinic_tot)[which(find_dates(clinic_tot))]
+clinic_tot <- update_columns(clinic_tot, var_dates, complete_date)
+clinic_tot <- update_columns(clinic_tot, var_dates, dmy)
+var_num <- get_name_num(clinic_tot)
+clinic_tot <- update_columns(clinic_tot, all_of(var_num), as.numeric)
+var_categorial <- colnames(clinic_tot)[which(!(colnames(clinic_tot) %in% c(var_dates, var_num)))]
+clinic_tot <- update_columns(clinic_tot, var_categorial, as.factor)
+
 # Stats / outliers
 var_num <- get_name_num(clinic_tot_proc)
 # slice(clinic, which(clinic$bmi_automatic > 100)) %>%
@@ -504,7 +513,9 @@ i <- col_outliers[1] # "C_2643_3804"
 j <- col_outliers[2] # "C_2649_3889"
 clin_melt <- melt(clinic_tot_proc) %>% select(variable, value)
 outliers <- (clin_melt %>% filter(variable == var_socio[4]) %>% boxplot())$out
+
 # Fix height and bmi errors
+clinic_tot_proc <- clinic_tot
 tab <- clinic_tot_proc %>%
     filter(C_2649_3890 > 100) %>%
     select(all_of(var_socio))
@@ -523,8 +534,12 @@ codes_proc <- colnames(clinic_tot_proc)
 colnames(clinic_tot_proc) <- get_var_names(codes_proc, clinic_code[[1]]) %>%
     str_sub(1, 20)
 clinic <- clean_names(clinic_tot_proc)
+attributes(clinic)$codes <- tibble(codes = codes_proc, name = colnames(clinic))
 use_data(clinic, overwrite = TRUE)
+```
 
+## Clinic transformation
+```{r transf}
 # Transformations
 clinic_num <- select(clinic, sort(get_name_num(clinic)))
 
