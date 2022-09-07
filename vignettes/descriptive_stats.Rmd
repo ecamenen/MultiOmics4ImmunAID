@@ -400,20 +400,36 @@ qplot(as.character(2020 - as.numeric(decade[, 1])))
 
 # Categorical variables
 clin_categorial <- select(clinic_tot_proc, -all_of(c(var_dates)))
+# clin_categorial <- select(clinic_tot, all_of(c(var_categorial)))
 clin_categorial <- update_columns(clin_categorial, "C_2643_3798", as.character)
 l_level_cols <- parse_levels(clin_categorial, clinic_code, FALSE)
 cols_sim <- col_sim(clin_categorial, clinic_code, FALSE)
+sapply(apply(l_level_cols[-unique(unlist(i_rows)), ], 1, function(x) which(!is.na(x))), length) %>% sort()
 
 regexes <- c("france", "AP-HP", "Mother", "control", "aspirin", "negative\t", "asian", "non african", "partial\t", "response", "flare", "male", "mild", "localized", "months")
 i_rows <- lapply(regexes, function(i) detect_difficulty(l_level_cols, i))
 j_rows <- seq(nrow(l_level_cols))[-unlist(i_rows)]
-tot_rows <- c(i_rows, list(j_rows))
+tot_rows <- c(i_rows, as.list(j_rows))
 l_levels <- lapply(tot_rows, function(i) reformat(l_level_cols[i, ]))
 lapply(tot_rows, function(i) unlist(get_level_name(cols_sim, clinic_code[[3]])[i]))
 # get_table_occ(clin_categorial, clinic_code, seq(nrow(l_level_cols))[-j_rows], FALSE)
 
 var_categorial <- unlist(cols_sim)
 clinic_tot_proc <- update_columns(clinic_tot_proc, var_categorial, as.factor)
+
+to_replace <- list(
+  `0` = c("Non African", "No", "None", "Primary failure", "Out of flare", "Male", "Single", "Chronic : > 6 weeks", "Unique", "First episode", "Non symmetrical", "Random", "Negative"),
+  `1` = c("African", "Yes", "Partial", "Mild", "Diffuse", "Partial response", "On flare", "Female", "Multiple", "Acute : < 6 weeks", "Recurrent (with remission period)", "Symmetrical", "Patterned", "Positive"),
+  `2` = c("Total", "Moderate to severe", "Loss of efficacy", "Localized", "Continuous (without remission)"),
+  `3` =  c("Complete response")
+)
+
+for (i in seq_along(to_replace)) {
+  for (j in seq_along(to_replace[[i]])) {
+    clinic_tot[clinic_tot == to_replace[[i]][j]] <- paste(i - 1)
+  }
+}
+# [[15]]
 
 # group_name
 # The top bottom by frequency
