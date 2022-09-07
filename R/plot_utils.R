@@ -69,6 +69,7 @@ get_colors <- function() {
     )
 }
 
+#' @export
 theme_perso0 <- function(p, colors = get_colors()) {
     p +
         theme_classic() +

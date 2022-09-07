@@ -32,6 +32,7 @@ Imports:
     janitor,
     lubridate,
     magrittr,
+    methods,
     naniar,
     openxlsx,
     plyr,

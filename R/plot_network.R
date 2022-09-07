@@ -49,15 +49,6 @@ get_edges <- function(x, C, p = NULL) {
 #' Plot the connection between blocks
 #'
 #' @return A dataframe with tuples of connected blocks
-#' @examples
-#' library(igraph)
-#' library(RGCCA)
-#' data("Russett")
-#' blocks <- list(
-#'     agriculture = Russett[, seq(3)], industry = Russett[, 4:5],
-#'     politic = Russett[, 6:11]
-#' )
-#' plot_network(blocks)
 #' @export
 plot_network <- function(
     x,
@@ -170,15 +161,6 @@ plot_corr_network <- function(x, cutoff = 0.75, ...) {
 #' Plot the connection between blocks (dynamic plot)
 #'
 #' @return A dataframe with tuples of connected blocks
-#' @examples
-#' library(visNetwork)
-#' library(RGCCA)
-#' data("Russett")
-#' blocks <- list(
-#'     agriculture = Russett[, seq(3)], industry = Russett[, 4:5],
-#'     politic = Russett[, 6:11]
-#' )
-#' plot_network2(blocks)
 #' @export
 plot_network2 <- function(
     x,

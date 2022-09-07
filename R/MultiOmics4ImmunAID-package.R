@@ -2,6 +2,7 @@
 #' @import ggstatsplot grDevices naniar openxlsx readr readxl
 #' @import RColorBrewer reshape2 see VIM stringr tidyverse usethis venn viridis
 #' @importFrom magrittr %>%
+#' @importFrom methods is
 #' @importFrom plyr ldply .
 #' @rawNamespace import(gplots, except = venn)
 #' @rawNamespace import(janitor, except = c(chisq.test, fisher.test))
