@@ -404,7 +404,7 @@ clin_categorial <- select(clinic_tot_proc, -all_of(c(var_dates)))
 clin_categorial <- update_columns(clin_categorial, "C_2643_3798", as.character)
 l_level_cols <- parse_levels(clin_categorial, clinic_code, FALSE)
 cols_sim <- col_sim(clin_categorial, clinic_code, FALSE)
-sapply(apply(l_level_cols[-unique(unlist(i_rows)), ], 1, function(x) which(!is.na(x))), length) %>% sort()
+# sapply(apply(l_level_cols[-unique(unlist(i_rows)), ], 1, function(x) which(!is.na(x))), length) %>% sort()
 
 regexes <- c("france", "AP-HP", "Mother", "control", "aspirin", "negative\t", "asian", "non african", "partial\t", "response", "flare", "male", "mild", "localized", "months")
 i_rows <- lapply(regexes, function(i) detect_difficulty(l_level_cols, i))
@@ -418,16 +418,16 @@ var_categorial <- unlist(cols_sim)
 clinic_tot_proc <- update_columns(clinic_tot_proc, var_categorial, as.factor)
 
 to_replace <- list(
-  `0` = c("Non African", "No", "None", "Primary failure", "Out of flare", "Male", "Single", "Chronic : > 6 weeks", "Unique", "First episode", "Non symmetrical", "Random", "Negative"),
-  `1` = c("African", "Yes", "Partial", "Mild", "Diffuse", "Partial response", "On flare", "Female", "Multiple", "Acute : < 6 weeks", "Recurrent (with remission period)", "Symmetrical", "Patterned", "Positive"),
-  `2` = c("Total", "Moderate to severe", "Loss of efficacy", "Localized", "Continuous (without remission)"),
-  `3` =  c("Complete response")
+    `0` = c("Non African", "No", "None", "Primary failure", "Out of flare", "Male", "Single", "Chronic : > 6 weeks", "Unique", "First episode", "Non symmetrical", "Random", "Negative"),
+    `1` = c("African", "Yes", "Partial", "Mild", "Diffuse", "Partial response", "On flare", "Female", "Multiple", "Acute : < 6 weeks", "Recurrent (with remission period)", "Symmetrical", "Patterned", "Positive"),
+    `2` = c("Total", "Moderate to severe", "Loss of efficacy", "Localized", "Continuous (without remission)"),
+    `3` = c("Complete response")
 )
 
 for (i in seq_along(to_replace)) {
-  for (j in seq_along(to_replace[[i]])) {
-    clinic_tot[clinic_tot == to_replace[[i]][j]] <- paste(i - 1)
-  }
+    for (j in seq_along(to_replace[[i]])) {
+        clinic_tot[clinic_tot == to_replace[[i]][j]] <- paste(i - 1)
+    }
 }
 # [[15]]
 
@@ -552,6 +552,175 @@ colnames(clinic_tot_proc) <- get_var_names(codes_proc, clinic_code[[1]]) %>%
 clinic <- clean_names(clinic_tot_proc)
 attributes(clinic)$codes <- tibble(codes = codes_proc, name = colnames(clinic))
 use_data(clinic, overwrite = TRUE)
+```
+
+## Descriptive stats by disease
+```{r}
+# Filter by disease
+diseases <- levels(clinic$disease)
+clinic_dis <- clinic %>%
+    filter(
+        str_detect(
+            disease,
+            replace_parenthesis(paste(c(diseases[9], diseases[1]), collapse = "|"))
+        )
+    )
+levels(clinic_dis$disease)[diseases[1] == levels(clinic$disease)] <- "1"
+levels(clinic_dis$disease)[diseases[9] == levels(clinic$disease)] <- "0"
+clinic_dis$disease <- clinic_dis$disease %>%
+    factor(., levels = unique(.))
+
+# Batch * centers effects
+# (ggplot(data=(clinic_dis %>% group_by(clinical_center) %>%   mutate(count_name_occurr = n())), aes(x=reorder(clinical_center,-count_name_occurr), fill=as.character(batch))) +
+#     geom_bar(position = "stack") + labs(fill = "Batch")) %>% theme_histo(90)
+
+# Filter by numeric variables
+clinic_num <- get_name_num(clinic_dis) %>%
+    select(clinic_dis, .)
+
+# Remove columns with high levels of NA
+# plot_missing(
+#     clinic_num,
+#     geom_label_args = list(
+#         label.size = NA,
+#         label.padding = unit(0, "lines"),
+#         size = 3
+#     ),
+#     group = list("25%" = 0.25, "50%" = 0.50, "75%" = 0.75, "100%" = 1)
+# )
+#
+# gg_miss_var(clinic_num, show_pct = TRUE) + theme_classic() + theme_perso()
+# vis_miss(clinic_num)
+
+clinic_proc <- best_na_percent(clinic_num, 38)
+
+# Remove constant variables
+clinic_proc <- clean_data(clinic_proc)
+rownames(clinic_proc) <- clinic_proc$immun_aid_identifier
+colnames(clinic_proc) %>% sort()
+
+# Remove individuals with high levels of NA
+x <- clinic_proc
+res <- sapply(rownames(x), function(i) round((length(which(is.na(x[i, ]))) / ncol(x)) * 100, 1))
+# clinic_proc <- clinic_proc[-which(res > 70), ]
+
+# plot_histo(as.data.frame(clinic_proc %>% select(-disease)), colors = rep("blue", 200))
+
+ordinal_vars <- names(ordinal_variables(clinic_proc, 3))
+# setdiff(names(ordinal_variables(clinic_proc, 3)), names(ordinal_variables(clinic_proc, 2)))
+
+# Proportion of ordinal data modalities
+clinic_ord <- update_columns(clinic_proc[, ordinal_vars], ordinal_vars, as.numeric)
+perc <- pivot_longer(clinic_ord, all_of(ordinal_vars)) %>%
+    group_by(name, value) %>%
+    summarise(`%` = n()) %>%
+    pivot_wider(names_from = name, values_from = c(`%`))
+
+# clinic_dis[, "disease"] %>% group_by(disease) %>% summarise(`%` = n())
+
+# Remove all ordinal data with low occurrences
+perc0 <- perc %>% filter(!is.na(value))
+n <- 4
+var_occ <- names(which(apply(perc0[, -1], 2, function(x) any(x <= n))))
+perc0 %>% select(-var_occ)
+
+# clinic_num0 <- clinic_proc %>%
+#   select(
+#     -all_of(
+#       c(names(ordinal_variables(clinic_proc, 3)), "immun_aid_identifier")
+#       )
+#   )
+
+# plot_histo(clinic_num0, colors = rep("blue", 200))
+
+# Remove all ordinal data with low occurrences
+clinic_proc0 <- clinic_proc[, sort(colnames(clinic_proc))] %>%
+    select(-all_of(c(var_occ, "immun_aid_identifier")))
+# clinic_proc0$disease <- factor(clinic_proc0$disease, labels = rev(c(diseases[9], diseases[1])))
+
+# Descriptive statistics
+stats <- clinic_proc0 %>%
+    pivot_longer(!disease) %>%
+    group_by(name, disease) %>%
+    summarise(
+        mean = mean(value, na.rm = TRUE),
+        sd = sd(value, na.rm = TRUE),
+        n = length(which(!is.na(value)))
+    ) %>%
+    pivot_wider(names_from = disease, values_from = c(mean, sd, n)) %>%
+    mutate(ratio = (n_0 / n_1))
+
+sds <- apply((clinic_proc0 %>% select(-disease)), 2, function(x) sd(x, na.rm = TRUE))
+stats$samplesize <- calculate_samplesize(stats$mean_0, stats$mean_1, sds, stats$ratio)
+stats$effectsize <- abs(calculate_effectsize(stats$mean_0, stats$mean_1, sds))
+
+# Remove the variables with only NA in control
+stats0 <- stats %>% filter(!is.na(mean_0))
+# stats0 %>% arrange(samplesize)
+
+not_in_control <- (stats %>% filter(is.na(mean_0)))$name
+
+# Mean difference tests
+tests <- clinic_proc0 %>%
+    select(-all_of(not_in_control)) %>%
+    pivot_longer(!disease) %>%
+    group_by(name) %>%
+    wilcox_test(value ~ disease) %>%
+    adjust_pvalue(method = "BH") %>%
+    add_significance()
+
+# Total statistics
+left_join(stats0, tests[, c(1, 8:10)]) %>% arrange(samplesize)
+```
+
+## Descriptive stats for each disease
+```{r}
+vars <- c("ferritin_mg_l", "crp_c_reactive_prot", "leucocytes_mm3", "fever_38_c_104_f", "physician_global_ass")
+i <- vars[2]
+res <- clinic %>%
+    select(all_of(c("disease", vars))) %>%
+    filter(!str_detect(disease, "Negative control")) %>%
+    pivot_longer(!disease) %>%
+    group_by(name, disease) %>%
+    summarise(
+        mean = mean(value, na.rm = TRUE),
+        median = median(value, na.rm = TRUE),
+        sd = sd(value, na.rm = TRUE),
+        quantiles = paste(quantile(value, c(0.25, 0.75), na.rm = TRUE), collapse = "-"),
+        range = paste(range(value, na.rm = TRUE), collapse = "-"),
+        n = length(which(!is.na(value))),
+        na = length(which(is.na(value)))
+    )
+
+res %>% filter(name == i)
+
+
+tiff(
+    paste0(i, ".tiff"),
+    units = "px",
+    width = 3000,
+    height = 2000,
+    res = 300
+)
+(ggbetweenstats(
+    (clinic %>% select(all_of(c("disease", i)))),
+    x = disease,
+    y = crp_c_reactive_prot,
+    p.adjust.method = "BH",
+    type = "nonparametric",
+    centrality.point.args = list(size = 0),
+    centrality.label.args = list(
+        size = 3,
+        fill = NA,
+        label.size = NA,
+        segment.linetype = 0
+    ),
+    pairwise.comparisons = FALSE
+)) %>%
+    theme_perso0(colors = c(brewer.pal(n = 9, name = "Set1"), brewer.pal(n = 9, name = "Set2"))) +
+    guides(fill = "none", color = "none") +
+    theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust = 1))
+dev.off()
 ```
 
 ## Clinic transformation

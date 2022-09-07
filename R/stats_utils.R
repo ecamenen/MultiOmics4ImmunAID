@@ -31,7 +31,8 @@ get_corr <- function(x, pval = FALSE, method = "pearson") {
                 vars,
                 function(j) {
                     if (is.numeric(x[, i]) & is.numeric(x[, j])) {
-                        tryCatch({
+                        tryCatch(
+                            {
                                 res <- cor.test(x[, i], x[, j], method = method) %>%
                                     suppressWarnings()
                                 if (pval) {
@@ -129,4 +130,14 @@ get_corr0 <- function(x, p = NULL) {
         p[is.na(p)] <- 1
     }
     list(r, p)
+}
+
+#' @export
+calculate_samplesize <- function(muA, muB, sd, kappa = 1, alpha = 0.05, beta = 0.2) {
+    ceiling((1 + 1 / kappa) * (sd * (qnorm(1 - alpha / 2) + qnorm(1 - beta)) / (muA - muB)) ^ 2)
+}
+
+#' @export
+calculate_effectsize <- function(muA, muB, sd) {
+    (muA - muB) / sd
 }
