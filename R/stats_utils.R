@@ -145,9 +145,9 @@ calculate_effectsize <- function(muA, muB, sd) {
 #' @export
 remove_cofunding <- function(x, vars, block = 1) {
     # All cofunding variables in numeric
-    for (i in vars) {
-        x[[block]][, i] <- as.numeric(as.character(x[[block]][, i]))
-    }
+    # for (i in vars) {
+    #     x[[block]][, i] <- as.numeric(as.character(x[[block]][, i]))
+    # }
 
     # Remove missing samples from cofunding variables
     to_remove <- sapply(vars, function(i) which(is.na(x[[block]][, i])))
@@ -155,11 +155,11 @@ remove_cofunding <- function(x, vars, block = 1) {
     if (length(to_remove) > 0)
         x <- lapply(x, function(i) i[-to_remove, ])
     cl <- x[[block]]
-    x0 <- lapply(x, log1p)
+    # x0 <- lapply(x, log1p)
 
     # Weight by the cofunding effect residuals
     blocks.df <- lapply(
-        x0,
+        x,
         function(i) lapply(
             seq(ncol(i)),
             function(j)   {

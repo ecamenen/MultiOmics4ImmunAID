@@ -38,6 +38,30 @@ plot_histo2 <- function(
         theme_perso(cex, cex_main, cex_sub)
 }
 
+plot_histo0 <- function(df, x, color = "red", dotsize = 1, binwidth = 1.5, method = "histodot") {
+    gghistogram(
+        df,
+        x = x,
+        fill = color,
+        binwidth = binwidth,
+        add = "mean",
+        rug = TRUE
+    ) +
+        geom_density(
+            lwd = 1,
+            colour = color,
+            fill = color,
+            alpha = 0.25
+        ) +
+        geom_dotplot(
+            fill = color,
+            color = color,
+            binwidth = binwidth,
+            dotsize = dotsize,
+            method = method
+        )
+}
+
 #' @export
 plot_violin1 <- function(
     x,
