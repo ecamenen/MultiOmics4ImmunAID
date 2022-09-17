@@ -253,7 +253,7 @@ length(qc)
 ```
 
 # Transcriptomics
-```{r}
+```{r, eval = FALSE}
 rna <- read_tsv(file.path(path, "processed_gene_matrix.tsv"))
 rna_t <- t(rna)[-1, ] %>%
     t2tibble() %>%
@@ -354,7 +354,7 @@ plot_missing(
     group = list("25%" = 0.25, "50%" = 0.50, "75%" = 0.75, "100%" = 1)
 )
 
-gg_miss_var(clinic_tot, show_pct = TRUE) + theme_classic() + theme_perso()
+(gg_miss_var(clinic_tot, show_pct = TRUE) + theme_classic() + theme_perso()) # %>% ggplotly()
 vis_miss(clinic_tot_proc)
 
 clinic_code_proc <- clean_data(clinic_code[[1]])
@@ -424,11 +424,11 @@ to_replace <- list(
     `3` = c("Complete response")
 )
 
-for (i in seq_along(to_replace)) {
-    for (j in seq_along(to_replace[[i]])) {
-        clinic_tot[clinic_tot == to_replace[[i]][j]] <- paste(i - 1)
-    }
-}
+# for (i in seq_along(to_replace)) {
+#     for (j in seq_along(to_replace[[i]])) {
+#         clinic_tot[clinic_tot == to_replace[[i]][j]] <- paste(i - 1)
+#     }
+# }
 # [[15]]
 
 # group_name
@@ -732,9 +732,27 @@ levels(clinic_dis$disease)[d0 == levels(clinic$disease)] <- "0"
 clinic_dis$disease <- clinic_dis$disease %>%
     factor(., levels = unique(.))
 
+# All cofonding variables in numeric
+levels(clinic_dis$gender) <- c(0, 1)
+clinic_dis$gender <- as.numeric(as.character(clinic_dis$gender))
+
 # Batch * centers effects
-# (ggplot(data=(clinic_dis %>% group_by(clinical_center) %>%   mutate(count_name_occurr = n())), aes(x=reorder(clinical_center,-count_name_occurr), fill=as.character(batch))) +
-#     geom_bar(position = "stack") + labs(fill = "Batch")) %>% theme_histo(90)
+clinic_dis %>%
+  group_by(clinical_center) %>%
+  mutate(count_name_occurr = n()) %>%
+  ggplot(aes(
+    x = reorder(clinical_center, -count_name_occurr),
+    fill = as.character(batch)
+  )) +
+  geom_bar(position = "stack") +
+  labs(fill = "Batch") +
+  stat_count(
+    geom = "text",
+    colour = "white",
+    size = 3.5,
+    aes(label = ..count..),
+    position = position_stack(vjust = 0.5)
+  )
 
 # Filter by numeric variables
 clinic_num <- get_name_num(clinic_dis) %>%
@@ -757,13 +775,13 @@ clinic_num <- get_name_num(clinic_dis) %>%
 clinic_proc <- best_na_percent(clinic_num, 38)
 
 # Remove constant variables
-clinic_proc <- clean_data(clinic_proc)
+clinic_proc <- clean_data(clinic_proc, clean_name = FALSE)
 rownames(clinic_proc) <- clinic_proc$immun_aid_identifier
 colnames(clinic_proc) %>% sort()
 
 # Remove individuals with high levels of NA
-x <- clinic_proc
-res <- sapply(rownames(x), function(i) round((length(which(is.na(x[i, ]))) / ncol(x)) * 100, 1))
+# x <- clinic_proc
+# res <- sapply(rownames(x), function(i) round((length(which(is.na(x[i, ]))) / ncol(x)) * 100, 1))
 # clinic_proc <- clinic_proc[-which(res > 70), ]
 
 # plot_histo(as.data.frame(clinic_proc %>% select(-disease)), colors = rep("blue", 200))
@@ -834,15 +852,38 @@ tests <- clinic_proc0 %>%
 # Total statistics
 left_join(stats0, tests[, c(1, 8:10)]) %>% arrange(samplesize)
 
-vars <- c("gender", "age_at_inclusion_tim", "bmi_automatic")
-vars2 <- c("immun_aid_identifier", "weight_kg", "disease", "height_cm")
+vars <- c("age_at_inclusion_time", "batch", "BMI", "gender")
+vars2 <- c("immun_aid_identifier", "weight", "disease", "height")
 
+row_names <- rownames(clinic_proc)
+clinic_proc <- clinic_proc %>% select(-c(vars2, ends_with("_upper_limit_of_normal")))
+
+# Transformation
+norm_vars <- list()
+norm_vars[[1]] <- normality(clinic_proc) %>% filter(p_value > 0.05) %>% select(vars)
+skew <- ((clinic_proc) %>% select(-c(unlist(norm_vars))) %>% sapply(function(i) skewness(i)))
+temp <- data.frame(var = skew) %>% filter(var < 0) %>% row.names() %>% select(clinic_proc, .)
+norm_vars[[2]] <- temp ^ 2 %>% normality() %>% filter(p_value > 0.05) %>% select(vars)
+norm_vars[[3]] <- temp ^ 3 %>% normality() %>% filter(p_value > 0.05) %>% select(vars)
+norm_vars[[4]] <- (log(clinic_proc + 1)) %>% select(-c(unlist(norm_vars))) %>% normality() %>% filter(p_value > 0.05) %>% select(vars)
+norm_vars[[5]] <- (1/(clinic_proc + 1)) %>% select(-c(unlist(norm_vars))) %>% normality() %>% filter(p_value > 0.05) %>% select(vars)
+norm_vars[[6]] <- ((clinic_proc) ^ (1/2)) %>% select(-c(unlist(norm_vars))) %>% normality() %>% filter(p_value > 0.01) %>% select(vars)
+
+transf <- c(function(i) i ^ 2, function(i) i ^ 3, function(i) log(i  + 1), function(i) 1 / (i + 1), function(i) i ^ (1 / 2))
+for (i in seq(transf)) {
+  clinic_proc <- update_columns(clinic_proc, all_of(unlist(norm_vars[[i + 1]])), transf[[i]])
+}
+# # clinic_proc <- update_columns(clinic_proc, colnames(clinic_proc), log1p)
 cl <- clinic_proc
-blocks_cl <- clinic_proc %>% as.data.frame() %>% select(-c(vars2))
+cl$gender <- as.factor(cl$gender)
+cl$batch <- as.factor(cl$batch)
+blocks_cl <- clinic_proc %>% as.data.frame()
 blocks_clinic_still <- remove_cofunding(list(CLINIC = blocks_cl), vars)
 
-blocks_clinic_still[[1]] <- select(blocks_clinic_still[[1]], -all_of(vars))
-use_data(blocks_clinic_still, overwrite = TRUE)
+blocks_clinic_still[[1]] <- select(blocks_clinic_still[[1]], -all_of(vars)) #  <-  list(CLINIC = select(blocks_cl, -all_of(vars))) #
+rownames(blocks_clinic_still[[1]]) <- row_names
+clinic_still_processed <- blocks_clinic_still
+use_data(clinic_still_processed, overwrite = TRUE)
 ```
 
 ## Descriptive stats for each disease
