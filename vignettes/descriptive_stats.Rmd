@@ -952,17 +952,21 @@ transf <- c(function(i) i ^ 2, function(i) i ^ 3, function(i) log(i  + 1), funct
 for (i in seq(transf)) {
   clinic_proc <- update_columns(clinic_proc, all_of(unlist(norm_vars[[i + 1]])), transf[[i]])
 }
-# # clinic_proc <- update_columns(clinic_proc, colnames(clinic_proc), log1p)
+# clinic_proc <- update_columns(clinic_proc, colnames(clinic_proc), log1p)
 cl <- clinic_proc
 cl$gender <- as.factor(cl$gender)
 cl$batch <- as.factor(cl$batch)
 blocks_cl <- clinic_proc %>% as.data.frame()
+rownames(blocks_cl) <- clinic_proc$immun_aid_identifier
 blocks_clinic_still <- remove_cofunding(list(CLINIC = blocks_cl), vars)
 
-blocks_clinic_still[[1]] <- select(blocks_clinic_still[[1]], -all_of(vars)) #  <-  list(CLINIC = select(blocks_cl, -all_of(vars))) #
-rownames(blocks_clinic_still[[1]]) <- row_names
-clinic_still_processed <- blocks_clinic_still
-use_data(clinic_still_processed, overwrite = TRUE)
+blocks_clinic_still  <-  list(CLINIC = select(blocks_cl, -all_of(vars))) #[[1]] <- select(blocks_clinic_still[[1]], -all_of(vars))
+blocks_clinic_still[[1]] <- clean_data(blocks_clinic_still[[1]])
+attributes(blocks_clinic_still)$codes <- Reduce(rbind, lapply(colnames(blocks_clinic_still[[1]]), function(i) filter(temp2, str_detect(item_name, paste0("^", i, "$")))))
+# Reduce(rbind, lapply(temp0$column_code, function(i) filter(clinic_code[[3]], str_detect(column_code, paste0("^", i, "$"))))) %>% select(-c(starts_with("repeat"), ends_with("_id"))) %>% as.data.frame()
+clinic_still_transformed <- blocks_clinic_still
+use_data(clinic_still_transformed, overwrite = TRUE)
+```
 ```
 
 ## Descriptive stats for each disease
