@@ -30,6 +30,7 @@ Imports:
     gplots,
     grDevices,
     janitor,
+    kableExtra,
     lubridate,
     magrittr,
     methods,

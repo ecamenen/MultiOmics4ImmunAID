@@ -189,6 +189,7 @@ plot_corr0 <- function(
     )
 }
 
+#' @export
 spec_color2 <- function(x, alpha = 1, begin = 0, end = 1,
                         direction = 1, option = "D",
                         na_color = "#BBBBBB", scale_from = NULL,

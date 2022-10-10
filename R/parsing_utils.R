@@ -314,6 +314,16 @@ length_detect_row <- function(x, p) {
 }
 
 #' @export
+finalise_data0 <- function(x, y, n = 50) {
+    x <- best_na_percent(x, n) %>%
+        clean_data(clean_name = FALSE)
+    rownames(x) <- y$immun_aid_identifier
+    colnames(x) %>%
+        sort() %>%
+        select(x, .)
+}
+
+#' @export
 finalise_data <- function(x, col_name = NULL, clean_name = TRUE, row_name = 1) {
     if (!is.null(col_name)) {
         colnames(x) <- col_name
@@ -366,4 +376,11 @@ extract_codes <- function(x, y) {
             function(i) str_which(y$column_code, paste0("^", i, "$"))
         )
     )
+}
+
+#' @export
+set_qualitative <- function(x, n = 2) {
+    names(ordinal_variables0(x, 2)) %>%
+        x[, .] %>%
+        mutate_all(factor)
 }

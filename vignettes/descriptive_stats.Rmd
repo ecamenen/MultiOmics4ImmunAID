@@ -26,6 +26,7 @@ load_libraries(
         "ggpubr",
         "ggstatsplot",
         "janitor",
+        "kableExtra",
         "lubridate",
         "magrittr",
         "naniar",
@@ -765,7 +766,7 @@ clinic_qual <- which(sapply(seq_along(clinic_dis), function(i) is.factor(as.data
 
 # Remove columns with high levels of NA
 # plot_missing(
-#     clinic_num,
+#     clinic_dis,
 #     geom_label_args = list(
 #         label.size = NA,
 #         label.padding = unit(0, "lines"),
@@ -774,33 +775,30 @@ clinic_qual <- which(sapply(seq_along(clinic_dis), function(i) is.factor(as.data
 #     group = list("25%" = 0.25, "50%" = 0.50, "75%" = 0.75, "100%" = 1)
 # )
 #
-# gg_miss_var(clinic_num, show_pct = TRUE) + theme_classic() + theme_perso()
-# vis_miss(clinic_num)
+# gg_miss_var(clinic_dis, show_pct = TRUE) + theme_classic() + theme_perso()
+# vis_miss(clinic_dis)
 
-clinic_proc <- best_na_percent(clinic_num, 50)
+clinic_proc <- finalise_data0(clinic_num, clinic_dis)
+clinic_qual_proc <- finalise_data0(clinic_qual, clinic_dis)
+colnames(clinic_qual_proc) <- str_replace(colnames(clinic_qual_proc), "(do_you_still_have_the_results).*", "\\1") %>% str_replace("(cerebrovascular_accident_or_).*", "\\1ischemic")
 
-# Remove constant variables
-clinic_proc <- clean_data(clinic_proc, clean_name = FALSE)
-rownames(clinic_proc) <- clinic_dis$immun_aid_identifier
-clinic_proc <- colnames(clinic_proc) %>%
-    sort() %>%
-    select(clinic_proc, .)
-colnames(clinic_proc) <- str_replace(colnames(clinic_proc), "(do_you_still_have_the_results).*", "\\1") %>% str_replace("(cerebrovascular_accident_or_).*", "\\1ischemic")
+# Remove individuals with high levels of NA
+# x <- clinic_proc
+# res <- sapply(rownames(x), function(i) round((length(which(is.na(x[i, ]))) / ncol(x)) * 100, 1))
+# clinic_proc <- clinic_proc[-which(res > 70), ]
+clinic_qual_proc <- clinic_qual_proc[-37, ]
 
-clinic_proc <- clinic_proc[-37, ]
-
-
-func <- function(x) names(ordinal_variables(clinic_proc, x))
+func <- function(x) names(ordinal_variables(clinic_qual_proc, x))
 for (i in 2:60) {
     print(setdiff(func(i + 1), func(i)))
 }
-# sapply(clinic_proc, unique) %>% sapply(length) %>% sort()
+# sapply(clinic_qual_proc, unique) %>% sapply(length) %>% sort()
 
-to_parse <- sapply(seq_along(clinic_proc), function(i) any(grepl(";", as.data.frame(clinic_proc[, i])[, 1]))) %>% which()
+to_parse <- sapply(seq_along(clinic_qual_proc), function(i) any(grepl(";", as.data.frame(clinic_qual_proc[, i])[, 1]))) %>% which()
 l_levels <- sapply(
     to_parse,
     function(i) {
-        as.data.frame(clinic_proc[, i])[, 1] %>%
+        as.data.frame(clinic_qual_proc[, i])[, 1] %>%
             str_split(";") %>%
             unlist() %>%
             str_trim() %>%
@@ -814,7 +812,7 @@ t_levels <- lapply(
         sapply(
             na.omit(l_levels[[i]]),
             function(j) {
-                as.data.frame(clinic_proc[, to_parse])[, i] %>%
+                as.data.frame(clinic_qual_proc[, to_parse])[, i] %>%
                     str_detect(j) %>%
                     as.numeric()
             }
@@ -825,7 +823,7 @@ t_levels <- lapply(
     }
 )
 
-n_levels <- str_replace(colnames(clinic_proc)[to_parse], "(at_least_3).*", "\\1") %>%
+n_levels <- str_replace(colnames(clinic_qual_proc)[to_parse], "(at_least_3).*", "\\1") %>%
     str_replace(".*(parts_affected)", "\\1") %>%
     mapply(function(i, j) paste(i, j, sep = "_"), ., lapply(t_levels, colnames)) %>%
     unlist()
@@ -833,27 +831,22 @@ n_levels <- str_replace(colnames(clinic_proc)[to_parse], "(at_least_3).*", "\\1"
 t_levels <- Reduce(cbind, t_levels) %>%
     set_colnames(n_levels)
 
-clinic_proc <- clinic_proc %>%
+clinic_qual_proc <- clinic_qual_proc %>%
     select(-to_parse) %>%
     cbind(t_levels)
 
-# setdiff(names(ordinal_variables(clinic_proc, 3)), names(ordinal_variables(clinic_proc, 2)))
+# setdiff(names(ordinal_variables(clinic_qual_proc, 3)), names(ordinal_variables(clinic_qual_proc, 2)))
 
-ordinal_vars <- names(ordinal_variables0(clinic_proc, 2))
-clinic_ord <- clinic_proc[, ordinal_vars] %>% mutate_all(factor)
-mutate_all(as.numeric) %>%
+clinic_ord <- set_qualitative(clinic_qual_proc, 2)
+mutate_all(clinic_ord, as.numeric) %>%
     as.matrix() %>%
     heatmap(na.rm = FALSE, scale = "none", Rowv = NA, Colv = NA, margins = c(13, 0), col = colorRampPalette(c("blue", "white", "#cd5b45"))(100))
 
 to_remove1 <- (diagnose_category(clinic_ord) %>% filter(!is.na(levels)) %>% filter(freq < 5))$variables %>% unique()
-# to_remove2 <- (diagnose_category(select(clinic_ord, -c(to_remove))) %>% filter(is.na(levels)) %>% filter(freq < 5))$variables
+clinic_ord0 <- set_qualitative(clinic_qual_proc, 3)
+to_remove2 <- (diagnose_category(select(clinic_ord0, -c(to_remove1))) %>% filter(is.na(levels)) %>% filter(freq < 5))$variables
 
 clinic_ord <- select(clinic_ord, -c(to_remove1))
-
-# Remove individuals with high levels of NA
-# x <- clinic_proc
-# res <- sapply(rownames(x), function(i) round((length(which(is.na(x[i, ]))) / ncol(x)) * 100, 1))
-# clinic_proc <- clinic_proc[-which(res > 70), ]
 
 # plot_histo(as.data.frame(clinic_proc %>% select(-disease)), colors = rep("blue", 200))
 
@@ -864,7 +857,7 @@ perc <- mutate_all(clinic_ord, as.numeric) %>%
     summarise(`%` = n()) %>%
     pivot_wider(names_from = name, values_from = c(`%`))
 temp <- t(perc)[-1, ] %>%
-    cbind(., round(. / nrow(clinic_proc), 2)) %>%
+    cbind(., round(. / nrow(clinic_qual_proc), 2)) %>%
     as.data.frame() %>%
     set_colnames(rep(c(paste("Cat.", seq(2)), "NA"), 2))
 temp[is.na(temp)] <- 0
@@ -939,7 +932,7 @@ tests <- clinic_proc0 %>%
 left_join(stats0, tests[, c(1, 8:10)]) %>% arrange(samplesize)
 
 vars <- c("age_at_inclusion_time", "batch", "BMI", "gender")
-vars2 <- c("immun_aid_identifier", "weight", "disease", "height")
+vars2 <- c("disease", "immun_aid_identifier", "weight", "height")
 
 row_names <- rownames(clinic_proc)
 clinic_proc <- clinic_proc %>% select(-c(vars2, ends_with("_upper_limit_of_normal")))
@@ -978,11 +971,11 @@ norm_vars[[6]] <- ((clinic_proc)^(1 / 2)) %>%
     filter(p_value > 0.01) %>%
     select(vars)
 
-transf <- c(function(i) i ^ 2, function(i) i ^ 3, function(i) log(i  + 1), function(i) 1 / (i + 1), function(i) i ^ (1 / 2))
-for (i in seq(transf)) {
-  clinic_proc <- update_columns(clinic_proc, all_of(unlist(norm_vars[[i + 1]])), transf[[i]])
-}
-# clinic_proc <- update_columns(clinic_proc, colnames(clinic_proc), log1p)
+# transf <- c(function(i) i ^ 2, function(i) i ^ 3, function(i) log(i  + 1), function(i) 1 / (i + 1), function(i) i ^ (1 / 2))
+# for (i in seq(transf)) {
+#   clinic_proc <- update_columns(clinic_proc, all_of(unlist(norm_vars[[i + 1]])), transf[[i]])
+# }
+clinic_proc <- update_columns(clinic_proc, colnames(clinic_proc), log1p)
 cl <- clinic_proc
 cl$gender <- as.factor(cl$gender)
 cl$batch <- as.factor(cl$batch)
@@ -990,12 +983,12 @@ blocks_cl <- clinic_proc %>% as.data.frame()
 rownames(blocks_cl) <- clinic_proc$immun_aid_identifier
 blocks_clinic_still <- remove_cofunding(list(CLINIC = blocks_cl), vars)
 
-blocks_clinic_still  <-  list(CLINIC = select(blocks_cl, -all_of(vars))) #[[1]] <- select(blocks_clinic_still[[1]], -all_of(vars))
+blocks_clinic_still[[1]] <- select(blocks_clinic_still[[1]], -all_of(c(vars))) #   <-  list(CLINIC = select(blocks_cl, -all_of(vars)))
 blocks_clinic_still[[1]] <- clean_data(blocks_clinic_still[[1]])
 attributes(blocks_clinic_still)$codes <- Reduce(rbind, lapply(colnames(blocks_clinic_still[[1]]), function(i) filter(temp2, str_detect(item_name, paste0("^", i, "$")))))
 # Reduce(rbind, lapply(temp0$column_code, function(i) filter(clinic_code[[3]], str_detect(column_code, paste0("^", i, "$"))))) %>% select(-c(starts_with("repeat"), ends_with("_id"))) %>% as.data.frame()
-clinic_still_transformed <- blocks_clinic_still
-use_data(clinic_still_transformed, overwrite = TRUE)
+clinic_control_still <- blocks_clinic_still
+# use_data(clinic_control_still, overwrite = TRUE)
 ```
 
 ## Qualitative variables
@@ -1008,7 +1001,7 @@ codes_qual %>%
 
 # Reduce(rbind, lapply(temp, function(i) filter(clinic_code[[3]], str_detect(column_code, paste0("^", i, "$"))))) %>% select(-c( starts_with("repeat") )) %>% arrange(group_id)
 
-clinic_proc <- mutate_all(clinic_proc, factor)
+clinic_proc <- mutate_all(clinic_qual_proc, factor)
 clinic_proc$treatment_7[clinic_proc$treatment_7 == "Other"] <- NA
 lvl <- c("No", "Yes", "Yes")
 keys <- c("response_to_paracetamol", "response_to_nsai_ds", "active_manifestation_2")
@@ -1025,19 +1018,20 @@ for (i in c("fathers_ethnicity", "mothers_ethnicity")) {
       clinic_proc[, i] <- recode_factor(as.numeric(clinic_proc[, i]), !!!c(rep("Not European", 3), "European"))
   }
 
-temp <- select(clinic_num, starts_with("treatment_group"))
+temp <- select(clinic_qual, starts_with("treatment_group"))
 l_levels0 <- unlist(temp) %>%
     unique() %>%
     as.character()
 temp <- unite(temp, col = "treatments_type", na.rm = TRUE, treatment_group:treatment_group_28, sep = " ; ")
+l_levels1 <- na.omit(l_levels0)[-7]
 temp <- sapply(
-    na.omit(l_levels0),
+    l_levels1,
     function(j) {
         as.data.frame(temp)[, 1] %>%
             str_detect(replace_parenthesis(j)) %>%
             as.numeric()
     }
-)[, -7] %>% set_colnames(str_replace(na.omit(l_levels0), "\\(.+\\)", ""))
+) %>% set_colnames(str_replace(l_levels1, "\\(.+\\)", ""))
 temp <- temp %>%
     as_tibble() %>%
     set_colnames(paste0("treatment_", colnames(temp))) %>%
@@ -1071,16 +1065,15 @@ clinic_proc$country_of_birth <- recode_factor(as.numeric(clinic_proc$country_of_
 #         )
 #     )
 
-clinic_qual <- select(clinic_proc, -c(to_remove, to_remove2, "clinical_center", "liver_disease")) %>% cbind(data.frame(temp, immun_aid_identifier = clinic_dis$immun_aid_identifier)[-37, ])
-clinic_qual <- finalise_data(clinic_qual, row_name = "immun_aid_identifier", clean_name = FALSE) %>%
-    select(-c("immun_aid_identifier")) %>%
-    select(sort(colnames(clinic_qual)))
+clinic_qual <- select(clinic_proc, -c(to_remove1, to_remove2, "clinical_center", "liver_disease")) %>% cbind(data.frame(temp, immun_aid_identifier = clinic_dis$immun_aid_identifier)[-37, ])
+clinic_qual <- finalise_data(clinic_qual, row_name = "immun_aid_identifier", clean_name = FALSE) %>% select(-c("immun_aid_identifier"))
 attributes(clinic_qual)$codes <- codes_qual
-use_data(clinic_qual, overwrite = TRUE)
+# use_data(clinic_qual, overwrite = TRUE)
 ```
 
 ## Descriptive stats for each disease
 ```{r}
+data(clinic)
 vars <- c("ferritin_mg_l", "crp_c_reactive_prot", "leucocytes_mm3", "fever_38_c_104_f", "physician_global_ass")
 i <- vars[2]
 res <- clinic %>%
