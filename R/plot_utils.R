@@ -188,3 +188,20 @@ plot_corr0 <- function(
         col = cols
     )
 }
+
+spec_color2 <- function(x, alpha = 1, begin = 0, end = 1,
+                        direction = 1, option = "D",
+                        na_color = "#BBBBBB", scale_from = NULL,
+                        palette = colorRampPalette(c("blue", "gray", "red"))(100)) {
+    n <- length(palette)
+    if (is.null(scale_from)) {
+        x <- round(scales::rescale(x, c(1, n)))
+    } else {
+        x <- round(scales::rescale(x, to = c(1, n),
+                                   from = scale_from))
+    }
+
+    color_code <- palette[x]
+    color_code[is.na(color_code)] <- na_color
+    return(color_code)
+}

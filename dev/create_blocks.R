@@ -25,7 +25,7 @@ inds <- (clinic %>% filter(str_detect(disease, paste(c(diseases[2:3]), collapse 
 blocks[["CLINIC"]] <- blocks[["CLINIC"]][rownames(blocks[["CLINIC"]]) %in% inds, ]
 
 # Intersection between blocks
-blocks <- blocks[c("CLINIC")]
+blocks <- blocks[c("CLINIC", "MS", "RNA")]
 common_rows <- Reduce(intersect, lapply(blocks, row.names))
 blocks <- lapply(blocks, function(x) clean_data(x[common_rows, ], FALSE))
 

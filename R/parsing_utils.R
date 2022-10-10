@@ -333,6 +333,15 @@ ordinal_variables <- function(x, n = nrow(x) / 2^3) {
     )
 }
 
+ordinal_variables0 <- function(x, n = nrow(x) / 2^3) {
+    which(
+        sapply(
+            colnames(x),
+            function(i) length(unique(sort(as.data.frame(x[, i])[, 1])))
+        ) == n
+    )
+}
+
 #' @export
 find_dates <- function(x) {
     x <- as.data.frame(x)

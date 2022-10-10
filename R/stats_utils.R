@@ -152,21 +152,24 @@ remove_cofunding <- function(x, vars, block = 1) {
     # Remove missing samples from cofunding variables
     to_remove <- sapply(vars, function(i) which(is.na(x[[block]][, i])))
     to_remove <- unique(Reduce(c, to_remove))
-    if (length(to_remove) > 0)
-        x <- lapply(x, function(i) i[-to_remove, ])
+    if (length(to_remove) > 0) {
+          x <- lapply(x, function(i) i[-to_remove, ])
+      }
     cl <- x[[block]]
     # x0 <- lapply(x, log1p)
 
     # Weight by the cofunding effect residuals
     blocks.df <- lapply(
         x,
-        function(i) lapply(
-            seq(ncol(i)),
-            function(j)   {
-                form <- as.formula(paste0("i[, j] ~" , paste0("cl$", vars, collapse = "+")))
-                lm(form, na.action = "na.exclude")$residuals
-            }
-        )
+        function(i) {
+            lapply(
+                seq(ncol(i)),
+                function(j) {
+                    form <- as.formula(paste0("i[, j] ~", paste0("cl$", vars, collapse = "+")))
+                    lm(form, na.action = "na.exclude")$residuals
+                }
+            )
+        }
     )
 
     # Position of the NA values in blocks

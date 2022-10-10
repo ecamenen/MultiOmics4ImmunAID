@@ -967,6 +967,73 @@ attributes(blocks_clinic_still)$codes <- Reduce(rbind, lapply(colnames(blocks_cl
 clinic_still_transformed <- blocks_clinic_still
 use_data(clinic_still_transformed, overwrite = TRUE)
 ```
+
+## Qualitative variables
+```{r}
+codes_qual <- Reduce(rbind, lapply(colnames(clinic_proc), function(i) filter(temp2, str_detect(item_name, paste0("^", i, "$")))))
+codes_qual %>% group_by(group_name) %>% summarise(n = n()) %>% arrange(n)
+
+# Reduce(rbind, lapply(temp, function(i) filter(clinic_code[[3]], str_detect(column_code, paste0("^", i, "$"))))) %>% select(-c( starts_with("repeat") )) %>% arrange(group_id)
+
+clinic_proc <- mutate_all(clinic_proc, factor)
+clinic_proc$treatment_7[clinic_proc$treatment_7 == "Other"] <- NA
+lvl <- c("No", "Yes", "Yes")
+keys <- c("response_to_paracetamol", "response_to_nsai_ds", "active_manifestation_2")
+val <- list(lvl, lvl, c("Continuous or reccurent", "First episode", "Continuous or reccurent"))
+for (i in seq(3))
+clinic_proc[, keys[i]] <- recode_factor(as.numeric(clinic_proc[, keys[i]]), !!!val[[i]])
+
+i <- "response_to_biologic_treatments"
+clinic_proc[, i] <- recode_factor(clinic_proc[, i], No = "Partial", .default = levels(clinic_proc[, i]))
+
+
+for (i in c("fathers_ethnicity", "mothers_ethnicity"))
+  clinic_proc[, i] <- recode_factor(as.numeric(clinic_proc[, i]), !!!c(rep("Not European", 3), "European"))
+
+temp <- select(clinic_num, starts_with("treatment_group"))
+l_levels0 <- unlist(temp) %>% unique() %>% as.character()
+temp <- unite(temp, col="treatments_type", na.rm = TRUE, treatment_group:treatment_group_28, sep=" ; ")
+temp <- sapply(
+    na.omit(l_levels0),
+    function(j) {
+        as.data.frame(temp)[, 1] %>%
+            str_detect(replace_parenthesis(j)) %>%
+            as.numeric
+    }
+)[, -7] %>% set_colnames(str_replace(na.omit(l_levels0), "\\(.+\\)", ""))
+temp <- temp %>% as_tibble %>% set_colnames(paste0("treatment_", colnames(temp))) %>% clean_names()
+
+for (i in c("response", "response_3"))
+clinic_proc[, i] <- recode_factor(
+  clinic_proc[, i],
+  `Loss of efficacy` = "Failure or loss of efficacy",
+  `Primary failure` = "Failure or loss of efficacy",
+  .default = levels(clinic_proc[, i])
+)
+
+clinic_proc$response_2 <- recode_factor(as.numeric(clinic_proc$response_2), !!!c("Complete response", rep("Partial response or failure", 2)))
+
+
+clinic_proc$treatment_group_3 <- recode_factor(as.numeric(clinic_proc$treatment_group_3), !!!c("Biologic", "Others", "DMARDs", rep("Others", 3)))
+clinic_proc$treatment_group_2 <- recode_factor(as.numeric(clinic_proc$treatment_group_2), !!!c("Biologic", "Corticosteroid", "DMARDs", rep("Others", 3)))
+
+clinic_proc$country_of_residence <- recode_factor(as.numeric(clinic_proc$country_of_residence), !!!c("Others", "France", rep("Others", 3)))
+i = "manifestation_s_2"
+clinic_proc[, i] <- recode_factor(as.numeric(clinic_proc[, i]), !!!c(levels(clinic_proc[, i])[seq(2)], rep("Others", 3)))
+clinic_proc$country_of_birth <- recode_factor(as.numeric(clinic_proc$country_of_birth), !!!c(rep("Others", 3), "France", rep("Others", 4)))
+# clinic_proc <- clinic_proc %>%
+#     update_columns("clinical_center", as.character) %>%
+#     mutate(
+#         country = case_when(
+#             str_detect(clinical_center, "Paris|Bordeaux|Nantes|Lyon|Lille|Strasbourg") ~ "France",
+#             TRUE ~ "Others"
+#         )
+#     )
+
+clinic_qual <- select(clinic_proc, -c(to_remove, to_remove2, "clinical_center", "liver_disease")) %>% cbind(data.frame(temp, immun_aid_identifier = clinic_dis$immun_aid_identifier)[-37, ])
+clinic_qual <- finalise_data(clinic_qual, row_name = "immun_aid_identifier", clean_name = FALSE) %>% select(-c("immun_aid_identifier")) %>% select(sort(colnames(clinic_qual)))
+attributes(clinic_qual)$codes <- codes_qual
+use_data(clinic_qual, overwrite = TRUE)
 ```
 
 ## Descriptive stats for each disease
