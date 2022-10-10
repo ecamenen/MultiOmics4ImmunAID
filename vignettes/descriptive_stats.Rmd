@@ -850,15 +850,30 @@ clinic_ord <- select(clinic_ord, -c(to_remove1))
 
 # plot_histo(as.data.frame(clinic_proc %>% select(-disease)), colors = rep("blue", 200))
 
-ordinal_vars <- names(ordinal_variables(clinic_proc, 3))
-# setdiff(names(ordinal_variables(clinic_proc, 3)), names(ordinal_variables(clinic_proc, 2)))
-
 # Proportion of ordinal data modalities
-clinic_ord <- update_columns(clinic_proc[, ordinal_vars], ordinal_vars, as.numeric)
-perc <- pivot_longer(clinic_ord, all_of(ordinal_vars)) %>%
+perc <- mutate_all(clinic_ord, as.numeric) %>%
+  pivot_longer(all_of(colnames(clinic_ord))) %>%
     group_by(name, value) %>%
     summarise(`%` = n()) %>%
     pivot_wider(names_from = name, values_from = c(`%`))
+temp <- t(perc)[-1,] %>%
+    cbind(., round(. / nrow(clinic_proc), 2)) %>%
+    as.data.frame() %>%
+    set_colnames(rep(c(paste("Cat.", seq(2)), "NA"), 2))
+temp[is.na(temp)] <- 0
+temp[seq(6)] <- lapply(temp[seq(6)], function(x) {
+    cell_spec(
+        x,
+        color = "white",
+        background = spec_color2(x, end = 0.9, option = "D")
+    )
+})
+
+temp %>%
+    kbl(escape = F, align = "c") %>%
+    kable_minimal() %>%
+    add_header_above(c(" " = 1, "N" = 3, "%" = 3)) %>%
+    save_kable("table.png")
 
 # clinic_dis[, "disease"] %>% group_by(disease) %>% summarise(`%` = n())
 
