@@ -543,7 +543,6 @@ get_outliers(clinic_tot_proc, i)
 # get_outliers(clinic_tot_proc, j, probs = c(.025, .975), method = "percentiles")
 # get_outliers(clinic_tot_proc, j, , method = "hampel", c = 3)
 
-
 clinic_tot_proc <- finalise_data(clinic_tot_proc, clean_name = FALSE, row_name = 2)
 codes_proc <- colnames(clinic_tot_proc)
 
@@ -718,6 +717,7 @@ use_data(clinic_transf, overwrite = TRUE)
 clinic <- clinic_transf
 # Filter by disease
 diseases <- levels(clinic$disease)
+# d2 <- diseases[9]
 d1 <- diseases[1]
 d0 <- diseases[14]
 clinic_dis <- clinic %>%
@@ -727,10 +727,13 @@ clinic_dis <- clinic %>%
             replace_parenthesis(paste(c(d0, d1), collapse = "|"))
         )
     )
+# levels(clinic_dis$disease)[d2 == levels(clinic$disease)] <- "2"
 levels(clinic_dis$disease)[d1 == levels(clinic$disease)] <- "1"
 levels(clinic_dis$disease)[d0 == levels(clinic$disease)] <- "0"
 clinic_dis$disease <- clinic_dis$disease %>%
     factor(., levels = unique(.))
+
+# clinic_dis <- clinic
 
 # All cofonding variables in numeric
 levels(clinic_dis$gender) <- c(0, 1)
@@ -757,6 +760,8 @@ clinic_dis %>%
 # Filter by numeric variables
 clinic_num <- get_name_num(clinic_dis) %>%
     select(clinic_dis, .)
+clinic_qual <- which(sapply(seq_along(clinic_dis), function(i) is.factor(as.data.frame(clinic_dis)[, i]))) %>%
+select(clinic_dis, .)
 
 # Remove columns with high levels of NA
 # plot_missing(
@@ -772,12 +777,71 @@ clinic_num <- get_name_num(clinic_dis) %>%
 # gg_miss_var(clinic_num, show_pct = TRUE) + theme_classic() + theme_perso()
 # vis_miss(clinic_num)
 
-clinic_proc <- best_na_percent(clinic_num, 38)
+clinic_proc <- best_na_percent(clinic_num, 50)
 
 # Remove constant variables
 clinic_proc <- clean_data(clinic_proc, clean_name = FALSE)
-rownames(clinic_proc) <- clinic_proc$immun_aid_identifier
-colnames(clinic_proc) %>% sort()
+rownames(clinic_proc) <- clinic_dis$immun_aid_identifier
+clinic_proc <- colnames(clinic_proc) %>% sort() %>% select(clinic_proc, .)
+colnames(clinic_proc) <- str_replace(colnames(clinic_proc), "(do_you_still_have_the_results).*", "\\1") %>% str_replace("(cerebrovascular_accident_or_).*", "\\1ischemic")
+
+clinic_proc <- clinic_proc[-37, ]
+
+
+func <- function(x) names(ordinal_variables(clinic_proc, x))
+for (i in 2:60) {
+  print(setdiff(func(i + 1), func(i)))
+}
+# sapply(clinic_proc, unique) %>% sapply(length) %>% sort()
+
+to_parse <- sapply(seq_along(clinic_proc), function(i) any(grepl(";", as.data.frame(clinic_proc[, i])[, 1]))) %>% which()
+l_levels <- sapply(
+  to_parse,
+  function(i) {
+    as.data.frame(clinic_proc[, i])[, 1] %>%
+  str_split(";") %>%
+    unlist() %>%
+    str_trim() %>%
+    unique() %>%
+  as.character()
+  }
+    )
+t_levels <- lapply(
+  seq_along(l_levels),
+  function(i) {
+  	sapply(
+  		na.omit(l_levels[[i]]),
+  		function(j) {
+  			as.data.frame(clinic_proc[, to_parse])[, i] %>%
+  			str_detect(j) %>%
+  			as.numeric
+  		}
+  	) %>%
+  	as_tibble() %>%
+  	clean_names() %>%
+    remove_constant(na.rm = TRUE, quiet = FALSE)
+  }
+  )
+
+n_levels <- str_replace(colnames(clinic_proc)[to_parse], "(at_least_3).*", "\\1") %>% str_replace(".*(parts_affected)", "\\1") %>%
+mapply(function(i, j) paste(i, j, sep = "_"), ., lapply(t_levels, colnames)) %>%
+  unlist()
+
+t_levels <- Reduce(cbind, t_levels) %>%
+  set_colnames(n_levels)
+
+clinic_proc <- clinic_proc %>% select(-to_parse) %>% cbind(t_levels)
+
+# setdiff(names(ordinal_variables(clinic_proc, 3)), names(ordinal_variables(clinic_proc, 2)))
+
+ordinal_vars <- names(ordinal_variables0(clinic_proc, 2))
+clinic_ord <- clinic_proc[, ordinal_vars] %>% mutate_all(factor)
+mutate_all(as.numeric) %>% as.matrix %>% heatmap(na.rm = FALSE, scale = "none", Rowv = NA, Colv = NA, margins = c(13, 0), col = colorRampPalette(c("blue", "white", "#cd5b45"))(100))
+
+to_remove1 <- (diagnose_category(clinic_ord) %>% filter(!is.na(levels)) %>% filter(freq < 5))$variables %>% unique()
+# to_remove2 <- (diagnose_category(select(clinic_ord, -c(to_remove))) %>% filter(is.na(levels)) %>% filter(freq < 5))$variables
+
+clinic_ord <- select(clinic_ord, -c(to_remove1))
 
 # Remove individuals with high levels of NA
 # x <- clinic_proc
