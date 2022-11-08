@@ -1377,13 +1377,13 @@ attributes(clinic)$codes
 # extract_codes0("age_at_inclusion_tim")
 
 clinic_tot <- clinic %>%
-  filter(str_detect(
-      disease,
-      replace_parenthesis(paste(
-          c("SOJIA", "AOSD"),
-          collapse = "|"
-      ))
-  ))
+    filter(str_detect(
+        disease,
+        replace_parenthesis(paste(
+            c("SOJIA", "AOSD"),
+            collapse = "|"
+        ))
+    ))
 
 data(clinic_qual)
 # data(clinic_qual_proc)
@@ -1391,74 +1391,77 @@ data(clinic_qual)
 diagnose_category(clinic_qual)
 
 get_item_name <- function(x) {
-  (filter(
-      clinic_code[[1]],
-      str_detect(
-        column_code,
-        paste0("^", extract_codes0(x),"$")
-      )
+    (filter(
+        clinic_code[[1]],
+        str_detect(
+            column_code,
+            paste0("^", extract_codes0(x), "$")
+        )
     )
-  )$item_name
+    )$item_name
 }
 
 # persistant_systemic treatment_group
 i <- "active_manifestation_2"
 # will_have_a_second_v
 summary_cat <- function(i) {
-  df <- as.data.frame(clinic_tot[, i])[, 1] %>% fct_explicit_na() %>% as.data.frame() %>% set_colnames("var")
-  print(diagnose_category(df))
-  leg_title <- get_item_name(i)
-  ggpiestats(
-      df,
-      var,
-      label = "both",
-      results.subtitle = FALSE
-  ) +
-      scale_fill_manual(
-          values = brewer.pal(n = 9, name = "Set1"),
-          na.value = "black"
-      ) +
-    guides(fill = guide_legend(title = leg_title))# +
-  # plot_bar(
-  #     df,
-  #     ggtheme = theme(
-  #         strip.text.x = element_blank(),
-  #         panel.border = element_blank(),
-  #         panel.background = element_blank()
-  #     ),
-  #     theme_config = theme_perso()
-  # )
+    df <- as.data.frame(clinic_tot[, i])[, 1] %>%
+        fct_explicit_na() %>%
+        as.data.frame() %>%
+        set_colnames("var")
+    print(diagnose_category(df))
+    leg_title <- get_item_name(i)
+    ggpiestats(
+        df,
+        var,
+        label = "both",
+        results.subtitle = FALSE
+    ) +
+        scale_fill_manual(
+            values = brewer.pal(n = 9, name = "Set1"),
+            na.value = "black"
+        ) +
+        guides(fill = guide_legend(title = leg_title)) # +
+    # plot_bar(
+    #     df,
+    #     ggtheme = theme(
+    #         strip.text.x = element_blank(),
+    #         panel.border = element_blank(),
+    #         panel.background = element_blank()
+    #     ),
+    #     theme_config = theme_perso()
+    # )
 }
 
 var_cat <- c("patient_ethnicity_n", "fathers_ethnicity", "mothers_ethnicity", "gender")
 
 data(clinic_still_raw)
 summary_num <- function(i, colors = "red") {
-  df <- data.frame(var = as.data.frame(clinic_tot[, i])[, 1])
-  print(df$var)
-  print(get_summary_stats(df)[, -1])
-  print(diagnose(df)[, -1])
-  print(diagnose_outlier(df)[, -1])
-  plot_grid(
-      gghistostats(
-          data = df,
-          x = var,
-          results.subtitle = FALSE,
-          bar.fill = "red",
-          centrality.line.args = list(size = 1, color = "red")
-      ) +
-          theme_bw() +
-          theme_perso() +
-          labs(x = get_item_name(i)) +
-          theme(panel.border = element_blank(), panel.grid.major = element_blank()),
-      plot_violin(df, colors = colors) + theme(
-          strip.text.x = element_blank(),
-          axis.line = element_blank(),
-          panel.grid.major = element_line()
-      )
-  )
+    df <- data.frame(var = as.data.frame(clinic_tot[, i])[, 1])
+    print(df$var)
+    print(get_summary_stats(df)[, -1])
+    print(diagnose(df)[, -1])
+    print(diagnose_outlier(df)[, -1])
+    plot_grid(
+        gghistostats(
+            data = df,
+            x = var,
+            results.subtitle = FALSE,
+            bar.fill = "red",
+            centrality.line.args = list(size = 1, color = "red")
+        ) +
+            theme_bw() +
+            theme_perso() +
+            labs(x = get_item_name(i)) +
+            theme(panel.border = element_blank(), panel.grid.major = element_blank()),
+        plot_violin(df, colors = colors) + theme(
+            strip.text.x = element_blank(),
+            axis.line = element_blank(),
+            panel.grid.major = element_line()
+        )
+    )
 }
- # temp <- clinic_code[[1]] %>% filter(str_detect(group_code, "^IMA_NeuroManif")) ; select(clinic_tot0, temp$column_code) %>% set_colnames(temp$item_name) %>% View()
+# temp <- clinic_code[[1]] %>% filter(str_detect(group_code, "^IMA_NeuroManif")) ; select(clinic_tot0, temp$column_code) %>% set_colnames(temp$item_name) %>% View()
 # na.omit(clinic_tot0$C_2663_3967_1) %>% str_split_fixed(" ; ", 6) %>% as.character() %>% str_subset(".+") %>% plot_bar()
 # %>% as.data.frame() %>% set_colnames("x") %>% group_by(x) %>% summarise(n = n()) %>% arrange(desc(n))
 # %>% as.factor() %>% fct_count() %>% arrange(desc(n))
@@ -1477,17 +1480,19 @@ summary_num(i)
 manifs <- c("MUSCU", "CARDIO", "GASTRO", "PULMO", "OPHTALMO", "ENT", "HAEMATO")
 manifs <- c("MUCO_ACTIVE_LESIONS", paste0(manifs, "_MANIF"))
 # NEURO, URO
-map(manifs, function(x) immu_manif(x, df2 = clinic_tot0) %>%
-    collapse_mcat() %>%
-    plot_bar_mcat()) -> p
+map(manifs, function(x) {
+    immu_manif(x, df2 = clinic_tot0) %>%
+        collapse_mcat() %>%
+        plot_bar_mcat()
+}) -> p
 align_plots(plotlist = p, align = "vh") %>%
-  plot_grid(
-    plotlist = .,
-    nrow = 3,
-    ncol = 3,
-    labels = "AUTO",
-    rel_heights = c(1.5, rep(1, 2))
-  )
+    plot_grid(
+        plotlist = .,
+        nrow = 3,
+        ncol = 3,
+        labels = "AUTO",
+        rel_heights = c(1.5, rep(1, 2))
+    )
 # ((colSums(temp0) / nrow(temp0)) * 100) %>% round(1)
 # align_plots(plotlist = c(p2[-1], p2[1])) %>% plot_grid(plotlist = ., align = "vh", nrow = 4, ncol = 2, labels = LETTERS, rel_heights = c(rep(1, 3), 1.5))
 
