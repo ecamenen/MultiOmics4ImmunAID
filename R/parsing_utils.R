@@ -59,6 +59,11 @@ get_name_num <- function(x) {
 }
 
 #' @export
+rename0 <- function(x, sep = " ") {
+    str_to_title(x) %>% gsub("_", sep, .)
+}
+
+#' @export
 get_var_names <- function(x, y) {
     y <- as.data.frame(y)
     (y %>%

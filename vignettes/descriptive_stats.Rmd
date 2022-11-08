@@ -1491,6 +1491,92 @@ align_plots(plotlist = p, align = "vh") %>%
 # ((colSums(temp0) / nrow(temp0)) * 100) %>% round(1)
 # align_plots(plotlist = c(p2[-1], p2[1])) %>% plot_grid(plotlist = ., align = "vh", nrow = 4, ncol = 2, labels = LETTERS, rel_heights = c(rep(1, 3), 1.5))
 
+codes <- attributes(clinic_still_processed)$codes
+temp <- sapply(unique(codes$group_name), function(i) {
+    filter(codes, group_name == i) %>%
+        select(item_name) %>%
+        unlist() %>%
+        unname() %>%
+        rename0()
+})
+temp <- unique(codes$group_name) %>%
+    rename0(sep = "\n") %>%
+    toupper() %>%
+    set_names(temp, .)
+
+names(temp)[5] <- "AIDI\nSCORE\nON 30 DAYS"
+to_replace <- c("Asat", "Ggt", "Alat")
+temp[[6]][temp[[6]] %in% to_replace] <- toupper(to_replace)
+temp[[6]][temp[[6]] == "Neutrophils 5"] <- "Neutrophils %"
+
+nodes <- data.frame(id = unlist(temp), size = rep(6, length(unlist(temp))))
+edges <- lapply(seq_along(temp), function(i)
+    data.frame(
+      from = names(temp)[i],
+      to = temp[[i]],
+      weight = .2
+    )) %>% Reduce(rbind, .)
+
+nodes <- sapply(temp, length) %>%
+    data.frame(id = names(.), size = .) %>%
+    list(., nodes) %>%
+    Reduce(rbind, .) %>%
+    rbind(., data.frame(id = " ", size = 6))
+
+edges <- data.frame(from = " ", to = names(temp), weight = .1) %>%
+    list(., edges) %>%
+    Reduce(rbind, .)
+
+# edges <- combinations(length(names(temp)), 2, names(temp)) %>%
+#   set_colnames(c("from", "to")) %>%
+#   data.frame(., weight = .1) %>%
+#   list(., edges) %>%
+#   Reduce(rbind, .)
+
+plot_network2(
+    x = NULL,
+    C = NULL,
+    shape = "dot",
+    dashes = FALSE,
+    color = c("white", "gray60"),
+    nodes = nodes,
+    edges = edges,
+    cex_nodes = edges0$weight * 20,
+    title = paste("")
+)
+
+lapply(seq_along(temp), function(i) {
+    t(temp[[i]]) %>%
+        set_colnames(temp[[i]]) %>%
+        as_tibble()
+}) %>%
+    set_names(rename0(unique(codes$group_name), "_")) %>%
+    plot_str()
+
+tree <- data.tree::FromDataFrameNetwork(edges)
+tree <- as.list(tree, mode = "explicit", unname = TRUE)
+diagonalNetwork(tree, fontSize = 15, fontFamily = "arial", nodeStroke = "#ccc")
+
+# Create color for node, link and text
+n <- length(temp)
+p <- length(unlist(temp))
+p0 <- sapply(temp, length)
+colors <- brewer.pal(n = 9, name = "Set1")[c(seq(5), 8)]
+cols <- lapply(seq_along(temp), function(i) rep(colors[i], p0[i])) %>% unlist()
+c(rep("white", n), cols) -> linkVector
+nodeVector <- c("white", colors, cols) -> textVector
+
+# apply js
+network_vector <- lapply(list(nodeVector, linkVector, textVector), function(j) {
+    JS(paste0("function(d, i) { return ", paste0('["', paste(j, collapse = '", "'), '"]'), "[i]; }"))
+})
+
+diagonalNetwork(tree,
+    fontSize = 15, fontFamily = "arial",
+    nodeStroke = "white",
+    linkColour = network_vector[[2]],
+    textColour = network_vector[[3]]
+)
 ```
 
 

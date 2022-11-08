@@ -84,8 +84,12 @@ plot_network <- function(
     `E<-` <- igraph::`E<-`
     V <- E <- NULL
 
-    nodes <- get_nodes(x)
-    edges <- get_edges(x, C)
+    if (is.null(nodes)) {
+        nodes <- get_nodes(x)
+    }
+    if (is.null(edges)) {
+        edges <- get_edges(x, C)
+    }
 
     net <- igraph::graph_from_data_frame(
         d = edges,
@@ -102,6 +106,10 @@ plot_network <- function(
         nodes$n,
         sep = " "
     )
+    if (shape == "dot") {
+        shape <- "circle"
+    }
+
     V(net)$shape <- shape
 
 
@@ -134,15 +142,13 @@ plot_corr_network <- function(x, cutoff = 0.75, ...) {
     # font <- "14px arial black"
     # edges$font.bold.mod <- ifelse(edges$p.adj < 0.05, paste(font, "bold"), font)
     edges$title <- round(edges[, 3], 2) -> edges$label
-    edges$color <- ifelse(edges$weight > 0, "green", "red")
     id <- unlist(edges[, seq(2)])
     nodes <- data.frame(id) %>%
         group_by(id) %>%
         summarise(size = n() * 6) %>%
         as.data.frame()
 
-
-    color_node <- ifelse(edges$weight > 0, "green", "red")
+    color_node <- ifelse(edges$weight > 0, "green", "red") -> edges$color
 
     plot_network2(
         x,
