@@ -206,3 +206,50 @@ spec_color2 <- function(x, alpha = 1, begin = 0, end = 1,
     color_code[is.na(color_code)] <- na_color
     return(color_code)
 }
+
+#' @export
+# plot_bar_mcat(clinic_tot0$C_2643_3798, colorRampPalette(c("blue", "gray", "red"))(16))
+plot_bar_mcat <- function(x, colors = brewer.pal(n = 16, name = "RdBu"), hjust = -0.1, vjust = 0.5) {
+    x <- as.data.frame(x)
+    if (ncol(x) > 1)
+        x <- sapply(seq(ncol(x)), function(i) rep(colnames(x)[i], colSums(x)[i]))
+    df <- unlist(x) %>%
+        fct_drop() %>%
+        fct_infreq() %>%
+        fct_relabel(~ str_replace_all(.x, "\\s*\\([^\\)]+\\)", "")) %>%
+        fct_relabel(~ str_replace_all(.x, "\\$\\$[^\\)]+", "")) %>%
+        fct_rev %>%
+        fct_count() %>%
+        data.frame(order = as.numeric(rownames(.)))
+    x_lab <- (round(df$n, 2) / nrow(x) * 100) %>% round(1) %>% paste("%")
+    df$x_lab <- x_lab # paste0(df$n, "\n   (", x_lab, ")")
+    df$y_lab <- df$n / 2
+    # i <- df$y_lab < threshold
+    # df$x_lab[i] <- ""
+    (ggplot(df, aes(f, n, fill = order, label = n)) +
+            geom_bar(stat = "identity") +
+            coord_flip()
+    ) %>% theme_perso_bar(colors = colors, cat = FALSE) +
+        geom_text(
+            aes(color = I("white"), y = y_lab)
+        ) +
+        geom_text(aes(label = df$x_lab, color = colors), hjust = hjust, vjust = vjust) +
+        theme(axis.text.y = element_text(colour = colors))
+}
+
+#' @export
+theme_perso_bar <- function(p, y = NULL, colors = c(brewer.pal(n = 9, name = "Set1")[-6], brewer.pal(n = 9, name = "Pastel2")), cat = TRUE) {
+    p <- p +
+        theme_minimal() +
+        theme_perso() +
+        theme(
+            # axis.text.y = element_text(angle = 45, vjust = 1, hjust = 1),
+            legend.position = "none"
+        ) +
+        labs(x = "", y = "")
+    if (cat) {
+        p + scale_fill_manual(p, values = colors, na.value = "black")
+    } else {
+        p + scale_fill_gradientn(colors = colors, na.value = "black")
+    }
+}

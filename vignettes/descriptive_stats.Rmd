@@ -1458,7 +1458,39 @@ summary_num <- function(i, colors = "red") {
       )
   )
 }
+ # temp <- clinic_code[[1]] %>% filter(str_detect(group_code, "^IMA_NeuroManif")) ; select(clinic_tot0, temp$column_code) %>% set_colnames(temp$item_name) %>% View()
+# na.omit(clinic_tot0$C_2663_3967_1) %>% str_split_fixed(" ; ", 6) %>% as.character() %>% str_subset(".+") %>% plot_bar()
+# %>% as.data.frame() %>% set_colnames("x") %>% group_by(x) %>% summarise(n = n()) %>% arrange(desc(n))
+# %>% as.factor() %>% fct_count() %>% arrange(desc(n))
+# clinic_code[[1]] %>% filter(str_detect(group_code, "^IMA_ImpactedOrganOrSysTab")) %>% select(clinic_tot0, .$column_code) %>% set_colnames(.$item_name) %>% update_columns(colnames(.), function(i) recode_factor(i, "Yes" = 1, "No" = 0, "Unknown" = 0)) %>% update_columns(colnames(.), as.character) %>% update_columns(colnames(.), as.numeric) %>% rowSums(na.rm = TRUE)
+# clinic_tot1$C_2745_4179_1 %>% fct_lump_min(min = 5, other_level = "Absence") %>% fct_count()  %>% arrange(desc(n))
+# major criteria: skin_rash_other_sa, fever_38_c_104_f, leucocytes_mm3, neutrophils_mm3, eosinophils_mm3, arthralgia_myalgia
+# biomarkers: crp_c_reactive_prot ferritin_mg_l (glycosylated_ferriti)
+# LFT: total_bilirubin_mmo alk_phosphatases_ui alat_ui_l asat_ui_l
+# cofounding: bmi_automatic, age_at_inclusion_tim
+# to transform: diagnosis_day
+i <- "ferritin_mg_l"
+summary_num(i)
 # plot_outlier(var)
+
+# Manifestations
+manifs <- c("MUSCU", "CARDIO", "GASTRO", "PULMO", "OPHTALMO", "ENT", "HAEMATO")
+manifs <- c("MUCO_ACTIVE_LESIONS", paste0(manifs, "_MANIF"))
+# NEURO, URO
+map(manifs, function(x) immu_manif(x, df2 = clinic_tot0) %>%
+    collapse_mcat() %>%
+    plot_bar_mcat()) -> p
+align_plots(plotlist = p, align = "vh") %>%
+  plot_grid(
+    plotlist = .,
+    nrow = 3,
+    ncol = 3,
+    labels = "AUTO",
+    rel_heights = c(1.5, rep(1, 2))
+  )
+# ((colSums(temp0) / nrow(temp0)) * 100) %>% round(1)
+# align_plots(plotlist = c(p2[-1], p2[1])) %>% plot_grid(plotlist = ., align = "vh", nrow = 4, ncol = 2, labels = LETTERS, rel_heights = c(rep(1, 3), 1.5))
+
 ```
 
 
