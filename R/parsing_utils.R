@@ -378,6 +378,10 @@ extract_codes <- function(x, y) {
     )
 }
 
+extract_codes0 <- function(x) {
+    (attributes(clinic)$codes %>% filter(name == x))$codes
+}
+
 #' @export
 set_qualitative <- function(x, n = 2) {
     names(ordinal_variables0(x, 2)) %>%

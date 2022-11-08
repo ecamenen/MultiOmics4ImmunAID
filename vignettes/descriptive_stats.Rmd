@@ -30,6 +30,7 @@ load_libraries(
         "lubridate",
         "magrittr",
         "naniar",
+        "patchwork",
         "RColorBrewer",
         "rstatix",
         "readxl",
@@ -787,6 +788,7 @@ colnames(clinic_qual_proc) <- str_replace(colnames(clinic_qual_proc), "(do_you_s
 # res <- sapply(rownames(x), function(i) round((length(which(is.na(x[i, ]))) / ncol(x)) * 100, 1))
 # clinic_proc <- clinic_proc[-which(res > 70), ]
 clinic_qual_proc <- clinic_qual_proc[-37, ]
+use_data(clinic_qual_proc, overwrite = TRUE)
 
 func <- function(x) names(ordinal_variables(clinic_qual_proc, x))
 for (i in 2:60) {
@@ -873,7 +875,7 @@ temp %>%
     kbl(escape = F, align = "c") %>%
     kable_minimal() %>%
     add_header_above(c(" " = 1, "N" = 3, "%" = 3)) %>%
-    save_kable("table.png")
+    save_kable("table.temp.png")
 
 # clinic_dis[, "disease"] %>% group_by(disease) %>% summarise(`%` = n())
 
@@ -1356,6 +1358,109 @@ saveWorkbook(wb, file = file_path, overwrite = TRUE)
 # sapply(colnames(clinic_geneve), function(i) strsplit(i, " - ")[[1]][2:])
 # common_vars <- setdiff(colnames(clinic_tot_proc), l_codes)
 ```
+
+## Bruno
+```{r}
+# clinic0 <- read_batches()
+# clinic_tot0 <- Reduce(rbind, clinic0)
+# clinic_tot1 <- clinic_tot0 %>%
+#   filter(str_detect(
+#       C_2643_3798,
+#       replace_parenthesis(paste(
+#           c("SOJIA", "AOSD"),
+#           collapse = "|"
+#       ))
+#   ))
+
+data(clinic)
+attributes(clinic)$codes
+# extract_codes0("age_at_inclusion_tim")
+
+clinic_tot <- clinic %>%
+  filter(str_detect(
+      disease,
+      replace_parenthesis(paste(
+          c("SOJIA", "AOSD"),
+          collapse = "|"
+      ))
+  ))
+
+data(clinic_qual)
+# data(clinic_qual_proc)
+# clinic_qual <- clinic_qual_proc
+diagnose_category(clinic_qual)
+
+get_item_name <- function(x) {
+  (filter(
+      clinic_code[[1]],
+      str_detect(
+        column_code,
+        paste0("^", extract_codes0(x),"$")
+      )
+    )
+  )$item_name
+}
+
+# persistant_systemic treatment_group
+i <- "active_manifestation_2"
+# will_have_a_second_v
+summary_cat <- function(i) {
+  df <- as.data.frame(clinic_tot[, i])[, 1] %>% fct_explicit_na() %>% as.data.frame() %>% set_colnames("var")
+  print(diagnose_category(df))
+  leg_title <- get_item_name(i)
+  ggpiestats(
+      df,
+      var,
+      label = "both",
+      results.subtitle = FALSE
+  ) +
+      scale_fill_manual(
+          values = brewer.pal(n = 9, name = "Set1"),
+          na.value = "black"
+      ) +
+    guides(fill = guide_legend(title = leg_title))# +
+  # plot_bar(
+  #     df,
+  #     ggtheme = theme(
+  #         strip.text.x = element_blank(),
+  #         panel.border = element_blank(),
+  #         panel.background = element_blank()
+  #     ),
+  #     theme_config = theme_perso()
+  # )
+}
+
+var_cat <- c("patient_ethnicity_n", "fathers_ethnicity", "mothers_ethnicity", "gender")
+
+data(clinic_still_raw)
+summary_num <- function(i, colors = "red") {
+  df <- data.frame(var = as.data.frame(clinic_tot[, i])[, 1])
+  print(df$var)
+  print(get_summary_stats(df)[, -1])
+  print(diagnose(df)[, -1])
+  print(diagnose_outlier(df)[, -1])
+  plot_grid(
+      gghistostats(
+          data = df,
+          x = var,
+          results.subtitle = FALSE,
+          bar.fill = "red",
+          centrality.line.args = list(size = 1, color = "red")
+      ) +
+          theme_bw() +
+          theme_perso() +
+          labs(x = get_item_name(i)) +
+          theme(panel.border = element_blank(), panel.grid.major = element_blank()),
+      plot_violin(df, colors = colors) + theme(
+          strip.text.x = element_blank(),
+          axis.line = element_blank(),
+          panel.grid.major = element_line()
+      )
+  )
+}
+# plot_outlier(var)
+```
+
 
 ## PedsQL
 ```{r pedsql}
