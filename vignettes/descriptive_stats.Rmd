@@ -22,7 +22,9 @@ load_libraries(
         "cowplot",
         # "datawizard",
         "DataExplorer",
+        "data.tree",
         "dlookr",
+        "forcats",
         "ggpubr",
         "ggstatsplot",
         "janitor",
@@ -30,13 +32,16 @@ load_libraries(
         "lubridate",
         "magrittr",
         "naniar",
+        "networkD3",
         "patchwork",
+        "purrr",
         "RColorBrewer",
         "rstatix",
         "readxl",
         "reshape2",
         "see",
         "skimr",
+        "tidylog",
         "tidyverse",
         "usethis",
         "VIM"
@@ -1361,8 +1366,8 @@ saveWorkbook(wb, file = file_path, overwrite = TRUE)
 
 ## Bruno
 ```{r}
-# clinic0 <- read_batches()
-# clinic_tot0 <- Reduce(rbind, clinic0)
+clinic0 <- read_batches()
+clinic_tot0 <- Reduce(rbind, clinic0)
 # clinic_tot1 <- clinic_tot0 %>%
 #   filter(str_detect(
 #       C_2643_3798,
@@ -1538,17 +1543,17 @@ edges <- data.frame(from = " ", to = names(temp), weight = .1) %>%
 #   list(., edges) %>%
 #   Reduce(rbind, .)
 
-plot_network2(
-    x = NULL,
-    C = NULL,
-    shape = "dot",
-    dashes = FALSE,
-    color = c("white", "gray60"),
-    nodes = nodes,
-    edges = edges,
-    cex_nodes = edges0$weight * 20,
-    title = paste("")
-)
+# plot_network2(
+#     x = NULL,
+#     C = NULL,
+#     shape = "dot",
+#     dashes = FALSE,
+#     color = c("white", "gray60"),
+#     nodes = nodes,
+#     edges = edges,
+#     cex_nodes = edges$weight * 20,
+#     title = paste("")
+# )
 
 lapply(seq_along(temp), function(i) {
     t(temp[[i]]) %>%
@@ -1558,7 +1563,7 @@ lapply(seq_along(temp), function(i) {
     set_names(rename0(unique(codes$group_name), "_")) %>%
     plot_str()
 
-tree <- data.tree::FromDataFrameNetwork(edges)
+tree <- FromDataFrameNetwork(edges)
 tree <- as.list(tree, mode = "explicit", unname = TRUE)
 diagonalNetwork(tree, fontSize = 15, fontFamily = "arial", nodeStroke = "#ccc")
 

@@ -17,4 +17,5 @@
 ^.*\.temp
 ^.*\.tiff
 ^.*\.tsv
+^bin$
 docker_launch.sh

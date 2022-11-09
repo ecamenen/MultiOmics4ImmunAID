@@ -383,6 +383,7 @@ extract_codes <- function(x, y) {
     )
 }
 
+#' @export
 extract_codes0 <- function(x) {
     (attributes(clinic)$codes %>% filter(name == x))$codes
 }

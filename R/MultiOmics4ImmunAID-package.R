@@ -1,16 +1,17 @@
-#' @import correlation corrplot cowplot DataExplorer dlookr dplyr ggplot2 golem
-#' @import ggstatsplot grDevices kableExtra naniar openxlsx readr readxl
+#' @import correlation corrplot cowplot DataExplorer data.tree dlookr dplyr forcats ggplot2 golem
+#' @import ggstatsplot grDevices naniar networkD3 openxlsx purrr readr readxl
 #' @import RColorBrewer reshape2 see VIM stringr tidyverse usethis venn viridis
 #' @importFrom magrittr %>%
 #' @importFrom methods is
 #' @importFrom plyr ldply .
+#' @rawNamespace import(ggpubr, except = get_legend)
 #' @rawNamespace import(gplots, except = venn)
 #' @rawNamespace import(janitor, except = c(chisq.test, fisher.test))
+#' @rawNamespace import(kableExtra, except = group_rows)
+#' @rawNamespace import(lubridate, except = stamp)
 #' @rawNamespace import(skimr, except = n_complete)
 #' @rawNamespace import(stats, except = c(filter, lag, lowess))
 #' @rawNamespace import(tidyr, except = extract)
 #' @rawNamespace import(rstatix, except = c(make_clean_names, cor_test))
-#' @rawNamespace import(ggpubr, except = get_legend)
-#' @rawNamespace import(lubridate, except = stamp)
 #' @keywords internal
 "_PACKAGE"
