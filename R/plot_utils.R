@@ -198,8 +198,11 @@ spec_color2 <- function(x, alpha = 1, begin = 0, end = 1,
     if (is.null(scale_from)) {
         x <- round(scales::rescale(x, c(1, n)))
     } else {
-        x <- round(scales::rescale(x, to = c(1, n),
-                                   from = scale_from))
+        x <- round(
+            scales::rescale(x,
+            to = c(1, n),
+            from = scale_from
+        ))
     }
 
     color_code <- palette[x]
@@ -209,26 +212,32 @@ spec_color2 <- function(x, alpha = 1, begin = 0, end = 1,
 
 #' @export
 # plot_bar_mcat(clinic_tot0$C_2643_3798, colorRampPalette(c("blue", "gray", "red"))(16))
-plot_bar_mcat <- function(x, colors = brewer.pal(n = 16, name = "RdBu"), hjust = -0.1, vjust = 0.5) {
-    x <- as.data.frame(x)
-    if (ncol(x) > 1)
-        x <- sapply(seq(ncol(x)), function(i) rep(colnames(x)[i], colSums(x)[i]))
+plot_bar_mcat <- function(x, colors = NULL, hjust = -0.1, vjust = 0.5) {
+    x0 <- as.data.frame(x)
+    if (ncol(x) > 1) {
+          x <- sapply(seq(ncol(x0)), function(i) rep(colnames(x0)[i], colSums(x0)[i]))
+      }
     df <- unlist(x) %>%
         fct_drop() %>%
         fct_infreq() %>%
         fct_relabel(~ str_replace_all(.x, "\\s*\\([^\\)]+\\)", "")) %>%
         fct_relabel(~ str_replace_all(.x, "\\$\\$[^\\)]+", "")) %>%
-        fct_rev %>%
+        fct_rev() %>%
         fct_count() %>%
         data.frame(order = as.numeric(rownames(.)))
-    x_lab <- (round(df$n, 2) / nrow(x) * 100) %>% round(1) %>% paste("%")
+    if (is.null(colors)) {
+        colors <- colorRampPalette(c("blue", "gray", "#cd5b45"))(nrow(df))
+    }
+    x_lab <- (round(df$n, 2) / nrow(x0) * 100) %>%
+        round(1) %>%
+        paste("%")
     df$x_lab <- x_lab # paste0(df$n, "\n   (", x_lab, ")")
     df$y_lab <- df$n / 2
     # i <- df$y_lab < threshold
     # df$x_lab[i] <- ""
     (ggplot(df, aes(f, n, fill = order, label = n)) +
-            geom_bar(stat = "identity") +
-            coord_flip()
+        geom_bar(stat = "identity") +
+        coord_flip()
     ) %>% theme_perso_bar(colors = colors, cat = FALSE) +
         geom_text(
             aes(color = I("white"), y = y_lab)
