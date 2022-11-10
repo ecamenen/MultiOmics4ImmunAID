@@ -1180,7 +1180,13 @@ summary_cat <- function(i) {
 }
 
 var_cat <- c("patient_ethnicity_n", "fathers_ethnicity", "mothers_ethnicity", "gender")
-
+plot_piechart(clinic_tot$patient_ethnicity_n, colour = c("#af3e40", "#eaaab0"), cex = 40, dec = 1, label = FALSE)
+plot_piechart(clinic_tot$gender, colour = c("#3438a7", "#38bcbd"), cex = 20)
+plot_piechart(clinic_tot$will_have_a_second_v, colour = brewer.pal(9, "Paired")[7:8], cex = 20)
+df <- cut(clinic_tot$age_at_inclusion_tim, breaks=seq(0, 70, 10)) %>% data.frame() %>% set_colnames("ages")
+apyramid::age_pyramid(data = df,
+age_group = "ages",
+split_by = "gender", proportional = FALSE, show_midpoint = FALSE) + theme_bw() + scale_fill_manual(values = c("#3438a7", "#38bcbd"), na.value = "black")
 data(clinic_still_raw)
 summary_num <- function(i, colors = "red") {
     df <- data.frame(var = as.data.frame(clinic_tot[, i])[, 1])
@@ -1221,26 +1227,40 @@ summary_num <- function(i, colors = "red") {
 i <- "ferritin_mg_l"
 summary_num(i)
 # plot_outlier(var)
-
+plot_violin0(clinic_tot$bmi_automatic, brewer.pal(n, "Set2")[6], size = 3)
+plot_violin0(clinic_tot$age_at_inclusion_tim, brewer.pal(n, "Set2")[5], size = 3)
 # Manifestations
-manifs <- c("MUSCU", "CARDIO", "GASTRO", "PULMO", "OPHTALMO", "ENT", "HAEMATO")
+manifs <- c("MUSCU", "CARDIO", "GASTRO", "OPHTALMO", "OPHTALMO", "ENT", "HAEMATO")
 manifs <- c("MUCO_ACTIVE_LESIONS", paste0(manifs, "_MANIF"))
-# NEURO, URO
-map(manifs, function(x) {
-    immu_manif(x, df2 = clinic_tot0) %>%
+vars0 <- clinic_code[[3]] %>% filter(str_detect(group_code, "IMA_ImpactedOrganOrSysTab"))
+vars1 <- vars0 %>% pull(item_name) %>% str_replace("(\\d{1,2}. )", "") %>% str_replace("\\s*\\([^\\)]+\\)", "")
+vars <- vars1[c(1, 3:4, 7, 9, 9, 8, 11)]
+# (PULMO) NEURO, URO
+
+list.map(as.list(manifs), f(i, j) ~{
+    immu_manif(i, df2 = clinic_tot0) %>%
         collapse_mcat() %>%
-        plot_bar_mcat()
+        plot_bar_mcat(cex = 8, ratio = 4, title = vars[j])
 }) -> p
 align_plots(plotlist = p, align = "vh") %>%
     plot_grid(
         plotlist = .,
         nrow = 3,
         ncol = 3,
-        labels = "AUTO",
-        rel_heights = c(1.5, rep(1, 2))
+        # labels = "AUTO",
+        rel_heights = c(1.5, 1, 0.6)
     )
 # ((colSums(temp0) / nrow(temp0)) * 100) %>% round(1)
 # align_plots(plotlist = c(p2[-1], p2[1])) %>% plot_grid(plotlist = ., align = "vh", nrow = 4, ncol = 2, labels = LETTERS, rel_heights = c(rep(1, 3), 1.5))
+vars <- vars0 %>% pull(column_code) %>% paste0("^", ., "$", collapse = "|")
+vars <- filter(attributes(clinic_tot)$codes, str_detect(codes, vars)) %>% pull(name)
+p <- list.map(as.list(vars), f(i, j) ~plot_piechart(clinic_tot %>% pull(i), label = FALSE, cex = 25, dec = 1, threshold = 5, title = vars1[j], hsize = 1.5))
+align_plots(plotlist = p, align = "vh") %>%
+    plot_grid(
+        plotlist = .,
+        nrow = 3,
+        ncol = 4
+    )
 
 codes <- attributes(clinic_still_processed)$codes
 temp <- sapply(unique(codes$group_name), function(i) {

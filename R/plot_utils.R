@@ -54,18 +54,8 @@ plot_normal <- function(x) {
 
 get_colors <- function() {
     c(
-        "#cd5b45",
-        "#71ad65",
-        "#3c78b4",
-        "#ffc600",
-        "#b448af",
-        "#9d9d9d",
-        "#abcaef",
-        "#4a6f43",
-        "#f0e500",
-        "#efb8f0",
-        "black",
-        "#d6d6d6"
+        brewer.pal(9, "Set1"),
+        brewer.pal(9, "Pastel1")
     )
 }
 
@@ -90,6 +80,23 @@ theme_violin0 <- function(p, colors = get_colors()) {
             ),
         colors = colors
     )
+}
+
+theme_violin1 <- function(
+    p,
+    colors = get_colors(),
+    cex = 1,
+    cex_main = 12 * cex,
+    cex_sub = 10 * cex) {
+        p +
+            xlab("") +
+            ylab("") +
+            guides(
+                color = "none",
+                fill = "none",
+                x = "none"
+            ) +
+        theme_perso(cex, cex_main, cex_sub)
 }
 
 theme_violin <- function(
@@ -212,16 +219,20 @@ spec_color2 <- function(x, alpha = 1, begin = 0, end = 1,
 
 #' @export
 # plot_bar_mcat(clinic_tot0$C_2643_3798, colorRampPalette(c("blue", "gray", "red"))(16))
-plot_bar_mcat <- function(x, colors = NULL, hjust = -0.1, vjust = 0.5) {
+plot_bar_mcat <- function(x, colors = NULL, hjust = -0.1, vjust = 0.5, ratio = 5, cex = 10, title = NULL, wrap = 20) {
+    if (is.null(title)) {
+      title <- deparse(substitute(x))
+    }
     x0 <- as.data.frame(x)
     if (ncol(x) > 1) {
-          x <- sapply(seq(ncol(x0)), function(i) rep(colnames(x0)[i], colSums(x0)[i]))
+        x <- sapply(seq(ncol(x0)), function(i) rep(colnames(x0)[i], colSums(x0)[i]))
       }
     df <- unlist(x) %>%
         fct_drop() %>%
-        fct_infreq() %>%
         fct_relabel(~ str_replace_all(.x, "\\s*\\([^\\)]+\\)", "")) %>%
         fct_relabel(~ str_replace_all(.x, "\\$\\$[^\\)]+", "")) %>%
+        str_wrap(wrap) %>%
+        fct_infreq() %>%
         fct_rev() %>%
         fct_count() %>%
         data.frame(order = as.numeric(rownames(.)))
@@ -237,13 +248,20 @@ plot_bar_mcat <- function(x, colors = NULL, hjust = -0.1, vjust = 0.5) {
     # df$x_lab[i] <- ""
     (ggplot(df, aes(f, n, fill = order, label = n)) +
         geom_bar(stat = "identity") +
+        expand_limits(y = max(df$n)  + max(df$n) / ratio) +
         coord_flip()
     ) %>% theme_perso_bar(colors = colors, cat = FALSE) +
-        geom_text(
-            aes(color = I("white"), y = y_lab)
-        ) +
-        geom_text(aes(label = df$x_lab, color = colors), hjust = hjust, vjust = vjust) +
-        theme(axis.text.y = element_text(colour = colors))
+      geom_text(
+        aes(color = I("white"), y = y_lab), size = cex
+      ) +
+      geom_text(aes(label = df$x_lab, color = colors), hjust = hjust, vjust = vjust, size = cex) +
+      ggtitle(str_wrap(title, wrap)) +
+      theme(
+        plot.title = element_text(hjust = 0, vjust = 0, size = cex * 4, face = "bold"),
+        axis.text.y = element_text(colour = colors, size = cex * 3),
+        axis.text.x = element_text(size = cex * 1.75),
+        plot.margin = unit(c(-0.5, 0, 0, 0.5), "cm")
+      )
 }
 
 #' @export

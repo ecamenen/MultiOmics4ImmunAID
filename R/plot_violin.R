@@ -1,5 +1,5 @@
 #' @export
-plot_piechart <- function(x, hsize = 1.2, cex = 15, colour = get_colors(), wrap = 5, lwd = 4) {
+plot_piechart <- function(x, hsize = 1.2, cex = 15, colour = get_colors(), wrap = 5, lwd = 4, dec = .1, label = TRUE, threshold = 5, title = NULL, wrap_title = 20) {
     df <- fct_drop(x) %>%
         fct_infreq() %>%
         fct_count() %>%
@@ -8,25 +8,36 @@ plot_piechart <- function(x, hsize = 1.2, cex = 15, colour = get_colors(), wrap 
             pos = rev(cumsum(rev(n))),
             pos = n / 2 + lead(pos, 1),
             pos = if_else(is.na(pos), n / 2, pos),
-            label = str_wrap(str_glue("{f} (N={n})"), wrap)
+            label = str_wrap(str_glue("{f} (N={n})"), wrap),
+            text = scales::percent(n / sum(n), dec)
         )
+    if (is.null(title)) {
+        title <- deparse(substitute(x))
+    }
+    i <- df$n / sum(df$n) <= threshold / 100
+    df$text[i] <- ""
+    if (!isTRUE(label))
+        df$label <- rep("", nrow(df))
     ggplot(df, aes(x = hsize, y = n, fill = f)) +
-        geom_col(width = .8, color = "white", lwd = lwd) +
+        geom_col(width = 1, color = NA, lwd = lwd) +
         geom_text(
             color = "white",
             size = cex / 2.5,
-            aes(label = scales::percent(n / sum(n), .1)),
+            aes(label = text),
             position = position_stack(vjust = 0.5)
         ) +
         coord_polar(theta = "y", clip = "off") +
-        scale_fill_manual(values = colour, na.value = "black") +
+        scale_fill_manual(values = colour, na.value = colour[nrow(df)]) +
         scale_y_continuous(breaks = df$pos, labels = df$label) +
         guides(fill = guide_legend(title = "Group")) +
+        ggtitle(str_wrap(title, wrap_title)) +
         theme(
+            plot.title = element_text(hjust = 0.5, vjust = -4, size = cex * 1.25, face = "bold"),
             axis.ticks = element_blank(),
             axis.title = element_blank(),
-            axis.text.x = element_text(size = cex),
+            axis.text.x = element_text(size = cex, colour = colour),
             axis.text.y = element_blank(),
+            # legend.text = element_text(size = cex),
             legend.position = "none",
             panel.background = element_rect(fill = "white"),
             plot.margin = unit(c(0, -1, -1, -1), "cm")
@@ -152,8 +163,8 @@ plot_violin0 <- function(
             lwd = lwd
         ) +
         geom_violin(alpha = 0.1, fill = colour, colour = NA) +
-        geom_sina(size = size) +
-        theme_bw()
+        geom_sina(size = size, colour = "#828282") +
+        theme_classic()
     theme_violin1(
         p,
         cex = cex,
