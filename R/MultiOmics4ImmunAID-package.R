@@ -1,7 +1,7 @@
 #' @import correlation corrplot cowplot DataExplorer data.tree dlookr dplyr forcats ggplot2 golem
-#' @import ggstatsplot grDevices naniar networkD3 openxlsx purrr readr readxl
-#' @import RColorBrewer reshape2 see VIM stringr tidyverse usethis venn viridis
-#' @importFrom magrittr %>%
+#' @import ggstatsplot grDevices naniar networkD3 openxlsx purrr readr readxl rlist
+#' @import RColorBrewer reshape2 see VIM stringr tidylog tidyverse usethis venn viridis
+#' @importFrom magrittr %>% set_colnames
 #' @importFrom methods is
 #' @importFrom plyr ldply .
 #' @rawNamespace import(ggpubr, except = get_legend)

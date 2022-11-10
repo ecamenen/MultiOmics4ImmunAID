@@ -401,17 +401,17 @@ collapse_mcat <- function(x) {
     sapply(
         na.omit(lvls),
         function(i) {
-              sapply(
-                  seq(nrow(x)),
-                  function(j) {
+                sapply(
+                    seq(nrow(x)),
+                    function(j) {
                         if (isTRUE(any(x[j, ] == i))) {
                             1
                         } else {
                             0
                         }
                     }
-              )
-          }
+                )
+        }
     )
 }
 

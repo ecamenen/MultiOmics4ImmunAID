@@ -1,0 +1,319 @@
+---
+title: "other_clinics"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{other_clinics}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+suppressPackageStartupMessages(library(MultiOmics4ImmunAID))
+path <- set_environment()
+```
+
+# Clinic
+```{r clinic}
+# Extract items
+date <- "20220512"
+clin_path <- file.path(path, "clinical", "20220501")
+files_raw <- list.files(clin_path)
+files_export <- files_raw[grepl("export", files_raw)]
+files <- str_split(files_export, "_")
+(blocks <- unique(sapply(files, function(i) i[2])))
+```
+
+## PedsQL
+```{r pedsql}
+# Extract items
+block <- "PedsQL"
+peds_files <- files[grepl(block, files)]
+batch <- unique(sapply(peds_files, function(i) i[5]))
+max(gsub("batch(\\d)", "\\1", batch))
+peds_files <- peds_files[grepl("batch1", peds_files)]
+ql <- unique(sapply(peds_files, function(i) i[2]))
+(ql <- sort(as.numeric(gsub("PedsQL(\\d+)", "\\1", ql))))
+years <- unique(sapply(peds_files, function(i) i[3]))
+(years <- sort(as.numeric(gsub("(\\d+)years", "\\1", years))))
+
+# Load data
+pql_blocks <- paste0(block, ql, "_", years, "years")
+pql <- lapply(pql_blocks, read_batches)
+# pql <- lapply(pql, function(i) lapply(i, function(j) clean_data(j, FALSE, FALSE)))
+names(pql) <- pql_blocks
+lapply(pql, function(i) sapply(i, dim))
+# pql1 <- lapply(pql, function(i) sapply(i, colnames))[[4]]; plot_venn(lapply(seq(ncol(pql1)), function(i) pql1[, i]))
+
+# Duplicate individuals between batches
+lapply(pql, function(i) get_intersection(lapply(i, function(i) as.data.frame(i[, 1])[, 1])))
+plot_venn(lapply(pql, function(i) colnames(i[[1]])))
+
+# Metada
+pql_codes <- lapply(pql_blocks, function(i) read_batches(i, "codes"))
+colnames(pql_codes[[1]][[3]])
+pql_names <- lapply(pql_codes, function(i) i[[3]]$item_name)
+plot_venn(pql_names)
+get_intersection(pql_names)
+get_difference(pql_names)
+
+# Select level variables
+level_vars <- lapply(pql_codes, get_codes_levels)
+level_ <- get_levels(unlist(mapply(function(x, y) select(x[[3]], all_of(y)), pql, level_vars)))
+
+# group_code
+peds_regex <- "PedsQL(\\d{1,2})_(\\d{1,2})_"
+group_codes <- pql_codes[[4]][[3]]$group_code
+pql_groups <- unique(gsub(peds_regex, "", group_codes))
+pql_groups0 <- unique(gsub("V\\d_", "", pql_groups))
+sapply(pql_groups0, function(i) length(group_codes[str_detect(group_codes, i)]))
+
+# item codes
+pql_item_code <- lapply(pql_codes, function(i) gsub(peds_regex, "", i[[3]]$item_code))
+plot_venn(pql_item_code)
+# Compare item_name for each group_code between ages
+get_intersection(pql_item_code)
+# $`B:C:D` "SCHOOL_FUNCTIONING_4" "SCHOOL_FUNCTIONING_5"
+
+# TODO: Reduce
+pql_tot <- lapply(pql, function(i) Reduce(rbind, i))
+
+# Duplicates individuals
+get_dup_name(pql_tot[[3]])
+get_dup(pql_tot[[3]])
+
+for (i in seq_along(pql)) {
+    colnames(pql_tot[[i]]) <- pql_item_code[i][[1]]
+}
+
+i_cols <- which(str_detect(pql_item_code[1][[1]], "SCHOOL_FUNCTIONING_1"))
+# name_cols <- rep(paste0("SCHOOL_FUNCTIONING_", seq(2)), 2)
+# Add SCHOOL_FUNCTIONING_[45] in 24 25 48 49 with NA
+for (i in seq(2)) {
+    pql_tot[[1]] <- add_column(pql_tot[[1]], SCHOOL_FUNCTIONING_4 = NA, SCHOOL_FUNCTIONING_5 = NA, .before = i_cols[i])
+}
+colnames(pql_tot[[1]]) <- colnames(pql_tot[[4]])
+# Then add Date in 26 for i = {1, ,2, 3} with NA
+i_col <- which(str_detect(pql_item_code[4][[1]], "DATE"))[2]
+for (i in 2:3) {
+    pql_tot[[i]] <- add_column(pql_tot[[i]], DATE = NA, .before = i_col)
+}
+
+pql_tot <- Reduce(rbind, pql_tot)
+# sapply(as.data.frame(pql_tot)[, which(str_detect(pql_item_code[4][[1]], "SCHOOL_FUNCTIONING"))], unique)
+
+for (i in 0:4) {
+    pql_tot[pql_tot == level_[i + 1]] <- paste0(i)
+}
+
+pedsql <- finalise_data(pql_tot)
+use_data(pedsql, overwrite = TRUE)
+```
+
+## SF36
+```{r}
+block <- blocks[10]
+sf36 <- read_batches(block)
+sapply(sf36, dim)
+sf36_tot <- Reduce(rbind, sf36)
+sf36_code <- read_batches(block, "codes")
+sf36_tot[sf36_tot == "None of the Time"] <- "None of the time"
+
+# Levels
+l_level_cols <- parse_levels(sf36_tot, sf36_code)
+
+cols_sim <- col_sim(sf36_tot, sf36_code)
+get_var_names(cols_sim[[3]], sf36_code[[3]])
+
+plot_venn(as.list(as.data.frame(t(l_level_cols))))
+reformat(l_level_cols[c(8, 11:13), ])
+reformat(l_level_cols[c(3, 10), ])
+
+l_level_cols[-c(3, 10, 8, 11:13), ]
+
+get_intersection(as.list(as.data.frame(t(l_level_cols[c(5:7), ]))))
+reformat(l_level_cols[c(5:7), ])
+
+# group_code
+group_codes <- sf36_code[[1]]$group_code
+get_group_occ(group_codes, "SF36_")
+
+# Save
+sf36 <- finalise_data(sf36_tot, group_codes)
+use_data(sf36, overwrite = TRUE)
+```
+
+## HAQ
+```{r}
+block <- blocks[5]
+haq <- read_batches(block)
+sapply(haq, dim)
+haq_tot <- Reduce(rbind, haq)
+haq_code <- read_batches(block, "codes")
+
+# Pre-replacement
+keys <- c("Bathtub seat", "Bathtub bar", "Devices used for Dressing (button hook, zipper pull, etc.)", "dressing and grooming")
+values <- c("Bath seat", "Bath rail", "Devices used for dressing", "Dressing")
+haq_tot <- replace_levels(haq_tot, keys, values)
+
+# Levels
+l_level_cols <- parse_levels(haq_tot, haq_code)
+cols_sim <- col_sim(haq_tot, haq_code)
+get_var_names(cols_sim[[3]], haq_code[[3]])
+
+i_rows <- c(1:2, 7, 10)
+# unlist(cols_sim[i_rows])
+haq_level0 <- reformat(l_level_cols[i_rows, ])
+# get_level_name(cols_sim, haq_code[[3]])
+level1 <- reformat(l_level_cols[-i_rows, ])
+
+haq_level_tot <- parse_levels0(level1)
+get_table_occ(haq_tot, haq_code, i_rows)
+
+# group_code
+group_codes <- haq_code[[1]]$group_code
+get_group_occ(group_codes, "haq")
+
+for (i in (seq(haq_level0) - 1)) {
+    haq_tot[haq_tot == haq_level0[i + 1]] <- paste0(3 - i)
+}
+
+# Save
+haq <- finalise_data(haq_tot, group_codes)
+use_data(haq, overwrite = TRUE)
+```
+
+## CHAQ
+```{r}
+block <- blocks[2]
+chaq <- read_batches(block)
+sapply(chaq, dim)
+chaq_tot <- Reduce(rbind, chaq)
+chaq_code <- read_batches(block, "codes")
+
+# Replace
+na_vars <- c("Not applicable", "pas adapter à l'age", "NONE")
+for (i in na_vars) {
+    chaq_tot[chaq_tot == i] <- NA
+}
+chaq_tot <- mutate_all(chaq_tot, ~ str_replace_all(., paste(na_vars, collapse = ", "), ""))
+
+# Levels
+l_level_cols <- parse_levels(chaq_tot, chaq_code)
+cols_sim <- col_sim(chaq_tot, chaq_code)
+get_var_names(cols_sim[[3]], chaq_code[[3]])
+
+i_rows <- detect_difficulty(l_level_cols)
+# unlist(cols_sim[i_rows])
+chaq_level0 <- reformat(l_level_cols[i_rows, ])[-1]
+# get_level_name(cols_sim, chaq_code[[3]])
+level1 <- reformat(l_level_cols[-i_rows, ])
+
+# str_detect(as.data.frame(chaq_code)[, 1], paste0(i_rows, collapse = "|"))
+chaq_level_tot <- parse_levels0(level1)
+# get_table_occ(chaq_tot, chaq_code, i_rows)
+inter <- list(haq = haq_level_tot, chaq = chaq_level_tot)
+plot_venn(inter)
+(res <- get_intersection0(inter))
+
+group_codes <- chaq_code[[1]]$group_code
+get_group_occ(group_codes, "chaq")
+
+keys <- c("Devices used for dressing (button hook, zipper pull, long-handled shoe horn, etc.)", "Dressing and personal care")
+values <- c("Devices used for dressing", "Dressing")
+chaq_tot <- replace_levels(chaq_tot, keys, values)
+
+# Missing "UNABLE TO DO"
+for (i in seq(chaq_level0)) {
+    chaq_tot[chaq_tot == chaq_level0[i + 1]] <- paste0(4 - i)
+}
+
+# Save
+chaq <- finalise_data(chaq_tot, group_codes)
+use_data(chaq, overwrite = TRUE)
+```
+
+## BEHCET
+```{r}
+block <- blocks[1]
+behcet <- read_batches(block)
+sapply(behcet, dim)
+behcet_tot <- Reduce(rbind, behcet)
+behcet_code <- read_batches(block, "codes")
+
+# Pre-replacement
+keys <- c("(no)|(not at all present)$", "(yes)|(for up to 4 weeks)$")
+values <- c("0", "1")
+behcet_tot <- replace_levels(behcet_tot, keys, values)
+
+# Levels
+l_level_cols <- parse_levels(behcet_tot, behcet_code)
+cols_sim <- col_sim(behcet_tot, behcet_code)
+get_level_name(cols_sim, behcet_code[[3]])
+
+i_rows <- detect_difficulty(l_level_cols, "face")
+# unlist(cols_sim[i_rows])
+behcet_level0 <- reformat(l_level_cols[i_rows, ])
+
+behcet_level_tot <- parse_levels0(behcet_level0)
+# get_table_occ(behcet_tot, behcet_code, .Machine$double.xmax)
+
+group_codes <- behcet_code[[1]]$group_code
+get_group_occ(group_codes, "behcet")
+
+# Save
+behcet <- finalise_data(behcet_tot, group_codes)
+use_data(behcet, overwrite = TRUE)
+```
+
+## DIET
+```{r}
+block <- blocks[4]
+diet <- read_batches(block)
+sapply(diet, dim)
+diet_tot <- Reduce(rbind, diet)
+diet_code <- read_batches(block, "codes")
+
+# Pre-replacement
+keys <- c("n/a", "N[AD]", "DM", "o", "xxx", "unknown", "[-\\/?]", "not done", "no[nt] applicable", "not specified", "Missing answer", "ne sais plus", "don't know", "not answered", "not checked by the patient", "not done")
+values <- rep("NA", length(keys))
+diet_tot <- replace_levels(diet_tot, paste0("^", keys, "$"), values)
+diet_tot[diet_tot == "NA"] <- NA
+
+# Levels
+l_level_cols <- parse_levels(diet_tot, diet_code)
+cols_sim <- col_sim(diet_tot, diet_code)
+# get_level_name(cols_sim, diet_code[[3]])
+
+i_rows <- detect_difficulty(l_level_cols, "l or less")
+get_level_name0(diet_tot, cols_sim, i_rows)
+diet_level0 <- reformat(l_level_cols[i_rows, ])
+j_rows <- detect_difficulty(l_level_cols, "g or less")
+diet_level1 <- reformat(l_level_cols[j_rows, ])
+k_rows <- detect_difficulty(l_level_cols, " day")
+diet_level2 <- reformat(l_level_cols[k_rows, ])
+l_rows <- rownames(l_level_cols)[-c(i_rows, j_rows, k_rows, 11)]
+diet_level3 <- unique(tolower(reformat(l_level_cols[l_rows, ])))
+cols_diet <- get_level_name0(diet_tot, cols_sim, l_rows)
+cols_diet %>% get_var_names(diet_code)
+diet_tot <- update_columns(diet_tot, cols_diet, tolower)
+
+# get_table_occ(diet_tot, diet_code, k_rows)
+
+group_codes <- diet_code[[1]]$group_code
+
+# Save
+diet <- finalise_data(diet_tot, group_codes)
+use_data(diet, overwrite = TRUE)
+```
+
+# Session information
+```{r end, echo = FALSE}
+sessionInfo()
+```
