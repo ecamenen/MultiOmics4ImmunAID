@@ -1,16 +1,21 @@
 #' @export
-plot_piechart <- function(x, hsize = 1.2, cex = 15, colour = get_colors(), wrap = 5, lwd = 4, dec = .1, label = TRUE, threshold = 5, title = NULL, wrap_title = 20) {
-    df <- fct_drop(x) %>%
+plot_piechart <- function(x, df0 = NULL, hsize = 1.2, cex = 15, colour = get_colors(), wrap = 5, lwd = 4, dec = .1, label = TRUE, threshold = 5, title = NULL, wrap_title = 20) {
+    df <- unlist(x) %>%
+        fct_drop() %>%
         fct_infreq() %>%
-        fct_count() %>%
-        mutate(
-            hsize = hsize,
-            pos = rev(cumsum(rev(n))),
-            pos = n / 2 + lead(pos, 1),
-            pos = if_else(is.na(pos), n / 2, pos),
-            label = str_wrap(str_glue("{f} (N={n})"), wrap),
-            text = scales::percent(n / sum(n), dec)
-        )
+        fct_relabel(~ str_replace_all(.x, "\\s*\\([^\\)]+\\)", "")) %>%
+        fct_count()
+    if (!is.null(df0))
+        df <- rbind(data.frame(f = NA, n = c(nrow(df0) - sum(df$n))), df)
+    df <- mutate(
+        df,
+        hsize = hsize,
+        pos = rev(cumsum(rev(n))),
+        pos = n / 2 + lead(pos, 1),
+        pos = if_else(is.na(pos), n / 2, pos),
+        label = str_wrap(str_glue("{f} (N={n})"), wrap),
+        text = scales::percent(n / sum(n), dec)
+    )
     if (is.null(title)) {
         title <- deparse(substitute(x))
     }
@@ -40,7 +45,7 @@ plot_piechart <- function(x, hsize = 1.2, cex = 15, colour = get_colors(), wrap 
             # legend.text = element_text(size = cex),
             legend.position = "none",
             panel.background = element_rect(fill = "white"),
-            plot.margin = unit(c(0, -1, -1, -1), "cm")
+            plot.margin = unit(c(0, 0, -1, -1), "cm")
         ) +
         xlim(0.5, hsize + 0.5)
 }

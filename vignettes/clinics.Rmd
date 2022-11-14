@@ -1109,14 +1109,14 @@ saveWorkbook(wb, file = file_path, overwrite = TRUE)
 ```{r}
 clinic0 <- read_batches()
 clinic_tot0 <- Reduce(rbind, clinic0)
-# clinic_tot1 <- clinic_tot0 %>%
-#   filter(str_detect(
-#       C_2643_3798,
-#       replace_parenthesis(paste(
-#           c("SOJIA", "AOSD"),
-#           collapse = "|"
-#       ))
-#   ))
+clinic_tot1 <- clinic_tot0 %>%
+  filter(str_detect(
+      C_2643_3798,
+      replace_parenthesis(paste(
+          c("SOJIA", "AOSD"),
+          collapse = "|"
+      ))
+  ))
 
 data(clinic)
 attributes(clinic)$codes
@@ -1230,25 +1230,42 @@ summary_num(i)
 plot_violin0(clinic_tot$bmi_automatic, brewer.pal(n, "Set2")[6], size = 3)
 plot_violin0(clinic_tot$age_at_inclusion_tim, brewer.pal(n, "Set2")[5], size = 3)
 # Manifestations
-manifs <- c("MUSCU", "CARDIO", "GASTRO", "OPHTALMO", "OPHTALMO", "ENT", "HAEMATO")
-manifs <- c("MUCO_ACTIVE_LESIONS", paste0(manifs, "_MANIF"))
 vars0 <- clinic_code[[3]] %>% filter(str_detect(group_code, "IMA_ImpactedOrganOrSysTab"))
 vars1 <- vars0 %>% pull(item_name) %>% str_replace("(\\d{1,2}. )", "") %>% str_replace("\\s*\\([^\\)]+\\)", "")
-vars <- vars1[c(1, 3:4, 7, 9, 9, 8, 11)]
+manifs <- c("MUSCU", "CARDIO", "GASTRO", "HAEMATO")
+# If all disease
+# manifs <- c(manifs, "OPHTALMO", "OPHTALMO", "ENT")
 # (PULMO) NEURO, URO
+# vars <- vars1[c(1, 3:4, 7, 9, 9, 8, 11)]
+vars <- vars1[c(1, 3:4, 7, 11)]
+manifs <- c("MUCO_ACTIVE_LESIONS", paste0(manifs, "_MANIF"))
+
+# list.map(as.list(manifs), f(i, j) ~{
+#     immu_manif(i, df2 = clinic_tot1) %>%
+#         collapse_mcat() %>%
+#         plot_bar_mcat(cex = 8, ratio = 4, title = vars[j])
+# }) -> p
+# align_plots(plotlist = p, align = "vh") %>%
+#     plot_grid(
+#         plotlist = .,
+#         nrow = 3,
+#         ncol = 3,
+#         # labels = "AUTO",
+#         rel_heights = c(1.5, 1, 0.6)
+#     )
 
 list.map(as.list(manifs), f(i, j) ~{
-    immu_manif(i, df2 = clinic_tot0) %>%
+    immu_manif(i, df2 = clinic_tot1) %>%
         collapse_mcat() %>%
-        plot_bar_mcat(cex = 8, ratio = 4, title = vars[j])
+        plot_bar_mcat(cex = 12, ratio = 3, title = vars[j])
 }) -> p
 align_plots(plotlist = p, align = "vh") %>%
     plot_grid(
         plotlist = .,
         nrow = 3,
-        ncol = 3,
+        ncol = 2,
         # labels = "AUTO",
-        rel_heights = c(1.5, 1, 0.6)
+        rel_heights = c(1.7, 1, 1)
     )
 # ((colSums(temp0) / nrow(temp0)) * 100) %>% round(1)
 # align_plots(plotlist = c(p2[-1], p2[1])) %>% plot_grid(plotlist = ., align = "vh", nrow = 4, ncol = 2, labels = LETTERS, rel_heights = c(rep(1, 3), 1.5))
