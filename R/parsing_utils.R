@@ -420,9 +420,15 @@ immu_manif <- function(x, df1 = clinic_code[[1]], df2 = clinic_tot1) {
     temp <- filter(df1, str_detect(item_code, paste0("^IMA_", x, "$")))
     temp <- select(df2, temp$column_code) %>%
         set_colnames(temp$item_name) %>%
-        clean_names()
-    n <- str_extract_all(temp, " ; ") %>%
+        clean_names() %>%
+        separate_semicolon()
+}
+
+#' @export
+separate_semicolon <- function(x) {
+    n <- str_extract_all(x, " ; ") %>%
         map_int(~ length(na.omit(.))) %>%
         max() + 1
-    separate(temp, 1, LETTERS[seq(n)], sep = " ; ")
+    separate(x, 1, LETTERS[seq(n)], sep = " ; ") %>%
+        collapse_mcat()
 }
