@@ -424,8 +424,15 @@ temp2 <- cbind(code_info, item_name = as.character(temp))
 # cou2 <- (temp2 %>% filter(str_detect(item_name, paste0("^", colnames(date_vars), "$", collapse = "|"))) %>% select(column_code))$column_code
 # clinic_code[[3]] %>% filter(str_detect(column_code, paste0("^", cou2, "$", collapse = "|")))
 
-date_biol <- (clinic_code[[3]] %>% filter(str_detect(group_name, "General biology")) %>% filter(str_detect(item_name, "Date")))$column_code
-biol <- (temp2 %>% filter(str_detect(group_name, "biology")) %>% filter(!str_detect(item_name, "date")))$item_name
+date_biol <- (
+    clinic_code[[3]] %>%
+        filter(str_detect(group_name, "General biology")) %>%
+        filter(str_detect(item_name, "Date"))
+)$column_code
+biol <- (
+    temp2 %>% filter(str_detect(group_name, "biology")) %>%
+        filter(!str_detect(item_name, "date"))
+)$item_name
 clinic_tot2 <- update_columns(clinic_tot, date_biol, dmy)
 date_diff <- sapply(seq(4), function(i) clinic$date_of_inclusion - as.data.frame(clinic_tot2 %>% select(all_of(date_biol)))[, i])
 # which(abs(date_diff) > 7)
@@ -483,7 +490,7 @@ clinic_dis$disease <- clinic_dis$disease %>%
 
 # clinic_dis <- clinic
 
-# All cofonding variables in numeric
+# All confounding variables in numeric
 levels(clinic_dis$gender) <- c(0, 1)
 clinic_dis$gender <- as.numeric(as.character(clinic_dis$gender))
 
@@ -527,7 +534,8 @@ clinic_qual <- which(sapply(seq_along(clinic_dis), function(i) is.factor(as.data
 
 clinic_proc <- finalise_data0(clinic_num, clinic_dis)
 clinic_qual_proc <- finalise_data0(clinic_qual, clinic_dis)
-colnames(clinic_qual_proc) <- str_replace(colnames(clinic_qual_proc), "(do_you_still_have_the_results).*", "\\1") %>% str_replace("(cerebrovascular_accident_or_).*", "\\1ischemic")
+colnames(clinic_qual_proc) <- str_replace(colnames(clinic_qual_proc), "(do_you_still_have_the_results).*", "\\1") %>%
+    str_replace("(cerebrovascular_accident_or_).*", "\\1ischemic")
 
 # Remove individuals with high levels of NA
 # x <- clinic_proc
@@ -542,7 +550,10 @@ for (i in 2:60) {
 }
 # sapply(clinic_qual_proc, unique) %>% sapply(length) %>% sort()
 
-to_parse <- sapply(seq_along(clinic_qual_proc), function(i) any(grepl(";", as.data.frame(clinic_qual_proc[, i])[, 1]))) %>% which()
+to_parse <- sapply(
+    seq_along(clinic_qual_proc),
+    function(i) any(grepl(";", as.data.frame(clinic_qual_proc[, i])[, 1]))
+) %>% which()
 l_levels <- sapply(
     to_parse,
     function(i) {
@@ -590,9 +601,18 @@ mutate_all(clinic_ord, as.numeric) %>%
     as.matrix() %>%
     heatmap(na.rm = FALSE, scale = "none", Rowv = NA, Colv = NA, margins = c(13, 0), col = colorRampPalette(c("blue", "white", "#cd5b45"))(100))
 
-to_remove1 <- (diagnose_category(clinic_ord) %>% filter(!is.na(levels)) %>% filter(freq < 5))$variables %>% unique()
+to_remove1 <- (
+    diagnose_category(clinic_ord) %>%
+        filter(!is.na(levels)) %>%
+        filter(freq < 5)
+)$variables %>%
+    unique()
 clinic_ord0 <- set_qualitative(clinic_qual_proc, 3)
-to_remove2 <- (diagnose_category(select(clinic_ord0, -c(to_remove1))) %>% filter(is.na(levels)) %>% filter(freq < 5))$variables
+to_remove2 <- (
+    diagnose_category(select(clinic_ord0, -c(to_remove1))) %>%
+        filter(is.na(levels)) %>%
+        filter(freq < 5)
+)$variables
 
 clinic_ord <- select(clinic_ord, -c(to_remove1))
 
@@ -690,7 +710,8 @@ norm_vars <- list()
 norm_vars[[1]] <- normality(clinic_proc) %>%
     filter(p_value > 0.05) %>%
     select(vars)
-skew <- ((clinic_proc) %>% select(-c(unlist(norm_vars))) %>% sapply(function(i) skewness(i)))
+skew <- ((clinic_proc) %>% select(-c(unlist(norm_vars))) %>%
+    sapply(function(i) skewness(i)))
 temp <- data.frame(var = skew) %>%
     filter(var < 0) %>%
     row.names() %>%
@@ -813,8 +834,10 @@ clinic_proc$country_of_birth <- recode_factor(as.numeric(clinic_proc$country_of_
 #         )
 #     )
 
-clinic_qual <- select(clinic_proc, -c(to_remove1, to_remove2, "clinical_center", "liver_disease")) %>% cbind(data.frame(temp, immun_aid_identifier = clinic_dis$immun_aid_identifier)[-37, ])
-clinic_qual <- finalise_data(clinic_qual, row_name = "immun_aid_identifier", clean_name = FALSE) %>% select(-c("immun_aid_identifier"))
+clinic_qual <- select(clinic_proc, -c(to_remove1, to_remove2, "clinical_center", "liver_disease")) %>%
+    cbind(data.frame(temp, immun_aid_identifier = clinic_dis$immun_aid_identifier)[-37, ])
+clinic_qual <- finalise_data(clinic_qual, row_name = "immun_aid_identifier", clean_name = FALSE) %>%
+    select(-c("immun_aid_identifier"))
 attributes(clinic_qual)$codes <- codes_qual
 # use_data(clinic_qual, overwrite = TRUE)
 ```
@@ -934,7 +957,8 @@ to_select <- c(
     # "monoclonal_gammapath",
     "alk_phosphatases_ui"
 )
-clinic0 <- select(clinic0, -c(batch, days_from_inclusion, date_of_biological_a)) %>% select(-all_of(to_exclude))
+clinic0 <- select(clinic0, -c(batch, days_from_inclusion, date_of_biological_a)) %>%
+    select(-all_of(to_exclude))
 # ,saa_serum_amyloid_a
 clinic1 <- select(clinic, all_of(c(to_select)))
 colnames(clinic0) <- str_sub(colnames(clinic0), 1, 18)
@@ -1110,13 +1134,13 @@ saveWorkbook(wb, file = file_path, overwrite = TRUE)
 clinic0 <- read_batches()
 clinic_tot0 <- Reduce(rbind, clinic0)
 clinic_tot1 <- clinic_tot0 %>%
-  filter(str_detect(
-      C_2643_3798,
-      replace_parenthesis(paste(
-          c("SOJIA", "AOSD"),
-          collapse = "|"
-      ))
-  ))
+    filter(str_detect(
+        C_2643_3798,
+        replace_parenthesis(paste(
+            c("SOJIA", "AOSD"),
+            collapse = "|"
+        ))
+    ))
 
 data(clinic)
 attributes(clinic)$codes
@@ -1179,14 +1203,41 @@ summary_cat <- function(i) {
     # )
 }
 
-var_cat <- c("patient_ethnicity_n", "fathers_ethnicity", "mothers_ethnicity", "gender")
-plot_piechart(clinic_tot$patient_ethnicity_n, colour = c("#af3e40", "#eaaab0"), cex = 40, dec = 1, label = FALSE)
-plot_piechart(clinic_tot$gender, colour = c("#3438a7", "#38bcbd"), cex = 20)
-plot_piechart(clinic_tot$will_have_a_second_v, colour = brewer.pal(9, "Paired")[7:8], cex = 20)
-df <- cut(clinic_tot$age_at_inclusion_tim, breaks=seq(0, 70, 10)) %>% data.frame() %>% set_colnames("ages")
-apyramid::age_pyramid(data = df,
-age_group = "ages",
-split_by = "gender", proportional = FALSE, show_midpoint = FALSE) + theme_bw() + scale_fill_manual(values = c("#3438a7", "#38bcbd"), na.value = "black")
+var_cat <- c(
+    "patient_ethnicity_n",
+    "fathers_ethnicity",
+    "mothers_ethnicity",
+    "gender"
+)
+plot_piechart(
+    clinic_tot$patient_ethnicity_n,
+    colour = c("#af3e40", "#eaaab0"),
+    cex = 40,
+    dec = 1,
+    label = FALSE
+)
+plot_piechart(
+    clinic_tot$gender,
+    colour = c("#3438a7", "#38bcbd"),
+    cex = 20
+)
+plot_piechart(
+    clinic_tot$will_have_a_second_v,
+    colour = brewer.pal(9, "Paired")[7:8],
+    cex = 20
+)
+df <- cut(clinic_tot$age_at_inclusion_tim, breaks = seq(0, 70, 10)) %>%
+    data.frame() %>%
+    set_colnames("ages")
+apyramid::age_pyramid(
+    data = df,
+    age_group = "ages",
+    split_by = "gender",
+    proportional = FALSE,
+    show_midpoint = FALSE
+) +
+    theme_bw() +
+    scale_fill_manual(values = c("#3438a7", "#38bcbd"), na.value = "black")
 data(clinic_still_raw)
 summary_num <- function(i, colors = "red") {
     df <- data.frame(var = as.data.frame(clinic_tot[, i])[, 1])
@@ -1230,8 +1281,12 @@ summary_num(i)
 plot_violin0(clinic_tot$bmi_automatic, brewer.pal(n, "Set2")[6], size = 3)
 plot_violin0(clinic_tot$age_at_inclusion_tim, brewer.pal(n, "Set2")[5], size = 3)
 # Manifestations
-vars0 <- clinic_code[[3]] %>% filter(str_detect(group_code, "IMA_ImpactedOrganOrSysTab"))
-vars1 <- vars0 %>% pull(item_name) %>% str_replace("(\\d{1,2}. )", "") %>% str_replace("\\s*\\([^\\)]+\\)", "")
+vars0 <- clinic_code[[3]] %>%
+    filter(str_detect(group_code, "IMA_ImpactedOrganOrSysTab"))
+vars1 <- vars0 %>%
+    pull(item_name) %>%
+    str_replace("(\\d{1,2}. )", "") %>%
+    str_replace("\\s*\\([^\\)]+\\)", "")
 manifs <- c("MUSCU", "CARDIO", "GASTRO", "HAEMATO")
 # If all disease
 # manifs <- c(manifs, "OPHTALMO", "OPHTALMO", "ENT")
@@ -1254,7 +1309,7 @@ manifs <- c("MUCO_ACTIVE_LESIONS", paste0(manifs, "_MANIF"))
 #         rel_heights = c(1.5, 1, 0.6)
 #     )
 
-list.map(as.list(manifs), f(i, j) ~{
+list.map(as.list(manifs), f(i, j) ~ {
     immu_manif(i, df2 = clinic_tot1) %>%
         collapse_mcat() %>%
         plot_bar_mcat(cex = 12, ratio = 3, title = vars[j])
@@ -1269,9 +1324,22 @@ align_plots(plotlist = p, align = "vh") %>%
     )
 # ((colSums(temp0) / nrow(temp0)) * 100) %>% round(1)
 # align_plots(plotlist = c(p2[-1], p2[1])) %>% plot_grid(plotlist = ., align = "vh", nrow = 4, ncol = 2, labels = LETTERS, rel_heights = c(rep(1, 3), 1.5))
-vars <- vars0 %>% pull(column_code) %>% paste0("^", ., "$", collapse = "|")
+vars <- vars0 %>%
+    pull(column_code) %>%
+    paste0("^", ., "$", collapse = "|")
 vars <- filter(attributes(clinic_tot)$codes, str_detect(codes, vars)) %>% pull(name)
-p <- list.map(as.list(vars), f(i, j) ~plot_piechart(clinic_tot %>% pull(i), label = FALSE, cex = 25, dec = 1, threshold = 5, title = vars1[j], hsize = 1.5))
+p <- list.map(
+    as.list(vars),
+    f(i, j) ~ plot_piechart(
+        clinic_tot %>% pull(i),
+        label = FALSE,
+        cex = 25,
+        dec = 1,
+        threshold = 5,
+        title = vars1[j],
+        hsize = 1.5
+    )
+)
 align_plots(plotlist = p, align = "vh") %>%
     plot_grid(
         plotlist = .,

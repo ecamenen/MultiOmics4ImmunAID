@@ -206,10 +206,12 @@ spec_color2 <- function(x, alpha = 1, begin = 0, end = 1,
         x <- round(scales::rescale(x, c(1, n)))
     } else {
         x <- round(
-            scales::rescale(x,
-            to = c(1, n),
-            from = scale_from
-        ))
+            scales::rescale(
+                x,
+                to = c(1, n),
+                from = scale_from
+            )
+        )
     }
 
     color_code <- palette[x]
@@ -221,12 +223,12 @@ spec_color2 <- function(x, alpha = 1, begin = 0, end = 1,
 # plot_bar_mcat(clinic_tot0$C_2643_3798, colorRampPalette(c("blue", "gray", "red"))(16))
 plot_bar_mcat <- function(x, colors = NULL, hjust = -0.1, vjust = 0.5, ratio = 5, cex = 10, title = NULL, wrap = 20) {
     if (is.null(title)) {
-      title <- deparse(substitute(x))
+        title <- deparse(substitute(x))
     }
     x0 <- as.data.frame(x)
     if (ncol(x) > 1) {
         x <- sapply(seq(ncol(x0)), function(i) rep(colnames(x0)[i], colSums(x0)[i]))
-      }
+    }
     df <- unlist(x) %>%
         fct_drop() %>%
         fct_relabel(~ str_replace_all(.x, "\\s*\\([^\\)]+\\)", "")) %>%
@@ -248,20 +250,21 @@ plot_bar_mcat <- function(x, colors = NULL, hjust = -0.1, vjust = 0.5, ratio = 5
     # df$x_lab[i] <- ""
     (ggplot(df, aes(f, n, fill = order, label = n)) +
         geom_bar(stat = "identity") +
-        expand_limits(y = max(df$n)  + max(df$n) / ratio) +
+        expand_limits(y = max(df$n) + max(df$n) / ratio) +
         coord_flip()
     ) %>% theme_perso_bar(colors = colors, cat = FALSE) +
-      geom_text(
-        aes(color = I("white"), y = y_lab), size = cex
-      ) +
-      geom_text(aes(label = df$x_lab, color = colors), hjust = hjust, vjust = vjust, size = cex) +
-      ggtitle(str_wrap(title, wrap)) +
-      theme(
-        plot.title = element_text(hjust = 0, vjust = 0, size = cex * 4, face = "bold"),
-        axis.text.y = element_text(colour = colors, size = cex * 3),
-        axis.text.x = element_text(size = cex * 1.75),
-        plot.margin = unit(c(-0.5, 0, 0, 0.5), "cm")
-      )
+        geom_text(
+            aes(color = I("white"), y = y_lab),
+            size = cex
+        ) +
+        geom_text(aes(label = df$x_lab, color = colors), hjust = hjust, vjust = vjust, size = cex) +
+        ggtitle(str_wrap(title, wrap)) +
+        theme(
+            plot.title = element_text(hjust = 0, vjust = 0, size = cex * 4, face = "bold"),
+            axis.text.y = element_text(colour = colors, size = cex * 3),
+            axis.text.x = element_text(size = cex * 1.75),
+            plot.margin = unit(c(-0.5, 0, 0, 0.5), "cm")
+        )
 }
 
 #' @export

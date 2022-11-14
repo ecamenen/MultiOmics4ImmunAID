@@ -5,8 +5,9 @@ plot_piechart <- function(x, df0 = NULL, hsize = 1.2, cex = 15, colour = get_col
         fct_infreq() %>%
         fct_relabel(~ str_replace_all(.x, "\\s*\\([^\\)]+\\)", "")) %>%
         fct_count()
-    if (!is.null(df0))
-        df <- rbind(data.frame(f = NA, n = c(nrow(df0) - sum(df$n))), df)
+    if (!is.null(df0)) {
+          df <- rbind(data.frame(f = NA, n = c(nrow(df0) - sum(df$n))), df)
+      }
     df <- mutate(
         df,
         hsize = hsize,
@@ -21,8 +22,9 @@ plot_piechart <- function(x, df0 = NULL, hsize = 1.2, cex = 15, colour = get_col
     }
     i <- df$n / sum(df$n) <= threshold / 100
     df$text[i] <- ""
-    if (!isTRUE(label))
-        df$label <- rep("", nrow(df))
+    if (!isTRUE(label)) {
+          df$label <- rep("", nrow(df))
+      }
     ggplot(df, aes(x = hsize, y = n, fill = f)) +
         geom_col(width = 1, color = NA, lwd = lwd) +
         geom_text(
