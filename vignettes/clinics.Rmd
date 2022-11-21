@@ -533,6 +533,199 @@ clinic_qual <- which(sapply(seq_along(clinic_dis), function(i) is.factor(as.data
 # vis_miss(clinic_dis)
 
 clinic_proc <- finalise_data0(clinic_num, clinic_dis)
+
+# Remove individuals with high levels of NA
+x <- clinic_proc
+res <- sapply(rownames(x), function(i) round((length(which(is.na(x[i, ]))) / ncol(x)) * 100, 1))
+names(res) <- clinic_proc$immun_aid_identifier
+plotHistogram(df = res[res > 0])
+name_inds <- names(res[res > 50])
+clinic_proc %>%
+    filter(str_detect(immun_aid_identifier, paste0("^", name_inds, "$", collapse = "|"))) %>%
+    select(immun_aid_identifier, disease) -> temp
+name_lvls <- levels(clinic$disease)[unique(temp$disease) %>% sort()]
+table(temp$disease) %>% setNames(name_lvls)
+table(temp$disease) %>% setNames(name_lvls) / table(clinic$disease)[name_lvls] * 100
+names(res) <- clinic$disease
+res[res > 50]
+
+clinic_proc <- clinic_proc[-which(res > 50), ]
+
+# Descriptive statistics
+stats <- clinic_proc0 %>%
+    pivot_longer(!disease) %>%
+    group_by(name, disease) %>%
+    summarise(
+        mean = mean(value, na.rm = TRUE),
+        sd = sd(value, na.rm = TRUE),
+        n = length(which(!is.na(value)))
+    ) %>%
+    pivot_wider(names_from = disease, values_from = c(mean, sd, n)) %>%
+    mutate(ratio = (n_0 / n_1))
+
+sds <- apply((clinic_proc0 %>% select(-disease)), 2, function(x) sd(x, na.rm = TRUE))
+stats$samplesize <- calculate_samplesize(stats$mean_0, stats$mean_1, sds, stats$ratio)
+stats$effectsize <- abs(calculate_effectsize(stats$mean_0, stats$mean_1, sds))
+
+# Remove the variables with only NA in control
+stats0 <- stats %>% filter(!is.na(mean_0))
+# stats0 %>% arrange(samplesize)
+
+not_in_control <- (stats %>% filter(is.na(mean_0)))$name
+
+# Mean difference tests
+tests <- clinic_proc0 %>%
+    select(-all_of(not_in_control)) %>%
+    pivot_longer(!disease) %>%
+    group_by(name) %>%
+    wilcox_test(value ~ disease) %>%
+    adjust_pvalue(method = "BH") %>%
+    add_significance()
+
+# Total statistics
+left_join(stats0, tests[, c(1, 8:10)]) %>% arrange(samplesize)
+
+vars0 <- c("batch", "gender")
+vars <- c("age_at_inclusion_time", "BMI", vars0)
+vars2 <- c("immun_aid_identifier", "weight", "height")
+row_names <- select(clinic_proc, immun_aid_identifier)
+clinic_proc_full <- clinic_proc
+
+clinic_proc_disc0 <- clinic_proc_disc
+clinic_proc_disc0[is.na(clinic_proc_disc0)] <- 0
+clinic_proc_disc0[clinic_proc_disc0 == 30] <- NA
+vis_miss(clinic_proc_disc0)
+
+# Get variable names
+var_scores <- data.frame(item_name = colnames(clinic_proc)) %>%
+    inner_join(attributes(clinic)$codes) %>%
+    filter(group_name == "aidai_score_on_30_days") %>%
+    pull(item_name)
+
+vars3 <- data.frame(item_name = colnames(clinic_proc)) %>%
+    inner_join(attributes(clinic)$codes) %>%
+    pull(column_code)
+vars3 <- lapply(
+    vars3,
+    function(i) filter(clinic_code[[3]], column_code == i)
+) %>%
+    Reduce(rbind, .) %>%
+    pull(item_name)
+
+name_vars <- colnames(clinic_proc) %>%
+    tools::toTitleCase() %>%
+    gsub("_", " ", .)
+
+# Remove outliers
+clinic_proc0 <- select(clinic_proc, -vars0)
+clinic_proc_cont <- select(clinic_proc0, -c(var_scores, "charlson_score", "weight_loss"))
+clinic_proc_cont <- sapply(colnames(select(clinic_proc_cont, -c("creatinine", "ALAT"))), function(i) get_outliers(clinic_proc, i, method = "mad", c = 24))
+clinic_proc_disc <- select(clinic_proc0, c(var_scores, "charlson_score", "weight_loss"))
+x <- 1e-2
+sapply(colnames(select(clinic_proc_disc, -c("vascular_involvement"))), function(i) get_outliers(clinic_proc, i, c(0 + x, 1 - x), method = "iqr")) -> clinic_proc_disc
+
+keys <- c("vascular_involvement", "creatinine", "ALAT")
+value <- c(30, 5600, 423)
+clinic_proc0 <- as.data.frame(clinic_proc0)
+for (i in seq_along(keys)) {
+    clinic_proc0[, keys[i]][clinic_proc0[, keys[i]] == value[i]] <- NA
+}
+
+clinic_proc <- Reduce(cbind, list(clinic_proc0 %>% select(keys), clinic_proc_cont, clinic_proc_disc)) %>% finalise_data0(., row_names)
+
+p0 <- list.map(
+    as.list(colnames(clinic_proc)),
+    f(i, j) ~ {
+        plot_violin0(
+            clinic_proc %>% pull(i),
+            title = name_vars[j],
+            colour = "red",
+            wrap_title = 10
+        )
+    }
+)
+# align_plots(plotlist = p, align = "vh") %>%
+p <- plot_grid(
+    plotlist = p0,
+    nrow = 5,
+    ncol = 10
+)
+p
+
+# Transformation
+norm_vars <- list()
+norm_vars[[1]] <- normality(clinic_proc) %>%
+    filter(p_value > 0.05) %>%
+    select(vars)
+skew <- ((clinic_proc) %>% select(-c(unlist(norm_vars))) %>%
+    sapply(function(i) skewness(i)))
+temp <- data.frame(var = skew) %>%
+    filter(var < 0) %>%
+    row.names() %>%
+    select(clinic_proc, .)
+norm_vars[[2]] <- temp^2 %>%
+    normality() %>%
+    filter(p_value > 0.05) %>%
+    select(vars)
+norm_vars[[3]] <- temp^3 %>%
+    normality() %>%
+    filter(p_value > 0.01) %>%
+    select(vars)
+norm_vars[[4]] <- (log(clinic_proc + 1)) %>%
+    select(-c(unlist(norm_vars))) %>%
+    normality() %>%
+    filter(p_value > 0.01) %>%
+    select(vars)
+norm_vars[[5]] <- (1 / (clinic_proc + 1)) %>%
+    select(-c(unlist(norm_vars))) %>%
+    normality() %>%
+    filter(p_value > 0.01) %>%
+    select(vars)
+norm_vars[[6]] <- ((clinic_proc)^(1 / 2)) %>%
+    select(-c(unlist(norm_vars))) %>%
+    normality() %>%
+    filter(p_value > 0.01) %>%
+    select(vars)
+
+transf <- c(function(i) i^2, function(i) i^3, function(i) log(i + 1), function(i) 1 / (i + 1), function(i) i^(1 / 2))
+for (i in seq(transf)) {
+    clinic_proc <- update_columns(clinic_proc, all_of(unlist(norm_vars[[i + 1]])), transf[[i]])
+}
+# clinic_proc <- update_columns(clinic_proc, colnames(clinic_proc), log1p)
+
+blocks_cl <- cbind(clinic_proc, select(clinic_proc_full, c("batch", "gender"))) %>% as.data.frame()
+rownames(blocks_cl) <- clinic_proc$immun_aid_identifier
+
+# Remove redundant information
+ggscatterstats(clinic_proc, neutrophils, neutrophils_5, type = "nonparametric")
+ggscatterstats(clinic_proc, patient_global_assessment, physician_global_assessment, type = "nonparametric")
+plot_corr0(clinic_proc)
+clinic_proc <- clinic_proc %>% select(
+    -c(
+        vars2,
+        ends_with("_upper_limit_of_normal"),
+        starts_with("max_")
+    )
+)
+
+# Remove confounding
+cl <- clinic_proc_full
+cl$gender <- as.factor(cl$gender)
+cl$batch <- as.factor(cl$batch)
+blocks_clinic_tot <- remove_cofunding(list(CLINIC = blocks_cl), vars)
+
+blocks_clinic_tot[[1]] <- select(blocks_clinic_tot[[1]], -all_of(c(vars))) #   <-  list(CLINIC = select(blocks_cl, -all_of(vars)))
+blocks_clinic_tot[[1]] <- clean_data(blocks_clinic_tot[[1]])
+attributes(blocks_clinic_tot)$codes <- Reduce(rbind, lapply(colnames(blocks_clinic_tot[[1]]), function(i) filter(temp2, str_detect(item_name, paste0("^", i, "$")))))
+# Reduce(rbind, lapply(temp0$column_code, function(i) filter(clinic_code[[3]], str_detect(column_code, paste0("^", i, "$"))))) %>% select(-c(starts_with("repeat"), ends_with("_id"))) %>% as.data.frame()
+clinic_tot <- blocks_clinic_tot
+use_data(clinic_tot, overwrite = TRUE)
+```
+
+## Qualitative variables
+```{r}
+clinic_qual <- which(sapply(seq_along(clinic_dis), function(i) is.factor(as.data.frame(clinic_dis)[, i]))) %>%
+    select(clinic_dis, .)
 clinic_qual_proc <- finalise_data0(clinic_qual, clinic_dis)
 colnames(clinic_qual_proc) <- str_replace(colnames(clinic_qual_proc), "(do_you_still_have_the_results).*", "\\1") %>%
     str_replace("(cerebrovascular_accident_or_).*", "\\1ischemic")
@@ -665,103 +858,8 @@ clinic_proc0 <- clinic_proc[, sort(colnames(clinic_proc))] %>%
     select(-all_of(c(var_occ, "immun_aid_identifier", "gender")))
 # clinic_proc0$disease <- factor(clinic_proc0$disease, labels = rev(c(diseases[9], diseases[1])))
 
-# Descriptive statistics
-stats <- clinic_proc0 %>%
-    pivot_longer(!disease) %>%
-    group_by(name, disease) %>%
-    summarise(
-        mean = mean(value, na.rm = TRUE),
-        sd = sd(value, na.rm = TRUE),
-        n = length(which(!is.na(value)))
-    ) %>%
-    pivot_wider(names_from = disease, values_from = c(mean, sd, n)) %>%
-    mutate(ratio = (n_0 / n_1))
 
-sds <- apply((clinic_proc0 %>% select(-disease)), 2, function(x) sd(x, na.rm = TRUE))
-stats$samplesize <- calculate_samplesize(stats$mean_0, stats$mean_1, sds, stats$ratio)
-stats$effectsize <- abs(calculate_effectsize(stats$mean_0, stats$mean_1, sds))
 
-# Remove the variables with only NA in control
-stats0 <- stats %>% filter(!is.na(mean_0))
-# stats0 %>% arrange(samplesize)
-
-not_in_control <- (stats %>% filter(is.na(mean_0)))$name
-
-# Mean difference tests
-tests <- clinic_proc0 %>%
-    select(-all_of(not_in_control)) %>%
-    pivot_longer(!disease) %>%
-    group_by(name) %>%
-    wilcox_test(value ~ disease) %>%
-    adjust_pvalue(method = "BH") %>%
-    add_significance()
-
-# Total statistics
-left_join(stats0, tests[, c(1, 8:10)]) %>% arrange(samplesize)
-
-vars <- c("age_at_inclusion_time", "batch", "BMI", "gender")
-vars2 <- c("disease", "immun_aid_identifier", "weight", "height")
-
-row_names <- rownames(clinic_proc)
-clinic_proc <- clinic_proc %>% select(-c(vars2, ends_with("_upper_limit_of_normal")))
-
-# Transformation
-norm_vars <- list()
-norm_vars[[1]] <- normality(clinic_proc) %>%
-    filter(p_value > 0.05) %>%
-    select(vars)
-skew <- ((clinic_proc) %>% select(-c(unlist(norm_vars))) %>%
-    sapply(function(i) skewness(i)))
-temp <- data.frame(var = skew) %>%
-    filter(var < 0) %>%
-    row.names() %>%
-    select(clinic_proc, .)
-norm_vars[[2]] <- temp^2 %>%
-    normality() %>%
-    filter(p_value > 0.05) %>%
-    select(vars)
-norm_vars[[3]] <- temp^3 %>%
-    normality() %>%
-    filter(p_value > 0.05) %>%
-    select(vars)
-norm_vars[[4]] <- (log(clinic_proc + 1)) %>%
-    select(-c(unlist(norm_vars))) %>%
-    normality() %>%
-    filter(p_value > 0.05) %>%
-    select(vars)
-norm_vars[[5]] <- (1 / (clinic_proc + 1)) %>%
-    select(-c(unlist(norm_vars))) %>%
-    normality() %>%
-    filter(p_value > 0.05) %>%
-    select(vars)
-norm_vars[[6]] <- ((clinic_proc)^(1 / 2)) %>%
-    select(-c(unlist(norm_vars))) %>%
-    normality() %>%
-    filter(p_value > 0.01) %>%
-    select(vars)
-
-# transf <- c(function(i) i ^ 2, function(i) i ^ 3, function(i) log(i  + 1), function(i) 1 / (i + 1), function(i) i ^ (1 / 2))
-# for (i in seq(transf)) {
-#   clinic_proc <- update_columns(clinic_proc, all_of(unlist(norm_vars[[i + 1]])), transf[[i]])
-# }
-clinic_proc <- update_columns(clinic_proc, colnames(clinic_proc), log1p)
-cl <- clinic_proc
-cl$gender <- as.factor(cl$gender)
-cl$batch <- as.factor(cl$batch)
-blocks_cl <- clinic_proc %>% as.data.frame()
-rownames(blocks_cl) <- clinic_proc$immun_aid_identifier
-blocks_clinic_still <- remove_cofunding(list(CLINIC = blocks_cl), vars)
-
-blocks_clinic_still[[1]] <- select(blocks_clinic_still[[1]], -all_of(c(vars))) #   <-  list(CLINIC = select(blocks_cl, -all_of(vars)))
-blocks_clinic_still[[1]] <- clean_data(blocks_clinic_still[[1]])
-attributes(blocks_clinic_still)$codes <- Reduce(rbind, lapply(colnames(blocks_clinic_still[[1]]), function(i) filter(temp2, str_detect(item_name, paste0("^", i, "$")))))
-# Reduce(rbind, lapply(temp0$column_code, function(i) filter(clinic_code[[3]], str_detect(column_code, paste0("^", i, "$"))))) %>% select(-c(starts_with("repeat"), ends_with("_id"))) %>% as.data.frame()
-clinic_control_still <- blocks_clinic_still
-# use_data(clinic_control_still, overwrite = TRUE)
-```
-
-## Qualitative variables
-```{r}
 codes_qual <- Reduce(rbind, lapply(colnames(clinic_proc), function(i) filter(temp2, str_detect(item_name, paste0("^", i, "$")))))
 codes_qual %>%
     group_by(group_name) %>%
