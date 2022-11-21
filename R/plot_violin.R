@@ -145,13 +145,19 @@ plot_violin0 <- function(
     x,
     colour = "red",
     lwd = 1,
-    size = 1,
+    size = cex,
     cex = 1,
     cex_main = 12 * cex,
-    cex_sub = 10 * cex) {
+    cex_sub = 10 * cex,
+    alpha = 0.1,
+    title = NULL,
+    wrap_title = 20) {
     df <- data.frame(value = x, name = 1)
     m <- median(df$value, na.rm = TRUE)
     iqr <- 1.5 * IQR(df$value, na.rm = TRUE)
+    if (is.null(title)) {
+      title <- deparse(substitute(x))
+    }
     p <- ggplot(df, aes(x = name, y = value)) +
         geom_errorbar(
             width = .1,
@@ -169,8 +175,9 @@ plot_violin0 <- function(
             fill = colour,
             lwd = lwd
         ) +
-        geom_violin(alpha = 0.1, fill = colour, colour = NA) +
+        geom_violin(alpha = alpha, fill = colour, colour = NA) +
         geom_sina(size = size, colour = "#828282") +
+        ggtitle(str_wrap(title, wrap_title)) +
         theme_classic()
     theme_violin1(
         p,

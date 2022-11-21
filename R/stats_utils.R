@@ -64,34 +64,42 @@ get_outliers <- function(
     y,
     probs = c(0.25, 0.75),
     method = "iqr",
-    c = 1.5
+    c = 1.5,
+    replace = TRUE
     ) {
     stopifnot(method %in% c("iqr", "percentiles", "hampel", "mad", "sd"))
     y <- as.data.frame(x)[, y]
     # outliers <- boxplot(y)$out
-    # percentiles: probs = c(0.025, 0.975)
-    quant <- quantile(y, probs = probs, na.rm = TRUE)
-    up <- quant[2]
-    low <- quant[1]
-    if (method == "iqr") {
-        # interquartile range: 1.5 * IQR
-        iqr <- IQR(y, na.rm = TRUE)
-        up <- up + c * iqr
-        low <- low - c * iqr
-    }
     if (method %in% c("hampel", "mad", "sd")) {
+        med <- median(y, na.rm = TRUE)
         if (method %in% c("hampel", "mad")) {
             # mediane absolute deviation: 3 * MAD
-            med <- median(y, na.rm = TRUE)
             mad3 <- c * mad(y, na.rm = TRUE, constant = 1)
         } else {
-            med <- median(y, na.rm = TRUE)
             mad3 <- c * sd(y, na.rm = TRUE)
         }
         up <- med + mad3
         low <- med - mad3
+    } else {
+        # percentiles: probs = c(0.025, 0.975)
+        quant <- quantile(y, probs = probs, na.rm = TRUE)
+        up <- quant[2]
+        low <- quant[1]
+        if (method == "iqr") {
+            # interquartile range: 1.5 * IQR
+            iqr <- IQR(y, na.rm = TRUE)
+            up <- up + c * iqr
+            low <- low - c * iqr
+        }
     }
-    x %>% filter(y < low | y > up)
+    if (!replace) {
+        y[which(y < low | y > up)]
+    } else {
+        y[which(y < low | y > up)] <- NA
+        return(y)
+    }
+}
+
 }
 
 get_not_normal <- function(x, p_value = 0.05) {

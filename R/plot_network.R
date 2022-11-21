@@ -129,13 +129,13 @@ plot_network <- function(
     title(title, cex.main = cex_main * 0.1)
 }
 
-plot_corr_network <- function(x, cutoff = 0.75, ...) {
-    C <- get_corr(x, TRUE)
+plot_corr_network <- function(x, method = "pearson", cutoff = 0.75, ...) {
+    C <- get_corr(x, TRUE, method)
     title <- round(mean(C, na.rm = TRUE), 2)
     C[abs(C) < cutoff] <- 0 -> diag(C)
     C[is.na(C)] <- 0
 
-    p <- get_corr(x)
+    p <- get_corr(x, method)
 
     edges <- get_edges(x, C, p)
     # edges <- adjust_pvalue(edges, "p")

@@ -5,7 +5,8 @@ plot_corr <- function(
     clean_name = TRUE,
     mat = NULL,
     p_mat = NULL,
-    col = brewer.pal(n = 7, name = "RdBu")
+    col = brewer.pal(n = 7, name = "RdBu"),
+    method = "pearson"
 ) {
     if (clean_name) {
         colnames(x) <- get_var_names(colnames(x), y)
@@ -13,10 +14,10 @@ plot_corr <- function(
     }
     x <- as.data.frame(x)
     if (is.null(mat)) {
-        mat <- get_corr(x, TRUE)
+        mat <- get_corr(x, TRUE, method = method)
     }
     if (is.null(p_mat)) {
-        p_mat <- get_corr(x)
+        p_mat <- get_corr(x, method = method)
     }
 
     corrplot(
@@ -96,6 +97,7 @@ theme_violin1 <- function(
                 fill = "none",
                 x = "none"
             ) +
+        theme(plot.title = element_text(hjust = 0.5, size = cex * 15, face = "bold")) +
         theme_perso(cex, cex_main, cex_sub)
 }
 
