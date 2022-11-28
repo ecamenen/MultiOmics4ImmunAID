@@ -1,13 +1,27 @@
 #' @export
-plot_piechart <- function(x, df0 = NULL, hsize = 1.2, cex = 15, colour = get_colors(), wrap = 5, lwd = 4, dec = .1, label = TRUE, threshold = 5, title = NULL, wrap_title = 20) {
+plot_piechart <- function(
+    x,
+    df0 = NULL,
+    hsize = 1.2,
+    cex = 15,
+    colour = get_colors(),
+    wrap = 5,
+    lwd = 4,
+    dec = .1,
+    label = TRUE,
+    threshold = 5,
+    title = NULL,
+    wrap_title = 20
+    ) {
     df <- unlist(x) %>%
+      as.factor() %>%
         fct_drop() %>%
         fct_infreq() %>%
         fct_relabel(~ str_replace_all(.x, "\\s*\\([^\\)]+\\)", "")) %>%
         fct_count()
     if (!is.null(df0)) {
-          df <- rbind(data.frame(f = NA, n = c(nrow(df0) - sum(df$n))), df)
-      }
+        df <- rbind(data.frame(f = NA, n = c(nrow(df0) - sum(df$n))), df)
+    }
     df <- mutate(
         df,
         hsize = hsize,
@@ -23,8 +37,8 @@ plot_piechart <- function(x, df0 = NULL, hsize = 1.2, cex = 15, colour = get_col
     i <- df$n / sum(df$n) <= threshold / 100
     df$text[i] <- ""
     if (!isTRUE(label)) {
-          df$label <- rep("", nrow(df))
-      }
+        df$label <- rep("", nrow(df))
+    }
     ggplot(df, aes(x = hsize, y = n, fill = f)) +
         geom_col(width = 1, color = NA, lwd = lwd) +
         geom_text(
@@ -65,7 +79,7 @@ plot_histo <- function(
         bins = 30,
         add = "mean",
         rug = TRUE,
-        color = "grey",
+        color = NA,
         fill = "name"
     ) +
         facet_wrap(~name, scales = "free") +
@@ -92,28 +106,46 @@ plot_histo2 <- function(
         theme_perso(cex, cex_main, cex_sub)
 }
 
-plot_histo0 <- function(df, x, color = "red", dotsize = 1, binwidth = 1.5, method = "histodot") {
-    gghistogram(
+#' @export
+plot_histo0 <- function(
+    x,
+    color = "red",
+    dotsize = 1,
+    binwidth = 1.5,
+    method = "histodot",
+    probs = c(.25, .75)
+    ) {
+    df <- data.frame(x) %>% get_melt()
+    quant <- quantile(x, probs, na.rm = TRUE)
+    p <- gghistogram(
         df,
-        x = x,
-        fill = color,
+        x = "value",
+        color = NA,
+        fill = "name",
+        palette = color,
         binwidth = binwidth,
-        add = "mean",
-        rug = TRUE
+        add = "median",
+        rug = TRUE,
+        add.params = list(linetype = "solid", size = 1),
     ) +
         geom_density(
             lwd = 1,
             colour = color,
             fill = color,
             alpha = 0.25
+        # ) +
+        # geom_dotplot(
+        #     fill = color,
+        #     color = color,
+        #     binwidth = binwidth,
+        #     dotsize = dotsize,
+        #     method = method
         ) +
-        geom_dotplot(
-            fill = color,
-            color = color,
-            binwidth = binwidth,
-            dotsize = dotsize,
-            method = method
-        )
+        geom_vline(xintercept = quant, color = "red", lty = 2) +
+        theme_minimal() +
+        scale_x_continuous(expand = c(0.01, 0), labels = function(x) paste0(x)) +
+        guides(color = "none", fill = "none")
+    theme_violin1(p, guide = TRUE)
 }
 
 #' @export
@@ -123,11 +155,12 @@ plot_violin1 <- function(
     cex = 1,
     cex_main = 12 * cex,
     cex_sub = 10 * cex) {
+  x <- data.frame(value = x, name = 1)
     p <- ggviolin(
-        get_melt(x),
+        x,
         x = "name",
         y = "value",
-        fill = "name",
+        fill = colors[1],
         add = "boxplot",
         add.params = list(fill = "white")
     )
@@ -151,12 +184,40 @@ plot_violin0 <- function(
     cex_sub = 10 * cex,
     alpha = 0.1,
     title = NULL,
-    wrap_title = 20) {
-    df <- data.frame(value = x, name = 1)
-    m <- median(df$value, na.rm = TRUE)
-    iqr <- 1.5 * IQR(df$value, na.rm = TRUE)
+    wrap_title = 20,
+    probs = c(.25, .75),
+    coef = 1.5,
+    pch_colour = "#828282",
+    pch_alpha = 1,
+    class = 1,
+    value = 1,
+    guide = FALSE,
+    subtitle = NULL,
+    caption = NULL
+    ) {
+    colour_fill <- colour
+    if (!(class(x) %in% c("data.frame", "tibble"))) {
+        df <- data.frame(value = x, name = class)
+    } else {
+        df <- data.frame(value = pull(x, value), name = pull(x, class))
+        x <- df$value
+        colour <- factor(df$name, labels = colour)
+    }
+    quant <- group_by(df, name) %>%
+        summarise(quantile(value, probs, na.rm = TRUE)) %>%
+        pull(2)
+    quant0 <- group_by(df, name) %>%
+        summarise(quantile(value, c(0, 1), na.rm = TRUE)) %>%
+        pull(2)
+    iqr <- quant - c(-1, 1) * (1 - coef) * quant
+    if (iqr[1] < quant0[1]) {
+          iqr[1] <- quant0[1]
+      }
+    if (iqr[2] > quant0[2]) {
+          iqr[2] <- quant0[2]
+      }
     if (is.null(title)) {
-      title <- deparse(substitute(x))
+        title <- deparse(substitute(x))
     }
     p <- ggplot(df, aes(x = name, y = value)) +
         geom_errorbar(
@@ -164,27 +225,30 @@ plot_violin0 <- function(
             lwd = lwd,
             colour = colour,
             aes(
-                ymin = m - iqr,
-                ymax = m + iqr
+                ymin = iqr[1],
+                ymax = iqr[2]
             )
         ) +
         geom_boxplot(
             coef = 0,
             outlier.shape = NA,
             colour = "white",
-            fill = colour,
+            fill = colour_fill,
             lwd = lwd
         ) +
-        geom_violin(alpha = alpha, fill = colour, colour = NA) +
-        geom_sina(size = size, colour = "#828282") +
+        # geom_violin(alpha = alpha, fill = colour_fill, colour = NA) +
+        geom_sina(size = size, colour = pch_colour, alpha = pch_alpha) +
         ggtitle(str_wrap(title, wrap_title)) +
-        theme_classic()
+        theme_minimal() +
+        labs(subtitle = subtitle, caption = caption)
+        # scale_y_continuous(expand = c(0, 0))
     theme_violin1(
         p,
         cex = cex,
         cex_main = cex_main,
-        cex_sub = cex_sub
-    )
+        cex_sub = cex_sub,
+        guide = guide
+    )  %>% suppressMessages()
 }
 
 #' @export
@@ -194,8 +258,9 @@ plot_violin <- function(
     cex = 1,
     cex_main = 12 * cex,
     cex_sub = 10 * cex) {
+    x <- data.frame(value = x, name = 1)
     p <- ggbetweenstats(
-        get_melt(x),
+        x,
         name,
         value,
         outlier.tagging = TRUE,
@@ -221,12 +286,13 @@ plot_violin2 <- function(
     cex = 1,
     cex_main = 12 * cex,
     cex_sub = 10 * cex) {
+    x <- data.frame(value = x, name = 1)
     p <- ggplot(
-        getmelt0(x),
+        x,
         aes(
             x = name,
             y = value,
-            color = name
+            color = colors
         )
     ) +
         geom_violin(trim = FALSE) +
@@ -255,13 +321,14 @@ plot_violin3 <- function(
     cex = 1,
     cex_main = 12 * cex,
     cex_sub = 10 * cex) {
+    x <- data.frame(value = x, name = 1)
     p <- ggplot(
-        getmelt0(x),
+        x,
         aes(
             x = name,
             y = value,
-            fill = name,
-            color = name
+            fill = colors[1],
+            color = colors[1]
         )
     ) +
         geom_violindot(

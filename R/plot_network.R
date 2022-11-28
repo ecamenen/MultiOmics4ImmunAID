@@ -129,6 +129,7 @@ plot_network <- function(
     title(title, cex.main = cex_main * 0.1)
 }
 
+#' @export
 plot_corr_network <- function(x, method = "pearson", cutoff = 0.75, ...) {
     C <- get_corr(x, TRUE, method)
     title <- round(mean(C, na.rm = TRUE), 2)
@@ -158,6 +159,7 @@ plot_corr_network <- function(x, method = "pearson", cutoff = 0.75, ...) {
         nodes = nodes,
         edges = edges,
         cex_nodes = edges$weight * 20,
+        color = c("white", "gray"),
         title = paste("Mean correlation between variables = ", title * 2),
         ...
     )

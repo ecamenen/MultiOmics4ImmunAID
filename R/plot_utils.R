@@ -53,6 +53,7 @@ plot_normal <- function(x) {
         plot_normality()
 }
 
+#' @export
 get_colors <- function() {
     c(
         brewer.pal(9, "Set1"),
@@ -88,17 +89,46 @@ theme_violin1 <- function(
     colors = get_colors(),
     cex = 1,
     cex_main = 12 * cex,
-    cex_sub = 10 * cex) {
-        p +
-            xlab("") +
-            ylab("") +
-            guides(
-                color = "none",
-                fill = "none",
-                x = "none"
-            ) +
-        theme(plot.title = element_text(hjust = 0.5, size = cex * 15, face = "bold")) +
-        theme_perso(cex, cex_main, cex_sub)
+    cex_sub = 10 * cex,
+    guide = FALSE,
+    grid = FALSE
+    ) {
+    p <- p +
+        xlab("") +
+        ylab("") +
+        guides(
+            color = "none",
+            fill = "none"
+        ) +
+    theme(
+        plot.title = element_text(
+            hjust = 0.5,
+            size = cex * 15,
+            face = "bold"
+        ),
+        plot.subtitle = element_text(
+            hjust = 1,
+            size = cex * 10
+        ),
+        plot.caption = element_text(
+            hjust = 1,
+            size = cex * 11,
+            color = "gray"
+        )
+    ) +
+    theme_perso(cex, cex_main, cex_sub)
+    if (!isTRUE(guide)) {
+        p + guides(x = "none")
+    }
+    if (!isTRUE(grid)) {
+        p + theme(
+            panel.grid.major.x = element_blank(),
+            panel.grid.minor.x = element_blank()
+        )
+    }
+    else {
+          p
+      }
 }
 
 theme_violin <- function(
@@ -227,8 +257,8 @@ plot_bar_mcat <- function(x, colors = NULL, hjust = -0.1, vjust = 0.5, ratio = 5
     if (is.null(title)) {
         title <- deparse(substitute(x))
     }
-    x0 <- as.data.frame(x)
-    if (ncol(x) > 1) {
+    x0 <- as.data.frame(x) -> x
+    if (ncol(x0) > 1) {
         x <- sapply(seq(ncol(x0)), function(i) rep(colnames(x0)[i], colSums(x0)[i]))
     }
     df <- unlist(x) %>%
@@ -259,13 +289,14 @@ plot_bar_mcat <- function(x, colors = NULL, hjust = -0.1, vjust = 0.5, ratio = 5
             aes(color = I("white"), y = y_lab),
             size = cex
         ) +
-        geom_text(aes(label = df$x_lab, color = colors), hjust = hjust, vjust = vjust, size = cex) +
+        geom_text(aes(label = x_lab, color = colors), data = df, hjust = hjust, vjust = vjust, size = cex) +
         ggtitle(str_wrap(title, wrap)) +
         theme(
             plot.title = element_text(hjust = 0, vjust = 0, size = cex * 4, face = "bold"),
             axis.text.y = element_text(colour = colors, size = cex * 3),
             axis.text.x = element_text(size = cex * 1.75),
-            plot.margin = unit(c(-0.5, 0, 0, 0.5), "cm")
+            plot.margin = unit(c(-0.5, 0, 0, 0.5), "cm"),
+            panel.grid.major.y = element_blank()
         )
 }
 
