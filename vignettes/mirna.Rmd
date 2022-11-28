@@ -1,0 +1,141 @@
+---
+title: "miRNA"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{mirna}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup, include = FALSE}
+suppressPackageStartupMessages(library(MultiOmics4ImmunAID))
+path <- set_environment()
+options("tidylog.display" = list())
+# options("tidylog.display" = NULL)
+
+# Get the file parameters
+name <- "CPM_miRNACounts"
+date <- "20221019"
+path_data <- file.path(path, "miRNA")
+files_all <- list.files(path_data)
+pattern <- str_detect(files_all, name)
+```
+
+# Metadata
+```{r, echo = FALSE}
+# Metadata
+metadata <- file.path(path_data, files_all[!pattern]) %>% read_excel()
+
+# Samples
+# Sample in common
+# Visit A
+l_metadata <- list.parse(metadata)
+l_metadata_A <- list.filter(l_metadata, Visit == "A") %>% list.group(Cell_type)
+l_metadata_A_names <- l_metadata_A %>%
+    list.map(. %>>% list.mapv(Patient_Id)) %>%
+    list.map(f(., i) ~ as.numeric(.) %>% sort())
+# Venn(l_metadata_A_names) %>%
+#     process_region_data() %>%
+#     pull(item)
+# plot_venn1(l_metadata_A_names, cex = 1.25, color = get_colors()[c(3, 5, 1, 2)])
+# Visit B
+l_metadata_B <- list.filter(l_metadata, Visit == "B") %>% list.group(Cell_type)
+l_metadata_B_names <- l_metadata_B %>%
+    list.map(. %>>% list.mapv(Patient_Id)) %>%
+    list.map(f(., i) ~ as.numeric(.) %>% sort())
+# plot_venn1(l_metadata_B_names, cex = 1.25, color = get_colors()[c(3, 5, 1, 2)])
+# Both visit
+# list(l_metadata_A_names, l_metadata_B_names) %>%
+#     list.map(unlist(.) %>% unique(.)) %>%
+#     set_names(paste(c("1rst", "2nd"), "visit")) %>%
+#     plot_venn1(n = 6, color = brewer.pal(9, "Paired")[7:8], vjust = 0) +
+#     scale_x_continuous(expand = c(1, 0)) +
+#     scale_y_continuous(expand = c(1, 0))
+
+# Samples per visit
+fct_count(metadata$Visit) %>%
+    set_colnames(c("Visit", "N")) %>%
+    kable0()
+plot_piechart(
+    metadata$Visit,
+    colour = brewer.pal(9, "Paired")[7:8],
+    cex = 40,
+    title = "",
+    hsize = 1.6,
+    label = FALSE,
+    dec = 1
+)
+# Number of cell types
+fct_count(metadata$Cell_type) %>%
+    set_colnames(c("Cell type", "N")) %>%
+    kable0()
+plot_piechart(
+    metadata$Cell_type,
+    colour = brewer.pal(9, "Set1")[c(seq(3), 5)],
+    cex = 40,
+    title = "",
+    hsize = 1.6,
+    label = FALSE,
+    dec = 1
+)
+
+# Dates
+dates <- dmy(metadata$Date_of_experiment) %>% tibble(date = .)
+dates <- mutate(
+    dates,
+    year = year(date),
+    month = month(date, label = TRUE, abbr = FALSE),
+    day = day(date)
+)
+days <- as.factor(dates$date) %>%
+    fct_count() %>%
+    mutate(f = as.Date(f)) %>%
+    arrange(f)
+ggplot(days, aes(f, n)) +
+    geom_line(color = "red") +
+    geom_point(color = "red") +
+    theme_minimal() +
+    scale_x_date(date_breaks = "1 month", date_labels = "%Y (%b)") +
+    ylab("Nb. samples") +
+    xlab("")
+
+# Samples per years
+as.factor(dates$year) %>%
+    fct_count() %>%
+    set_colnames(c("Year", "N")) %>%
+    kable0()
+# Sample per months
+# lapply(unique(dates$year), function(i) {
+#     dates[dates$year == i, ] %>%
+#         pull(month) %>%
+#         as.factor() %>%
+#         fct_drop() %>%
+#         fct_count()
+# })
+format(dates$date, "%Y-%m") %>%
+    fct_count() %>%
+    mutate(f = ym(f)) %>%
+    mutate(year = year(f), month = format(f, "%B")) %>%
+    select(month, n) %>%
+    set_colnames(str_to_title(colnames(.))) %>%
+    kable0("r") %>%
+    pack_rows("2021", 1, 1) %>%
+    pack_rows("2022 (N = 595)", 2, 6)
+# format(dates$date, "%Y-%m") %>%
+#     fct_count() %>%
+#     mutate(f = ym(f)) %>%
+#     ggplot(aes(f, n)) +
+#     geom_line(color = "red") +
+#     geom_point(color = "red") +
+#     theme_minimal() +
+#     scale_x_date(date_breaks = "1 month", date_labels = "%Y (%b)") +
+#     ylab("Nb. samples") +
+#     xlab("")
+```
