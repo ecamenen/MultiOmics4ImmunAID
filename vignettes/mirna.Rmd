@@ -245,3 +245,227 @@ plot_piechart(
 plot_bar_mcat(clinic_intersect$disease, cex = 3, wrap = 50)
 plot_bar_mcat(clinic_intersect$clinical_center, cex = 3, wrap = 50)
 ```
+
+# miRNA QC
+```{r, echo = FALSE}
+file_names <- files_all[pattern]
+cells <- str_replace_all(file_names, paste0(name, "_(.*)_", date, ".xlsx"), "\\1")
+files <- file.path(path_data, files_all[pattern]) %>%
+    lapply(read_excel) %>%
+    set_names(cells)
+
+sapply(files, dim)
+# Check that all the miRNA in row are identical
+all(sapply(files, function(i) {
+    pull(i, "...1") %>%
+        unique() %>%
+        length()
+}) == nrow(files[[1]]))
+# Check that all the samples in column are different
+get_intersection(sapply(files, colnames)) %>%
+    unlist() %>%
+    length() == 1
+
+# Data cleaning
+mirna <- Reduce(full_join, files) %>%
+    select(-1) %>%
+    t() %>%
+    tibble() %>%
+    update_columns(ncol(.), as.numeric) %>%
+    set_colnames(pull(files[[1]], 1))
+colnames(mirna) <- colnames(mirna) %>% str_remove_all("^hsa-(let|miR)-")
+
+cst <- mirna %>%
+    dplyr::select_at(setdiff(names(.), names(remove_constant(.)))) %>%
+    unique() %>%
+    colnames() %>%
+    str_remove_all("hsa-miR-")
+length(cst) / ncol(mirna) * 100
+
+mirna <- sort(colnames(mirna)) %>%
+    select(mirna, .) %>%
+    clean_data(FALSE)
+
+# Number of 0 an NAs per variables
+temp <- diagnose_numeric(mirna)
+zeros <- select(temp, zero) %>%
+    arrange(desc(zero)) %>%
+    pull(zero)
+zeros <- (nrow(mirna) - zeros) / nrow(mirna) * 100
+plot_histo0(zeros)
+nas <- list.mapv(colnames(mirna), f(i) ~ {
+    pull(mirna, i) %>%
+        is.na() %>%
+        length()
+})
+nas <- nrow(mirna) - nas
+summary(nas)
+
+# Skewness, kurtosis
+un_mirna <- unlist(mirna)
+tibble(un_mirna) %>%
+    descriptive_stats() %>%
+    kable0()
+samp <- log10(sample(un_mirna, 1e4) + 1)
+p1 <- plot_violin0(samp, pch_colour = "red", pch_alpha = 0.1, colour = NA)
+skew <- list.map(
+    as.list(colnames(mirna)),
+    f(i) ~ skewness(pull(mirna, i), na.rm = TRUE)
+) %>% unlist()
+kurt <- list.map(
+    as.list(colnames(mirna)),
+    f(i) ~ kurtosis(pull(mirna, i), na.rm = TRUE)
+) %>% unlist()
+list.map(list(skew, kurt), f(i) ~ plot_histo0(i)) %>%
+    plot_grid(
+        plotlist = .,
+        align = "vh",
+        ncol = 2
+    )
+p2 <- colnames(mirna)[which.max(kurt)] %>%
+    pull(mirna, .) %>%
+    plot_violin0(pch_colour = "red", pch_alpha = 0.3, colour = NA)
+plot_grid(p1, p2,
+    align = "vh",
+    ncol = 2
+)
+plot_violin0(kurt, probs = c(0.1, 0.9), pch_alpha = 0.2, pch_colour = "black")
+
+temp0 <- update_columns(mirna, names(mirna), function(i) log10(i + 1)) %>%
+    descriptive_stats()
+tmp <- apply(temp0[, -1], 2, mean) %>% round(1)
+tmp <- data.frame(
+    "Mean_SD" = paste0(tmp[1], "\u00b1", tmp[3]),
+    "Median_IQR" = paste0(tmp[2], "\u00b1", tmp[4]),
+    Range = paste(
+        tmp[7],
+        tmp[8],
+        sep = "-"
+    ), as.data.frame(tmp[9:13]) %>% t()
+)
+
+# colnames(tmp) %>% str_replace("_", "\u00b") %>% set_colnames(tmp, .)
+quant <- quantile(un_mirna, c(0, 1))
+quant[2] <- format(quant[2], scientific = TRUE, digits = 2)
+tmp[3] <- paste(quant, collapse = "-")
+tmp[6] <- "***"
+tmp[7] <- paste0(tmp[7], "%")
+# un_mirna %>% t() %>% data.frame() %>% descriptive_stats()
+
+col_names <- sapply(files, function(x) colnames(x)[-1]) %>%
+    unlist() %>%
+    str_remove_all("^S|02PB\\d{1,2}")
+
+t_mirna <- t(mirna) %>%
+    data.frame() %>%
+    tibble() %>%
+    set_colnames(col_names)
+# TODO: sort data by IDs
+
+t_mirna0 <- scale(t_mirna) %>%
+    data.frame() %>%
+    tibble() %>%
+    set_colnames(colnames(t_mirna))
+mirna0 <- scale(mirna) %>%
+    data.frame() %>%
+    tibble() %>%
+    set_colnames(colnames(mirna))
+# Outliers samples
+outliers <- sapply(colnames(t_mirna), function(i) {
+    t_mirna0 %>%
+        pull(i) %>%
+        get_outliers(c = 3, method = "sd", replace = FALSE)
+})
+n <- outliers %>%
+    list.mapv(f(., x) ~ length(.)) %>%
+    sort()
+as.data.frame(n) %>% descriptive_stats()
+sum(n) / dim(mirna) %>% prod() * 100
+as.data.frame(n) %>% plotHistogram(df = ., n = 50) -> p10
+n0 <- set_names(n, str_extract(names(n), "[BDM]C|NK$"))
+sapply(cells, function(i) n0[names(n0) == i]) %>% sapply(mean)
+outlier_vars <- outliers %>% list.map(colnames(mirna)[as.numeric(names(.))])
+unlist(outlier_vars) %>%
+    fct_count() %>%
+    set_rownames(.$f) %>%
+    as.data.frame() %>%
+    select(2) %>%
+    plotHistogram(df = .) -> p1
+# as.data.frame(n) %>% mutate(Cell = str_extract(rownames(.), "[BDM]C|NK$")) %>% group_by(Cell)
+
+# Outliers vars
+outliers0 <- sapply(colnames(mirna), function(i) {
+    mirna0 %>%
+        pull(i) %>%
+        get_outliers(c = 3, method = "sd", replace = FALSE)
+})
+n0 <- outliers0 %>%
+    list.mapv(f(., x) ~ length(.)) %>%
+    sort()
+as.data.frame(n0) %>% descriptive_stats()
+sum(n0) / dim(mirna) %>% prod() * 100
+sum(n0)
+as.data.frame(n0) %>% plotHistogram(df = ., n = 50) -> p20
+outlier_inds <- outliers0 %>% list.map(colnames(t_mirna)[as.numeric(names(.))])
+outlier_inds0 <- unlist(outlier_inds) %>%
+    fct_count() %>%
+    set_rownames(.$f) %>%
+    as.data.frame() %>%
+    select(2)
+plotHistogram(df = outlier_inds0, n = 50) -> p2
+outlier_inds0 %>%
+    mutate(Cell = str_extract(rownames(.), "[BDM]C|NK$")) %>%
+    group_by(Cell) %>%
+    summarise(mean = mean(n, na.rm = TRUE)) # %>% mutate(value = n) %>% descriptive_stats() %>% kable0()
+
+plot_grid(
+    p10 + scale_y_continuous(expand = c(0.1, 0)),
+    p20 + scale_y_continuous(expand = c(0.1, 0)),
+    align = "vh",
+    ncol = 2
+)
+
+outliers_celltype <- mutate(
+    outlier_inds0,
+    Cell = str_extract(rownames(outlier_inds0), "[BDM]C|NK$")
+)
+pivot_longer(outliers_celltype, !Cell) %>%
+    group_by(name) -> stats
+# filter(!is.na(value)) %>%
+anova_test(stats, value ~ Cell) %>% add_significance0() -> anov
+kruskal_test(stats, value ~ Cell) %>% add_significance0() -> ks
+# post_hoc <- tukey_hsd(stats, value ~ Cell)
+post_hoc <- dunn_test(stats, value ~ Cell)
+post_hoc$p.adj.signif <- str_replace_all(post_hoc$p.adj.signif, "\\*\\*\\*\\*", "\\*\\*\\*")
+pwd <- post_hoc %>% add_xy_position(x = "Cell")
+
+outliers_celltype %>%
+    plot_violin0(
+        class = "Cell",
+        value = "n",
+        guide = TRUE,
+        title = "",
+        colour = get_colors()[-4][seq(4)],
+        caption = print_mean_test(ks, method = "ks"),
+        pch_alpha = 0.25
+    ) + stat_pvalue_manual(pwd, label = "p.adj.signif", color = "darkgray")
+
+
+# Correlation
+t_mirna %>%
+    slice(sample(nrow(.), 50)) %>%
+    select(sample(ncol(.), 100)) -> x
+plot_corr0(x)
+get_corr(x, TRUE, method = "spearman") %>%
+    tibble() %>%
+    descriptive_stats() %>%
+    kable0()
+plot_corr_network(x)
+
+# correlation(mirna, method = "spearman", p_adjust = "holm") -> r1
+# correlation(t_mirna, method = "spearman", p_adjust = "holm") -> r2
+# plot_corr0(mirna) -> p
+# plot_corr0(t_mirna) -> p2
+# plot_corr_network(mirna) -> p3
+```
+
