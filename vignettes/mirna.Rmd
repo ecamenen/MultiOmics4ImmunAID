@@ -139,3 +139,109 @@ format(dates$date, "%Y-%m") %>%
 #     ylab("Nb. samples") +
 #     xlab("")
 ```
+
+# Demographic effects
+```{r, echo = FALSE}
+# Subset in common with miRNA data
+ids <- metadata$Patient_Id %>%
+    unique() %>%
+    as.numeric() %>%
+    sort()
+length(ids)
+data(clinic)
+clinic_intersect <- filter(
+    clinic_transf,
+    str_detect(
+        immun_aid_identifier,
+        paste0("^", ids, "$", collapse = "|")
+    )
+)
+
+# Descriptive stats
+vars <- c("BMI", "age_at_inclusion_time")
+keys <- c(6, 5)
+list.map(as.list(vars), f(j, i) ~ {
+    plot_violin0(
+        pull(clinic_intersect, vars[i]),
+        brewer.pal(8, "Set2")[keys[i]],
+        size = 3,
+        title = ""
+    )
+}) %>%
+    plot_grid(
+        plotlist = .,
+        align = "vh",
+        ncol = 2
+    )
+clinic_intersect %>%
+    select(all_of(vars)) %>%
+    descriptive_stats() %>%
+    kable0()
+
+# Age
+df_years <- mutate(
+    clinic_intersect,
+    years = cut(
+        age_at_inclusion_time,
+        breaks = seq(0, 90, 10),
+        right = FALSE
+    )
+) %>% drop_na(gender)
+df_year_gender <- as.list(levels(clinic_intersect$gender)) %>%
+    list.map(f(i) ~ {
+        fct_count(subset(df_years, gender == i)$years) %>%
+            mutate(perc = (n / sum(n) * 100) %>% round(1), Gender = i)
+    })
+df_year_gender[[1]]$n <- -df_year_gender[[1]]$n
+df_year_gender <- list.stack(df_year_gender)
+df_year_gender <- df_years$years %>%
+    fct_count() %>%
+    right_join(df_year_gender, by = "f")
+# Age pyramid
+ggplot(df_year_gender, aes(x = n.y, y = f, fill = Gender)) +
+    geom_col(width = 0.95, alpha = 0.75) +
+    geom_text(
+        aes(label = ifelse(Gender == "Male", n.x, "")),
+        hjust = -1,
+        color = "gray",
+        size = 5
+    ) +
+    theme_minimal(base_family = "Verdana", base_size = 18) +
+    scale_fill_manual(values = c("#3438a7", "#38bcbd")) +
+    scale_x_continuous(
+        name = "Count",
+        labels = abs,
+        expand = c(0.1, 0)
+    ) +
+    scale_y_discrete(
+        name = "Age (decades)",
+        labels = function(x) {
+              str_remove_all(x, "\\[|\\)") %>% str_replace_all(",", "-")
+          }
+    )
+
+# Gender, ethnicity
+plot_piechart(
+    clinic_intersect$patient_ethnicity,
+    colour = c("#af3e40", "#eaaab0", "gray80"),
+    title = "",
+    cex = 40,
+    dec = 1,
+    label = FALSE,
+    hsize = 1.6
+)
+plot_piechart(
+    drop_na(clinic_intersect, gender) %>% pull(gender),
+    colour = c("#3438a7", "#38bcbd"),
+    cex = 40,
+    title = "",
+    hsize = 1.6,
+    label = FALSE,
+    dec = 1
+)
+
+# Disease, clinical_center
+
+plot_bar_mcat(clinic_intersect$disease, cex = 3, wrap = 50)
+plot_bar_mcat(clinic_intersect$clinical_center, cex = 3, wrap = 50)
+```
