@@ -1,7 +1,7 @@
 #' @export
 plot_corr <- function(
     x,
-    y,
+    y = NULL,
     clean_name = TRUE,
     mat = NULL,
     p_mat = NULL,
@@ -100,23 +100,23 @@ theme_violin1 <- function(
             color = "none",
             fill = "none"
         ) +
-    theme(
-        plot.title = element_text(
-            hjust = 0.5,
-            size = cex * 15,
-            face = "bold"
-        ),
-        plot.subtitle = element_text(
-            hjust = 1,
-            size = cex * 10
-        ),
-        plot.caption = element_text(
-            hjust = 1,
-            size = cex * 11,
-            color = "gray"
-        )
-    ) +
-    theme_perso(cex, cex_main, cex_sub)
+        theme(
+            plot.title = element_text(
+                hjust = 0.5,
+                size = cex * 15,
+                face = "bold"
+            ),
+            plot.subtitle = element_text(
+                hjust = 1,
+                size = cex * 10
+            ),
+            plot.caption = element_text(
+                hjust = 1,
+                size = cex * 11,
+                color = "gray"
+            )
+        ) +
+        theme_perso(cex, cex_main, cex_sub)
     if (!isTRUE(guide)) {
         p + guides(x = "none")
     }
@@ -127,8 +127,8 @@ theme_violin1 <- function(
         )
     }
     else {
-          p
-      }
+        p
+    }
 }
 
 theme_violin <- function(
@@ -188,6 +188,110 @@ plot_venn <- function(x, snames = "", ilcs = 2, sncs = 3, plotsize = 15) {
     )
 }
 
+plot_venn0 <- function(x) {
+    ggvenn::ggvenn(
+        x,
+        stroke_size = NA,
+        fill_color = get_colors()[-4],
+        text_color = "white",
+        digits = 0
+    )
+}
+
+
+plot_venn1 <- function(x, n = 4, color = get_colors()[-4], cex = 1, vjust = 0.5) {
+    data <- Venn(x) %>% process_data()
+    data@region <- data@region %>%
+        mutate(
+            percent = (count * 100 / sum(count)) %>%
+                round(digits = 0) %>%
+                paste0("%")
+        ) %>%
+        mutate(
+            label = paste0("(", percent, ")") %>%
+                paste(count, ., sep = "\n")
+        )
+    data@region$label[data@region$item %>% list.which(length(.) == 0)] <- ""
+    i <- data@region$item %>% list.which(length(.) <= n & length(.) > 0)
+    data@region$label[unlist(i)] <- data@region$item %>%
+        list.search(length(.) <= n & length(.) > 0) %>%
+        list.mapv(paste(., collapse = "\n"))
+    p <- ggplot() +
+        geom_sf(aes(fill = count), data = venn_region(data)) +
+        geom_sf(aes(color = id), data = venn_setedge(data), show.legend = FALSE) +
+        geom_sf_text(aes(label = name), color = color[seq(length(x))], vjust = vjust, data = venn_setlabel(data), size = cex * 8) +
+        geom_sf_label(aes(label = label), data = venn_region(data), alpha = 0.5, label.size = NA, size = cex * 4) +
+        theme_void() +
+        scale_fill_gradient(low = "white", high = "red") +
+        scale_color_manual(values = color) +
+        theme(
+            legend.title = element_text(face = "bold.italic", size = cex * 13),
+            legend.text = element_text(size = cex * 9)
+        )
+    p$labels$fill <- "N"
+    return(p)
+}
+
+#' Histogram settings
+#'
+#' Default font for a vertical barplot.
+#'
+#' @param p A ggplot object.
+#' @param df A dataframe with a column named "order"
+#' @param title A character string giving a graphic title
+#' @param color A vector of character giving the colors for the rows
+#' @examples
+#' df <- data.frame(x = runif(30), order = 30:1)
+#' library("ggplot2")
+#' p <- ggplot(df, aes(order, x))
+#' plotHistogram(p, df, "This is my title", "red")
+#' # Add colors per levels of a variable
+#' df$color <- rep(c(1, 2, 3), each = 10)
+#' p <- ggplot(df, aes(order, x, fill = color))
+#' plotHistogram(p, df, "Histogram", as.character(df$color))
+#' @export plotHistogram
+plotHistogram <- function(p = NULL, df = NULL, hjust = 0, vjust = 0.5, n = 100, title = "", color = "black", color_gradient = c("#FFF5F0", "#99000D"), cex = 1) {
+    if (is.null(p)) {
+        df0 <- as.data.frame(df)
+        colnames(df0)[1] <- "val"
+        if (n > nrow(df0)) {
+            n <- nrow(df0)
+            print("ok")
+        }
+        df <- (
+            df0 %>%
+                arrange(desc(val)) %>%
+                mutate(order = rev(seq(nrow(df0))))
+        )[seq(n), ]
+        p <- ggplot(df, aes(order, val, fill = order)) +
+            theme_classic()
+    }
+    p +
+        # TODO: if NB_ROW > X, uncomment this
+        # geom_hline(yintercept = c(-.5,.5), col="grey", linetype="dotted", size=1) +
+        geom_hline(yintercept = 0, col = "grey", size = 1) +
+        geom_bar(stat = "identity") +
+        coord_flip() +
+        scale_x_continuous(breaks = df$order, labels = rownames(df)) +
+        labs(
+            title = title,
+            x = "", y = ""
+        ) +
+        # theme_classic() +
+        # theme_perso() +
+        theme(
+            axis.text.y = element_text(size = cex * 10, face = "italic", color = color),
+            axis.text.x = element_text(size = cex * 10, face = "italic", color = "darkgrey"),
+            axis.line = element_blank(),
+            axis.ticks = element_blank(),
+            plot.subtitle = element_text(hjust = 0.5, size = 16, face = "italic")
+        ) +
+        geom_text(aes(label = round(..y.., 2)), hjust = hjust, vjust = vjust, size = cex * 4) +
+        theme(legend.position = "none") +
+        scale_fill_gradient(low = color_gradient[1], high = color_gradient[2])
+}
+
+
 #' @export
 plot_qq0 <- function(
     x,
@@ -209,12 +313,12 @@ plot_qq0 <- function(
     )
 }
 
-
+#' @export
 plot_corr0 <- function(
     x,
     n = ncol(x),
-    cols = c("black", brewer.pal(n = 7, name = "RdBu"), "#000000"),
-    method = "pearson",
+    cols = c(brewer.pal(n = 9, name = "RdBu")),
+    method = "spearman",
     p_adjust = "holm"
 ) {
     res <- correlation(x[, seq(n)], method = method, p_adjust = p_adjust)
