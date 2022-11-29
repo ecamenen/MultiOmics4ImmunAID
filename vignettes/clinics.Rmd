@@ -287,7 +287,7 @@ to_fix <- clinic_tot_proc$C_2649_3890 %in% tab$C_2649_3890
 clinic_tot_proc$C_2649_3889[to_fix] <- c(173, 151)
 clinic_tot_proc$C_2649_3890[to_fix] <- clinic_tot_proc$C_2643_3804[to_fix] / ((clinic_tot_proc$C_2649_3889[to_fix] / 100)^2)
 
-get_outliers(clinic_tot_proc, i)
+pull(clinic_tot_proc, i) %>% get_outliers()
 # get_outliers(clinic_tot_proc, j, probs = c(.025, .975), method = "percentiles")
 # get_outliers(clinic_tot_proc, j, , method = "hampel", c = 3)
 
@@ -315,7 +315,7 @@ var_max <- c("creatinine_mmol_l", "alat_uln_upper_limi", "leucocytes_mm3", "neut
 
 p <- ggdraw()
 for (i in seq(var_max)) {
-    p <- p + plot_violin2(as.data.frame(clinic[-out[i], var_max[i]]))
+    p <- p + {clinic[-out[i], ] %>% pull(var_max[i]) %>% plot_violin0()}
 }
 p
 
@@ -515,19 +515,17 @@ clinic_dis %>%
 # Filter by numeric variables
 clinic_num <- get_name_num(clinic_dis) %>%
     select(clinic_dis, .)
-clinic_qual <- which(sapply(seq_along(clinic_dis), function(i) is.factor(as.data.frame(clinic_dis)[, i]))) %>%
-    select(clinic_dis, .)
 
 # Remove columns with high levels of NA
-# plot_missing(
-#     clinic_dis,
-#     geom_label_args = list(
-#         label.size = NA,
-#         label.padding = unit(0, "lines"),
-#         size = 3
-#     ),
-#     group = list("25%" = 0.25, "50%" = 0.50, "75%" = 0.75, "100%" = 1)
-# )
+plot_missing(
+    clinic_num,
+    geom_label_args = list(
+        label.size = NA,
+        label.padding = unit(0, "lines"),
+        size = 3
+    ),
+    group = list("25%" = 0.25, "50%" = 0.50, "75%" = 0.75, "100%" = 1)
+)
 #
 # gg_miss_var(clinic_dis, show_pct = TRUE) + theme_classic() + theme_perso()
 # vis_miss(clinic_dis)
@@ -619,10 +617,10 @@ name_vars <- colnames(clinic_proc) %>%
 # Remove outliers
 clinic_proc0 <- select(clinic_proc, -vars0)
 clinic_proc_cont <- select(clinic_proc0, -c(var_scores, "charlson_score", "weight_loss"))
-clinic_proc_cont <- sapply(colnames(select(clinic_proc_cont, -c("creatinine", "ALAT"))), function(i) get_outliers(clinic_proc, i, method = "mad", c = 24))
+clinic_proc_cont <- sapply(colnames(select(clinic_proc_cont, -c("creatinine", "ALAT"))), function(i) pull(clinic_proc, i) %>% get_outliers(method = "mad", c = 24))
 clinic_proc_disc <- select(clinic_proc0, c(var_scores, "charlson_score", "weight_loss"))
 x <- 1e-2
-sapply(colnames(select(clinic_proc_disc, -c("vascular_involvement"))), function(i) get_outliers(clinic_proc, i, c(0 + x, 1 - x), method = "iqr")) -> clinic_proc_disc
+sapply(colnames(select(clinic_proc_disc, -c("vascular_involvement"))), function(i) pull(clinic_proc, i) %>% get_outliers(c(0 + x, 1 - x), method = "iqr")) -> clinic_proc_disc
 
 keys <- c("vascular_involvement", "creatinine", "ALAT")
 value <- c(30, 5600, 423)
@@ -759,7 +757,7 @@ l_levels <- sapply(
     }
 )
 t_levels <- lapply(
-    seq_along(l_levels),
+    seq(ncol(l_levels)),
     function(i) {
         sapply(
             na.omit(l_levels[[i]]),
@@ -792,7 +790,14 @@ clinic_qual_proc <- clinic_qual_proc %>%
 clinic_ord <- set_qualitative(clinic_qual_proc, 2)
 mutate_all(clinic_ord, as.numeric) %>%
     as.matrix() %>%
-    heatmap(na.rm = FALSE, scale = "none", Rowv = NA, Colv = NA, margins = c(13, 0), col = colorRampPalette(c("blue", "white", "#cd5b45"))(100))
+    heatmap(
+        na.rm = FALSE,
+        scale = "none",
+        Rowv = NA,
+        Colv = NA,
+        margins = c(13, 0),
+        col = colorRampPalette(c("blue", "white", "#cd5b45"))(100)
+    )
 
 to_remove1 <- (
     diagnose_category(clinic_ord) %>%
@@ -873,17 +878,17 @@ clinic_proc$treatment_7[clinic_proc$treatment_7 == "Other"] <- NA
 lvl <- c("No", "Yes", "Yes")
 keys <- c("response_to_paracetamol", "response_to_nsai_ds", "active_manifestation_2")
 val <- list(lvl, lvl, c("Continuous or reccurent", "First episode", "Continuous or reccurent"))
-for (i in seq(3)) {
-      clinic_proc[, keys[i]] <- recode_factor(as.numeric(clinic_proc[, keys[i]]), !!!val[[i]])
-  }
+for (i in seq(keys)) {
+    clinic_proc[, keys[i]] <- recode_factor(as.numeric(clinic_proc[, keys[i]]), !!!val[[i]])
+}
 
 i <- "response_to_biologic_treatments"
 clinic_proc[, i] <- recode_factor(clinic_proc[, i], No = "Partial", .default = levels(clinic_proc[, i]))
 
 
 for (i in c("fathers_ethnicity", "mothers_ethnicity")) {
-      clinic_proc[, i] <- recode_factor(as.numeric(clinic_proc[, i]), !!!c(rep("Not European", 3), "European"))
-  }
+    clinic_proc[, i] <- recode_factor(as.numeric(clinic_proc[, i]), !!!c(rep("Not European", 3), "European"))
+}
 
 temp <- select(clinic_qual, starts_with("treatment_group"))
 l_levels0 <- unlist(temp) %>%
@@ -985,7 +990,7 @@ tiff(
     ),
     pairwise.comparisons = FALSE
 )) %>%
-    theme_perso0(colors = c(brewer.pal(n = 9, name = "Set1"), brewer.pal(n = 9, name = "Set2"))) +
+    theme_perso0(colors = c(brewer.pal(n = 9, name = "Set1"), brewer.pal(n = 8, name = "Set2"))) +
     guides(fill = "none", color = "none") +
     theme(axis.text.x = element_text(angle = 35, vjust = 1, hjust = 1))
 dev.off()
@@ -998,6 +1003,7 @@ clinic0 <- read_tsv(file.path(path, "CleanBiologicalValues.tsv"))
 clinic0 <- arrange(clinic0, ID) %>%
     clean_names()
 colnames(clinic0) <- str_sub(colnames(clinic0), 1, 20)
+data(clinic)
 clinic <- arrange(clinic, immun_aid_identifier)
 # identical(clinic0$id, clinic$immun_aid_identifier)
 to_exclude <- c(
@@ -1327,15 +1333,15 @@ plot_piechart(
 df <- cut(clinic_tot$age_at_inclusion_tim, breaks = seq(0, 70, 10)) %>%
     data.frame() %>%
     set_colnames("ages")
-apyramid::age_pyramid(
-    data = df,
-    age_group = "ages",
-    split_by = "gender",
-    proportional = FALSE,
-    show_midpoint = FALSE
-) +
-    theme_bw() +
-    scale_fill_manual(values = c("#3438a7", "#38bcbd"), na.value = "black")
+# apyramid::age_pyramid(
+#     data = df,
+#     age_group = "ages",
+#     split_by = "gender",
+#     proportional = FALSE,
+#     show_midpoint = FALSE
+# ) +
+#     theme_bw() +
+#     scale_fill_manual(values = c("#3438a7", "#38bcbd"), na.value = "black")
 data(clinic_still_raw)
 summary_num <- function(i, colors = "red") {
     df <- data.frame(var = as.data.frame(clinic_tot[, i])[, 1])
@@ -1355,7 +1361,7 @@ summary_num <- function(i, colors = "red") {
             theme_perso() +
             labs(x = get_item_name(i)) +
             theme(panel.border = element_blank(), panel.grid.major = element_blank()),
-        plot_violin(df, colors = colors) + theme(
+        plot_violin0(pull(df, var), colour = colors) + theme(
             strip.text.x = element_blank(),
             axis.line = element_blank(),
             panel.grid.major = element_line()
@@ -1409,7 +1415,6 @@ manifs <- c("MUCO_ACTIVE_LESIONS", paste0(manifs, "_MANIF"))
 
 list.map(as.list(manifs), f(i, j) ~ {
     immu_manif(i, df2 = clinic_tot1) %>%
-        collapse_mcat() %>%
         plot_bar_mcat(cex = 12, ratio = 3, title = vars[j])
 }) -> p
 align_plots(plotlist = p, align = "vh") %>%
@@ -1465,12 +1470,12 @@ temp[[6]][temp[[6]] == "Neutrophils 5"] <- "Neutrophils %"
 
 nodes <- data.frame(id = unlist(temp), size = rep(6, length(unlist(temp))))
 edges <- lapply(seq_along(temp), function(i) {
-      data.frame(
-          from = names(temp)[i],
-          to = temp[[i]],
-          weight = .2
-      )
-  }) %>% Reduce(rbind, .)
+    data.frame(
+        from = names(temp)[i],
+        to = temp[[i]],
+        weight = .2
+    )
+}) %>% Reduce(rbind, .)
 
 nodes <- sapply(temp, length) %>%
     data.frame(id = names(.), size = .) %>%
