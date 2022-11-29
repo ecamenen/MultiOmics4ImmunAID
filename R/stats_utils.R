@@ -61,45 +61,43 @@ explore_outliers <- function(x) {
 #' @export
 get_outliers <- function(
     x,
-    y,
     probs = c(0.25, 0.75),
     method = "iqr",
     c = 1.5,
     replace = TRUE
     ) {
     stopifnot(method %in% c("iqr", "percentiles", "hampel", "mad", "sd"))
-    y <- as.data.frame(x)[, y]
-    # outliers <- boxplot(y)$out
+    # outliers <- boxplot(x)$out
     if (method %in% c("hampel", "mad", "sd")) {
-        med <- median(y, na.rm = TRUE)
+        med <- median(x, na.rm = TRUE)
         if (method %in% c("hampel", "mad")) {
             # mediane absolute deviation: 3 * MAD
-            mad3 <- c * mad(y, na.rm = TRUE, constant = 1)
+            mad3 <- c * mad(x, na.rm = TRUE, constant = 1)
         } else {
-            mad3 <- c * sd(y, na.rm = TRUE)
+            mad3 <- c * sd(x, na.rm = TRUE)
         }
         up <- med + mad3
         low <- med - mad3
     } else {
         # percentiles: probs = c(0.025, 0.975)
-        quant <- quantile(y, probs = probs, na.rm = TRUE)
+        quant <- quantile(x, probs = probs, na.rm = TRUE)
         up <- quant[2]
         low <- quant[1]
         if (method == "iqr") {
             # interquartile range: 1.5 * IQR
-            iqr <- IQR(y, na.rm = TRUE)
+            iqr <- IQR(x, na.rm = TRUE)
             up <- up + c * iqr
             low <- low - c * iqr
         }
     }
     if (!replace) {
-        y[which(y < low | y > up)]
+        i <- which(x < low | x > up)
+        x <- x[i]
+        names(x) <- i
     } else {
-        y[which(y < low | y > up)] <- NA
-        return(y)
+        x[which(x < low | x > up)] <- NA
     }
-}
-
+    return(x)
 }
 
 get_not_normal <- function(x, p_value = 0.05) {
@@ -142,7 +140,7 @@ get_corr0 <- function(x, p = NULL) {
 
 #' @export
 calculate_samplesize <- function(muA, muB, sd, kappa = 1, alpha = 0.05, beta = 0.2) {
-    ceiling((1 + 1 / kappa) * (sd * (qnorm(1 - alpha / 2) + qnorm(1 - beta)) / (muA - muB)) ^ 2)
+    ceiling((1 + 1 / kappa) * (sd * (qnorm(1 - alpha / 2) + qnorm(1 - beta)) / (muA - muB))^2)
 }
 
 #' @export
@@ -161,8 +159,8 @@ remove_cofunding <- function(x, vars, block = 1) {
     to_remove <- sapply(vars, function(i) which(is.na(x[[block]][, i])))
     to_remove <- unique(Reduce(c, to_remove))
     if (length(to_remove) > 0) {
-          x <- lapply(x, function(i) i[-to_remove, ])
-      }
+        x <- lapply(x, function(i) i[-to_remove, ])
+    }
     cl <- x[[block]]
     # x0 <- lapply(x, log1p)
 
@@ -207,4 +205,85 @@ remove_cofunding <- function(x, vars, block = 1) {
     }
 
     return(blocks.df)
+}
+
+#' @export
+print_stats <- function(x, dec = 1) {
+    paste0(mean(x, na.rm = TRUE) %>% round(dec), "\u00b1", sd(x, na.rm = TRUE) %>% round(dec))
+}
+
+#' @export
+print_stats0 <- function(x, dec = 1) {
+    paste0(median(x, na.rm = TRUE) %>% round(dec), "\u00b1", IQR(x, na.rm = TRUE) %>% round(dec))
+}
+
+#' @export
+descriptive_stats <- function(x, dec = 1) {
+    x <- colnames(x) %>%
+        str_replace_all("_", " ") %>%
+        set_colnames(x, .)
+    pivot_longer(x, everything()) %>%
+        set_colnames(c("Variables", "value")) %>%
+        group_by(Variables) %>%
+        summarise(
+            "Mean\u00b1SD" = print_stats(value, dec),
+            "Median\u00b1IQR" = print_stats0(value, dec),
+            # mean = mean(value, na.rm = TRUE)  %>% round(dec),
+            # median = median(value, na.rm = TRUE)  %>% round(dec),
+            # sd = sd(value, na.rm = TRUE)  %>% round(dec),
+            # IQR = IQR(value, na.rm = TRUE)  %>% round(dec),
+            # Q1 = quantile(value, .25, na.rm = TRUE)  %>% round(dec),
+            # Q3 = quantile(value, .75, na.rm = TRUE)  %>% round(dec),
+            Range = paste(
+                min = min(value, na.rm = TRUE) %>% round(dec),
+                max = max(value, na.rm = TRUE) %>% round(dec),
+                sep = "-"
+            ),
+            Kurtosis = kurtosis(value, na.rm = TRUE) %>% round(dec),
+            Skewness = skewness(value, na.rm = TRUE) %>% round(dec),
+            Normality = {
+                ifelse(length(value) > 5000, 5000, length(value)) %>%
+                    sample(value, .) %>%
+                    shapiro_test() %>%
+                    add_significance0() %>%
+                    pull(p.value.signif)
+            },
+            Zeros = length(which(value == 0)), # / length(value) * 100) %>% round(dec) %>% paste0("%"),
+            NAs = length(which(is.na(value))) # / length(value) * 100) %>% round(dec)
+        )
+}
+
+#' @export
+add_significance0 <- function(x) {
+    add_significance(
+        x,
+        cutpoints = c(0, 1e-03, 1e-02, 5e-02, 1),
+        symbols = c("***", "**", "*", "ns")
+    )
+}
+
+#' @export
+print_mean_test <- function(x, method = "anova", n = 1e-3) {
+  stopifnot(method %in% c("anova", "ks"))
+  # e <- effectsize(x) %>% suppressMessages()
+
+  if (is.null(x$p.signif)) {
+    x <- x %>% add_significance0()
+  }
+  dfn <- switch(
+    method,
+    anova = x$DFn,
+    ks = x$df
+  )
+  dfd <- switch(
+    method,
+    anova = x$DFd,
+    ks = x$n - x$df - 1
+  )
+  statistic <- switch(
+    method,
+    anova = x$F,
+    ks = x$statistic
+  )
+  paste0("F(", dfn, ", ", dfd, ") = ", statistic, ",", " p = ", x$p, x$p.signif)
 }
