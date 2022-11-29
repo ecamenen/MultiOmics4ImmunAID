@@ -90,7 +90,18 @@ plot_bar(elisa)
 plot_histogram(elisa)
 # plot_boxplot(elisa)
 skim(elisa)
-plot_violin(elisa)
+list.map(
+    colnames(elisa)[4:5],
+    f(i, j) ~ {
+        pull(elisa, i) %>%
+            plot_violin0(colour = get_colors()[j], title = i)
+    }
+) %>% plot_grid(
+    plotlist = .,
+    align = "vh",
+    ncol = 2
+)
+
 
 # str_squish
 

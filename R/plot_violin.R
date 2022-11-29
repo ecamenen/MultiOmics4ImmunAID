@@ -14,7 +14,7 @@ plot_piechart <- function(
     wrap_title = 20
     ) {
     df <- unlist(x) %>%
-      as.factor() %>%
+        as.factor() %>%
         fct_drop() %>%
         fct_infreq() %>%
         fct_relabel(~ str_replace_all(.x, "\\s*\\([^\\)]+\\)", "")) %>%
@@ -211,11 +211,11 @@ plot_violin0 <- function(
         pull(2)
     iqr <- quant - c(-1, 1) * (1 - coef) * quant
     if (iqr[1] < quant0[1]) {
-          iqr[1] <- quant0[1]
-      }
+        iqr[1] <- quant0[1]
+    }
     if (iqr[2] > quant0[2]) {
-          iqr[2] <- quant0[2]
-      }
+        iqr[2] <- quant0[2]
+    }
     if (is.null(title)) {
         title <- deparse(substitute(x))
     }
@@ -248,7 +248,7 @@ plot_violin0 <- function(
         cex_main = cex_main,
         cex_sub = cex_sub,
         guide = guide
-    )  %>% suppressMessages()
+    ) %>% suppressMessages()
 }
 
 #' @export

@@ -320,9 +320,12 @@ length_detect_row <- function(x, p) {
 
 #' @export
 finalise_data0 <- function(x, y, n = 50) {
+    if (!"immun_aid_identifier" %in% colnames(x)) {
+          x <- cbind(x, immun_aid_identifier = y$immun_aid_identifier)
+      }
     x <- best_na_percent(x, n) %>%
         clean_data(clean_name = FALSE)
-    rownames(x) <- y$immun_aid_identifier
+    rownames(x) <- x$immun_aid_identifier
     colnames(x) %>%
         sort() %>%
         select(x, .)

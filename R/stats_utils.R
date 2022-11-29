@@ -264,26 +264,23 @@ add_significance0 <- function(x) {
 
 #' @export
 print_mean_test <- function(x, method = "anova", n = 1e-3) {
-  stopifnot(method %in% c("anova", "ks"))
-  # e <- effectsize(x) %>% suppressMessages()
+    stopifnot(method %in% c("anova", "ks"))
+    # e <- effectsize(x) %>% suppressMessages()
 
-  if (is.null(x$p.signif)) {
-    x <- x %>% add_significance0()
-  }
-  dfn <- switch(
-    method,
-    anova = x$DFn,
-    ks = x$df
-  )
-  dfd <- switch(
-    method,
-    anova = x$DFd,
-    ks = x$n - x$df - 1
-  )
-  statistic <- switch(
-    method,
-    anova = x$F,
-    ks = x$statistic
-  )
-  paste0("F(", dfn, ", ", dfd, ") = ", statistic, ",", " p = ", x$p, x$p.signif)
+    if (is.null(x$p.signif)) {
+        x <- x %>% add_significance0()
+    }
+    dfn <- switch(method,
+        anova = x$DFn,
+        ks = x$df
+    )
+    dfd <- switch(method,
+        anova = x$DFd,
+        ks = x$n - x$df - 1
+    )
+    statistic <- switch(method,
+        anova = x$F,
+        ks = x$statistic
+    )
+    paste0("F(", dfn, ", ", dfd, ") = ", statistic, ",", " p = ", x$p, x$p.signif)
 }

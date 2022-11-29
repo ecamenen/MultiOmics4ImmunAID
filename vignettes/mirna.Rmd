@@ -1,5 +1,5 @@
 ---
-title: "miRNA"
+title: "mirna"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{mirna}

@@ -184,6 +184,8 @@ plot_venn <- function(x, snames = "", ilcs = 2, sncs = 3, plotsize = 15) {
         ilcs = ilcs,
         sncs = sncs,
         snames = snames,
+        # borders = FALSE,
+        # ellipse = TRUE,
         plotsize = plotsize
     )
 }
@@ -256,7 +258,6 @@ plotHistogram <- function(p = NULL, df = NULL, hjust = 0, vjust = 0.5, n = 100, 
         colnames(df0)[1] <- "val"
         if (n > nrow(df0)) {
             n <- nrow(df0)
-            print("ok")
         }
         df <- (
             df0 %>%
@@ -357,7 +358,16 @@ spec_color2 <- function(x, alpha = 1, begin = 0, end = 1,
 
 #' @export
 # plot_bar_mcat(clinic_tot0$C_2643_3798, colorRampPalette(c("blue", "gray", "red"))(16))
-plot_bar_mcat <- function(x, colors = NULL, hjust = -0.1, vjust = 0.5, ratio = 5, cex = 10, title = NULL, wrap = 20) {
+plot_bar_mcat <- function(
+    x,
+    colors = NULL,
+    hjust = -0.1,
+    vjust = 0.5,
+    ratio = 5,
+    cex = 10,
+    title = NULL,
+    wrap = 20
+    ) {
     if (is.null(title)) {
         title <- deparse(substitute(x))
     }
@@ -366,6 +376,7 @@ plot_bar_mcat <- function(x, colors = NULL, hjust = -0.1, vjust = 0.5, ratio = 5
         x <- sapply(seq(ncol(x0)), function(i) rep(colnames(x0)[i], colSums(x0)[i]))
     }
     df <- unlist(x) %>%
+        as.factor() %>%
         fct_drop() %>%
         fct_relabel(~ str_replace_all(.x, "\\s*\\([^\\)]+\\)", "")) %>%
         fct_relabel(~ str_replace_all(.x, "\\$\\$[^\\)]+", "")) %>%
