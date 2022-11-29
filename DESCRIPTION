@@ -25,9 +25,11 @@ Imports:
     dlookr,
     dplyr,
     forcats,
+    ggforce,
     ggplot2,
     ggpubr,
     ggstatsplot,
+    ggvenn,
     golem,
     gplots,
     grDevices,
@@ -39,6 +41,7 @@ Imports:
     naniar,
     networkD3,
     openxlsx,
+    pipeR,
     plyr,
     purrr,
     RColorBrewer,
@@ -51,8 +54,8 @@ Imports:
     skimr,
     stats,
     stringr,
-    tidyr,
     tidylog,
+    tidyr,
     tidyverse,
     usethis,
     venn,
@@ -67,4 +70,4 @@ VignetteBuilder:
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.1.1
+RoxygenNote: 7.2.1

@@ -13,7 +13,7 @@ ARG TOOL_VERSION
 RUN apt-get update --allow-releaseinfo-change -qq && \
     apt-get install -y ${PKGS}
 RUN apt-get install -y --no-install-recommends libglpk-dev libxt6
-ENV RPKGS attachment BiocManager config covr cowplot DataExplorer data.tree devtools dlookr ggforce ggpubr ggstatsplot globals golem gplots janitor knitr lintr lubridate markdown moments naniar networkD3 openxlsx pkgload plotly psych rayshader RColorBrewer report reshape2 rlist rmarkdown rsconnect rstatix see sjPlot skimr styler tidylog tidyverse venn VIM viridis
+ENV RPKGS attachment BiocManager config covr cowplot DataExplorer data.tree devtools dlookr ggExtra ggforce ggpubr ggstatsplot ggvenn globals golem gplots janitor knitr lintr lubridate markdown moments naniar networkD3 openxlsx pipeR pkgload plotly psych rayshader RColorBrewer report reshape2 rlist rmarkdown rsconnect rstatix see sjPlot skimr styler tidylog tidyverse venn VIM viridis visNetwork
 RUN Rscript -e "install.packages(commandArgs(TRUE))" ${RPKGS}
 RUN R -e "devtools::install_github('ecamenen/"${TOOL_NAME}"', ref = '"${TOOL_VERSION}"')"
 RUN Rscript -e "BiocManager::install('BiocCheck')"
