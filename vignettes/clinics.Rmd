@@ -315,7 +315,11 @@ var_max <- c("creatinine_mmol_l", "alat_uln_upper_limi", "leucocytes_mm3", "neut
 
 p <- ggdraw()
 for (i in seq(var_max)) {
-    p <- p + {clinic[-out[i], ] %>% pull(var_max[i]) %>% plot_violin0()}
+    p <- p + {
+        clinic[-out[i], ] %>%
+            pull(var_max[i]) %>%
+            plot_violin0()
+    }
 }
 p
 
@@ -488,7 +492,8 @@ levels(clinic_dis$disease)[d0 == levels(clinic$disease)] <- "0"
 clinic_dis$disease <- clinic_dis$disease %>%
     factor(., levels = unique(.))
 
-# clinic_dis <- clinic
+clinic_dis <- clinic
+clinic_dis$disease <- as.numeric(clinic_dis$disease)
 
 # All confounding variables in numeric
 levels(clinic_dis$gender) <- c(0, 1)
@@ -497,7 +502,7 @@ clinic_dis$gender <- as.numeric(as.character(clinic_dis$gender))
 # Batch * centers effects
 clinic_dis %>%
     group_by(clinical_center) %>%
-    mutate(count_name_occurr = n()) %>%
+    dplyr::mutate(count_name_occurr = n()) %>%
     ggplot(aes(
         x = reorder(clinical_center, -count_name_occurr),
         fill = as.character(batch)
@@ -547,7 +552,8 @@ table(temp$disease) %>% setNames(name_lvls) / table(clinic$disease)[name_lvls] *
 names(res) <- clinic$disease
 res[res > 50]
 
-clinic_proc <- clinic_proc[-which(res > 50), ]
+clinic_proc0 <- clinic_proc[-which(res > 50), ]
+clinic_proc0$disease <- as.factor(clinic_proc0$disease)
 
 # Descriptive statistics
 stats <- clinic_proc0 %>%
@@ -725,6 +731,7 @@ use_data(clinic_tot, overwrite = TRUE)
 clinic_qual <- which(sapply(seq_along(clinic_dis), function(i) is.factor(as.data.frame(clinic_dis)[, i]))) %>%
     select(clinic_dis, .)
 clinic_qual_proc <- finalise_data0(clinic_qual, clinic_dis)
+row_names <- rownames(clinic_qual_proc)
 colnames(clinic_qual_proc) <- str_replace(colnames(clinic_qual_proc), "(do_you_still_have_the_results).*", "\\1") %>%
     str_replace("(cerebrovascular_accident_or_).*", "\\1ischemic")
 
@@ -820,7 +827,7 @@ clinic_ord <- select(clinic_ord, -c(to_remove1))
 perc <- mutate_all(clinic_ord, as.numeric) %>%
     pivot_longer(all_of(colnames(clinic_ord))) %>%
     group_by(name, value) %>%
-    summarise(`%` = n()) %>%
+    dplyr::summarise(`%` = n()) %>%
     pivot_wider(names_from = name, values_from = c(`%`))
 temp <- t(perc)[-1, ] %>%
     cbind(., round(. / nrow(clinic_qual_proc), 2)) %>%
@@ -863,12 +870,10 @@ clinic_proc0 <- clinic_proc[, sort(colnames(clinic_proc))] %>%
     select(-all_of(c(var_occ, "immun_aid_identifier", "gender")))
 # clinic_proc0$disease <- factor(clinic_proc0$disease, labels = rev(c(diseases[9], diseases[1])))
 
-
-
 codes_qual <- Reduce(rbind, lapply(colnames(clinic_proc), function(i) filter(temp2, str_detect(item_name, paste0("^", i, "$")))))
 codes_qual %>%
     group_by(group_name) %>%
-    summarise(n = n()) %>%
+    dplyr::summarise(n = n()) %>%
     arrange(n)
 
 # Reduce(rbind, lapply(temp, function(i) filter(clinic_code[[3]], str_detect(column_code, paste0("^", i, "$"))))) %>% select(-c( starts_with("repeat") )) %>% arrange(group_id)
@@ -938,7 +943,7 @@ clinic_proc$country_of_birth <- recode_factor(as.numeric(clinic_proc$country_of_
 #     )
 
 clinic_qual <- select(clinic_proc, -c(to_remove1, to_remove2, "clinical_center", "liver_disease")) %>%
-    cbind(data.frame(temp, immun_aid_identifier = clinic_dis$immun_aid_identifier)[-37, ])
+    cbind(data.frame(temp, immun_aid_identifier = row_names)[-37, ])
 clinic_qual <- finalise_data(clinic_qual, row_name = "immun_aid_identifier", clean_name = FALSE) %>%
     select(-c("immun_aid_identifier"))
 attributes(clinic_qual)$codes <- codes_qual
