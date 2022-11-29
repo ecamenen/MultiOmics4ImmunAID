@@ -13,8 +13,8 @@ save_tiff <- function(f, filename = "violinplot_clin.tiff") {
 
 #' @export
 kable0 <- function(x, align = "c") {
-    kbl(x, escape = F, align = align) %>%
-        kable_minimal(full_width = F)
+    kbl(x, escape = FALSE, align = align) %>%
+        kable_minimal(full_width = FALSE)
 }
 
 save_tsv <- function(x, filename = NULL, col_names = TRUE) {

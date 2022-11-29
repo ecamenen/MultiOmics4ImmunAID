@@ -479,7 +479,7 @@ diseases <- levels(clinic$disease)
 # d2 <- diseases[9]
 d1 <- diseases[1]
 d0 <- diseases[14]
-clinic_dis <- clinic %>%
+clinic_dis0 <- clinic_dis <- clinic %>%
     filter(
         str_detect(
             disease,
@@ -492,8 +492,8 @@ levels(clinic_dis$disease)[d0 == levels(clinic$disease)] <- "0"
 clinic_dis$disease <- clinic_dis$disease %>%
     factor(., levels = unique(.))
 
-clinic_dis <- clinic
-clinic_dis$disease <- as.numeric(clinic_dis$disease)
+# clinic_dis <- clinic
+# clinic_dis$disease <- as.numeric(clinic_dis$disease)
 
 # All confounding variables in numeric
 levels(clinic_dis$gender) <- c(0, 1)
@@ -549,7 +549,7 @@ clinic_proc %>%
 name_lvls <- levels(clinic$disease)[unique(temp$disease) %>% sort()]
 table(temp$disease) %>% setNames(name_lvls)
 table(temp$disease) %>% setNames(name_lvls) / table(clinic$disease)[name_lvls] * 100
-names(res) <- clinic$disease
+names(res) <- clinic_dis0$disease
 res[res > 50]
 
 clinic_proc0 <- clinic_proc[-which(res > 50), ]
@@ -595,10 +595,10 @@ vars2 <- c("immun_aid_identifier", "weight", "height")
 row_names <- select(clinic_proc, immun_aid_identifier)
 clinic_proc_full <- clinic_proc
 
-clinic_proc_disc0 <- clinic_proc_disc
-clinic_proc_disc0[is.na(clinic_proc_disc0)] <- 0
-clinic_proc_disc0[clinic_proc_disc0 == 30] <- NA
-vis_miss(clinic_proc_disc0)
+# clinic_proc_disc0 <- clinic_proc_disc
+# clinic_proc_disc0[is.na(clinic_proc_disc0)] <- 0
+# clinic_proc_disc0[clinic_proc_disc0 == 30] <- NA
+# vis_miss(clinic_proc_disc0)
 
 # Get variable names
 var_scores <- data.frame(item_name = colnames(clinic_proc)) %>%
@@ -623,13 +623,13 @@ name_vars <- colnames(clinic_proc) %>%
 # Remove outliers
 clinic_proc0 <- select(clinic_proc, -vars0)
 clinic_proc_cont <- select(clinic_proc0, -c(var_scores, "charlson_score", "weight_loss"))
-clinic_proc_cont <- sapply(colnames(select(clinic_proc_cont, -c("creatinine", "ALAT"))), function(i) pull(clinic_proc, i) %>% get_outliers(method = "mad", c = 24))
+clinic_proc_cont <- sapply(colnames(select(clinic_proc_cont, -c("creatinine", "ALAT", "disease"))), function(i) pull(clinic_proc, i) %>% get_outliers(method = "mad", c = 24))
 clinic_proc_disc <- select(clinic_proc0, c(var_scores, "charlson_score", "weight_loss"))
 x <- 1e-2
-sapply(colnames(select(clinic_proc_disc, -c("vascular_involvement"))), function(i) pull(clinic_proc, i) %>% get_outliers(c(0 + x, 1 - x), method = "iqr")) -> clinic_proc_disc
+sapply(colnames(clinic_proc_disc), function(i) pull(clinic_proc, i) %>% get_outliers(c(0 + x, 1 - x), method = "iqr")) -> clinic_proc_disc
 
-keys <- c("vascular_involvement", "creatinine", "ALAT")
-value <- c(30, 5600, 423)
+keys <- c("creatinine", "ALAT")
+value <- c(5600, 423)
 clinic_proc0 <- as.data.frame(clinic_proc0)
 for (i in seq_along(keys)) {
     clinic_proc0[, keys[i]][clinic_proc0[, keys[i]] == value[i]] <- NA
@@ -763,8 +763,14 @@ l_levels <- sapply(
             as.character()
     }
 )
+
+if (!is.null(l_levels[[2]])) {
+    n <- seq_along(l_levels)
+} else {
+    n <- 1
+}
 t_levels <- lapply(
-    seq(ncol(l_levels)),
+    n,
     function(i) {
         sapply(
             na.omit(l_levels[[i]]),
@@ -843,7 +849,7 @@ temp[seq(6)] <- lapply(temp[seq(6)], function(x) {
 })
 
 temp %>%
-    kbl(escape = F, align = "c") %>%
+    kbl(escape = FALSE, align = "c") %>%
     kable_minimal() %>%
     add_header_above(c(" " = 1, "N" = 3, "%" = 3)) %>%
     save_kable("table.temp.png")
@@ -867,7 +873,7 @@ perc0 %>% select(-var_occ)
 
 # Remove all ordinal data with low occurrences
 clinic_proc0 <- clinic_proc[, sort(colnames(clinic_proc))] %>%
-    select(-all_of(c(var_occ, "immun_aid_identifier", "gender")))
+    select(-all_of(c(var_occ)))
 # clinic_proc0$disease <- factor(clinic_proc0$disease, labels = rev(c(diseases[9], diseases[1])))
 
 codes_qual <- Reduce(rbind, lapply(colnames(clinic_proc), function(i) filter(temp2, str_detect(item_name, paste0("^", i, "$")))))

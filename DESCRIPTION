@@ -38,6 +38,7 @@ Imports:
     lubridate,
     magrittr,
     methods,
+    modelr,
     naniar,
     networkD3,
     openxlsx,

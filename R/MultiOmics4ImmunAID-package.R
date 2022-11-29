@@ -1,5 +1,6 @@
-#' @import correlation corrplot cowplot DataExplorer data.tree dlookr dplyr forcats ggforce ggplot2 ggvenn golem
-#' @import ggstatsplot grDevices naniar networkD3 openxlsx pipeR purrr readr readxl rlist
+#' @import correlation corrplot cowplot DataExplorer data.tree dlookr dplyr
+#' @import forcats ggforce ggplot2 ggvenn golem ggstatsplot grDevices naniar
+#' @import networkD3 openxlsx pipeR purrr readr readxl rlist
 #' @import RColorBrewer reshape2 see VIM stringr tidyverse usethis venn viridis
 #' @importFrom magrittr %>% set_colnames
 #' @importFrom methods is

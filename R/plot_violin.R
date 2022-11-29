@@ -155,7 +155,7 @@ plot_violin1 <- function(
     cex = 1,
     cex_main = 12 * cex,
     cex_sub = 10 * cex) {
-  x <- data.frame(value = x, name = 1)
+    x <- data.frame(value = x, name = 1)
     p <- ggviolin(
         x,
         x = "name",

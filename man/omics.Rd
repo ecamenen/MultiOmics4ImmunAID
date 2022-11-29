@@ -20,6 +20,20 @@
 \alias{pql}
 \alias{rna}
 \alias{sf36}
+\alias{blocks_clinic}
+\alias{blocks_clinic_still}
+\alias{clinic_control_still}
+\alias{clinic_qual}
+\alias{clinic_qual_proc}
+\alias{clinic_still_log}
+\alias{clinic_still_log_proc}
+\alias{clinic_still_processed}
+\alias{clinic_still_raw}
+\alias{clinic_still_transformed}
+\alias{clinic_tot}
+\alias{clinic_tot_conf}
+\alias{clinic_tot_raw}
+\alias{clinic_total}
 \title{Omics}
 \format{
 An object of class \code{list} of length 2.
@@ -36,7 +50,7 @@ An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) w
 
 An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 213 rows and 866 columns.
 
-An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 183 rows and 118 columns.
+An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 213 rows and 118 columns.
 
 An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 37 rows and 5 columns.
 
@@ -55,6 +69,34 @@ An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) w
 An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 205 rows and 33426 columns.
 
 An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 120 rows and 75 columns.
+
+An object of class \code{list} of length 1.
+
+An object of class \code{list} of length 1.
+
+An object of class \code{list} of length 1.
+
+An object of class \code{data.frame} with 39 rows and 53 columns.
+
+An object of class \code{data.frame} with 39 rows and 64 columns.
+
+An object of class \code{list} of length 1.
+
+An object of class \code{list} of length 1.
+
+An object of class \code{list} of length 1.
+
+An object of class \code{list} of length 1.
+
+An object of class \code{list} of length 1.
+
+An object of class \code{list} of length 1.
+
+An object of class \code{list} of length 1.
+
+An object of class \code{list} of length 1.
+
+An object of class \code{list} of length 1.
 }
 \usage{
 data(blocks)
@@ -90,6 +132,34 @@ data(pql)
 data(rna)
 
 data(sf36)
+
+data(blocks_clinic)
+
+data(blocks_clinic_still)
+
+data(clinic_control_still)
+
+data(clinic_qual)
+
+data(clinic_qual_proc)
+
+data(clinic_still_log)
+
+data(clinic_still_log_proc)
+
+data(clinic_still_processed)
+
+data(clinic_still_raw)
+
+data(clinic_still_transformed)
+
+data(clinic_tot)
+
+data(clinic_tot_conf)
+
+data(clinic_tot_raw)
+
+data(clinic_total)
 }
 \description{
 Tables of omics and clinic from the ImmunAID project (H2020) for
