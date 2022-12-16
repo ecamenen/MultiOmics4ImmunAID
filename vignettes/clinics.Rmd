@@ -786,6 +786,15 @@ t_levels <- lapply(
     }
 )
 
+colnames(t_levels[[4]]) <- str_to_title(colnames(t_levels[[4]])) %>% str_replace_all("_", " ")
+colnames(t_levels[[4]])[11] <- "Mucosal membranes"
+plot_bar_mcat(t_levels[[4]], cex = 12, ratio = 3, title = "Part affected")
+
+str_to_title(colnames(t_levels[[3]])) %>%
+    str_replace_all("_", " ") %>%
+    set_colnames(t_levels[[3]], .) %>%
+    plot_bar_mcat(cex = 12, ratio = 3, title = "Lesions on")
+
 n_levels <- str_replace(colnames(clinic_qual_proc)[to_parse], "(at_least_3).*", "\\1") %>%
     str_replace(".*(parts_affected)", "\\1") %>%
     mapply(function(i, j) paste(i, j, sep = "_"), ., lapply(t_levels, colnames)) %>%
@@ -1424,10 +1433,13 @@ manifs <- c("MUCO_ACTIVE_LESIONS", paste0(manifs, "_MANIF"))
 #         rel_heights = c(1.5, 1, 0.6)
 #     )
 
-list.map(as.list(manifs), f(i, j) ~ {
-    immu_manif(i, df2 = clinic_tot1) %>%
-        plot_bar_mcat(cex = 12, ratio = 3, title = vars[j])
-}) -> p
+df_manifs <- list.map(manifs, f(i) ~ {
+    immu_manif(i, df2 = clinic_tot1)
+})
+df_manifs[[2]] <- df_manifs[[2]][, seq(3)]
+p <- list.map(df_manifs, f(i, j) ~ {
+    plot_bar_mcat(i, cex = 12, ratio = 3, title = vars[j])
+})
 align_plots(plotlist = p, align = "vh") %>%
     plot_grid(
         plotlist = .,
@@ -1526,7 +1538,6 @@ lapply(seq_along(temp), function(i) {
 
 tree <- FromDataFrameNetwork(edges)
 tree <- as.list(tree, mode = "explicit", unname = TRUE)
-diagonalNetwork(tree, fontSize = 15, fontFamily = "arial", nodeStroke = "#ccc")
 
 # Create color for node, link and text
 n <- length(temp)
@@ -1542,8 +1553,10 @@ network_vector <- lapply(list(nodeVector, linkVector, textVector), function(j) {
     JS(paste0("function(d, i) { return ", paste0('["', paste(j, collapse = '", "'), '"]'), "[i]; }"))
 })
 
-diagonalNetwork(tree,
-    fontSize = 15, fontFamily = "arial",
+diagonalNetwork(
+    tree,
+    fontSize = 15, 
+    fontFamily = "arial",
     nodeStroke = "white",
     linkColour = network_vector[[2]],
     textColour = network_vector[[3]]
@@ -1613,32 +1626,52 @@ list.map(
         align = "v"
     )
 
-plot_piechart(
-    df %>% pull(i),
-    colour = c(cols, "gray"),
-    label = FALSE,
-    cex = 30,
-    dec = 1,
-    threshold = 4,
-    title = vars[j],
-    hsize = 1.5,
-    legend = NULL
-)
+lapply(
+    colnames(df)[-c(5:6)],
+    function(i) {
+        plot_piechart(
+            df %>% pull(i),
+            colour = col,
+            label = FALSE,
+            legend = lab,
+            cex = 30,
+            dec = 1,
+            threshold = 4,
+            title = vars[j],
+            hsize = 1.5,
+            result = TRUE
+        )
+    }
+) %>%
+    Reduce(function(i, j) left_join(i, j, by = "f"), .) %>%
+    set_colnames(c("Response", vars[seq(4)])) %>%
+    kable0()
 
 # At inclusion
 "IMA_SYSTHERAPY_TREATMENT_GROUP"
-treatments <- immu_manif("SYSTHERAPY_TREATMENT_GROUP", df2 = clinic_tot0)
-plot_bar_mcat(treatments, cex = 8, ratio = 2, title = "All therapies")
+treatments <- immu_manif("SYSTHERAPY_TREATMENT_GROUP", df2 = clinic_tot1)
+df_treat_all <- treatments[, c(3, 5)]
+plot_bar_mcat(
+    treatments,
+    cex = 8,
+    ratio = 2,
+    title = "All therapies",
+    c("gray", get_colors()[c(4, 8, 5, 2, 3, 1)])
+)
 treat_type <- treatments %>%
     colnames() %>%
     str_replace_all("\\s*\\([^\\)]+\\)", "") %>%
+    str_remove_all(" inhibitors") %>%
     sort()
-treat_type <- treat_type[-c(4, 7)]
+treat_type <- treat_type[-c(2, 7)]
 
 immu_manif("SYSTHERAPY_TREATMENT_GROUP_OTHER_NEW_VALUE", df2 = clinic_tot0) %>%
-    plot_bar_mcat(collapse = TRUE, parse = TRUE, result = TRUE, n = 1000, wrap = 1000) %>%
-    str_split(temp$f[1], ", ")[[1]] %>%
-    sort()
+    plot_bar_mcat(collapse = TRUE, parse = TRUE, n = 1000, wrap = 1000) #, result = TRUE) %>%
+    # slice(1) %>%
+    # pull(2) %>%
+    # str_split(", ") %>%
+    # pluck(1) %>%
+    # sort()
 
 # immu_manif("OTHER_NEW_VALUE", df2 = clinic_tot0) %>%
 #     plot_bar_mcat(collapse = TRUE, parse = TRUE, result = TRUE, n = 1000, wrap = 1000) %>%
@@ -1650,44 +1683,75 @@ clinic_code[[1]] %>%
     colnames() %>%
     str_to_title()
 
-get_colors()[2, 1, 3, 4, 5, 6]
-get_colors()[2, 3, 3, 4, 5, 6]
-
-biologic <- c("aIL1", "aIL6", "aTNFalpha")
-# "aIFalpha", , "aCD20"
-keys <- paste0("SYSTHERAPY_TREATMENT_", c(paste0(c("OTHER", "NSAID", "CORTICO", "BIPHO", "DMARDS", "KINASE"), "_TREAT"), "ASPI_aINF", "BIO", paste0("BIO_TREAT_", biologic)))
-values <- c("Other", "NSAIDs", "Corticosteroid", "Biphosphonate", "DMARDs", "Kinase inhibitors", "Aspirin", "Biologic", biologic)
+biologic <- c("aIL1", "aIL6", "aIFalpha", "aTNFalpha", "aCD20")
+keys <- paste0("SYSTHERAPY_TREATMENT_", c("ASPI_aINF", "BIO", c(paste0(c("BIPHO", "CORTICO", "DMARDS", "KINASE", "NSAID", "OTHER"), "_TREAT"), paste0("BIO_TREAT_", biologic))))
+values <- c("", treat_type[1], "", treat_type[-1], "", biologic)
+greens <- brewer_pal(, "YlGn")(9)[c(4, 5, 7, 9)]
+cols <- c(1, get_colors()[3], 1, get_colors()[c(1, 2, 4:5)], 1, rev(greens))
 # , "ASPI_aPLAT", "Anti-platelets aggregation",
-p <- list.map(
+df_treat <- list.map(
     keys,
-    f(i, j) ~ {
+    f(i) ~ {
         res <- immu_manif(i, df2 = clinic_tot1)
-        if (j == 8) {
-            colnames(res) <- colnames(res) %>% str_to_title()
-        }
-        if (length(res) > 0) {
-              plot_bar_mcat(res, cex = 6, ratio = 3, title = values[j], wrap = 50)
-          }
+      if (length(res) > 0) {
+        res
+      }
     }
-) %>%
+)
+p <- list.map(
+    df_treat,
+    f(i, j) ~ {
+        if (j == 8) {
+            colnames(i) <- colnames(i) %>% str_to_title()
+        }
+        if (j == 2) {
+            cols0 <- greens
+        } else if (j == 4) {
+            cols0 <- brewer_pal(, "Reds")(9)[c(3, 6, 9)]
+        } else {
+              cols0 <- cols[j]
+          }
+        if (length(i) > 0) {
+              plot_bar_mcat(
+                  i,
+                  cex = 8,
+                  ratio = 3,
+                  title = values[j],
+                  wrap = 30,
+                  collapse = TRUE,
+                  colors = c("gray", cols0),
+                  color_title = cols[j]
+              )
+        }
+    }
+)  %>%
     compact() %>%
     list.sort(length(data$f)) %>%
     list.reverse()
-# plist <- c(p[-1][c(1, 4)], list(p2), p[-1][c(3, 5:6, 6, 8:10, 7, 2)])
-plist2 <- c(p[4], list(NULL), p[5], list(NULL), p[6:9])
-p2 <- immu_manif(keys[1], df2 = clinic_tot1) %>%
-    plot_bar_mcat(cex = 6, ratio = 3, title = values[1], parse = TRUE, collapse = TRUE, n = 10)
+plist <- c(p[2], list(NULL, NULL, NULL), p[1], list(NULL), p[4:6], p[8:10])
 plot_grid(
-    plotlist = plist2,
+    plotlist = plist,
     nrow = 4,
-    ncol = 2,
-    align = "h",
-    rel_heights = c(1.5, 1.2, rep(1, 2))
+    ncol = 3,
+    align = "v",
+    rel_heights = c(1.7, 2, rep(1.1, 2))
 )
 
-remission_code0 <- c(paste0("Complete (with", c("out", ""), " flare)"), "Partial")
+## Others
+i <- 8
+immu_manif(keys[i], df2 = clinic_tot1) %>%
+    plot_bar_mcat(
+        cex = 12,
+        ratio = 1,
+        title = values[i],
+        parse = TRUE,
+        collapse = TRUE,
+        n = 10,
+        colors = c("gray", get_colors()[8])
+    )
 
 # Follow-up
+remission_code0 <- c(paste0("Complete (with", c("out", ""), " flare)"), "Partial")
 plot_piechart(
     clinic_tot1$C_2742_4229,
     colour = remission_col,
@@ -1736,6 +1800,72 @@ list.map(
         ncol = 2,
         align = "v"
     )
+
+df_manifs <- df_manifs[-c(3:4)]
+df_treat <- compact(df_treat)
+clinic_qual2 <- Reduce(
+  cbind, 
+  c(
+    list(df_treat_all, df_treat[[1]][, 1:2], df_treat[[2]][, 1, drop = FALSE]),
+    df_manifs)
+  )
+colnames(clinic_qual2) <- colnames(clinic_qual2) %>% str_remove_all(" \\(.*\\)")
+rownames(clinic_qual2) <- clinic_tot1$C_2643_3796
+# use_data(clinic_qual2)
+```
+
+## Treatment parsing (Emna's table)
+```{r}
+# Header
+read.xlsx(file.path(path, "Treatment data AOSD EC.xlsx")) %>%
+    head(1) %>%
+    select(-starts_with("X")) %>%
+    colnames()
+header <- paste(c("pre", "at", "post"), "inclusion", sep = "_")
+
+i <- c("AOSD", "SOJIA")
+df <- lapply(i, function(i) {
+    df0 <- read.xlsx(file.path(path, paste("Treatment data", i, "EC.xlsx")), startRow = 2, fillMergedCells = TRUE)
+    colnames(df0)[seq(2)] <- c("id", "first_visit")
+    return(df0)
+}) %>% Reduce(rbind, .)
+
+# Rename columns
+
+colnames(df) <- colnames(df) %>%
+    str_replace_all("\\.", " ") %>%
+    str_remove_all(" .*")
+keys <- c("Date", "N")
+values <- c("beginnning_date", "nb_treatment")
+for (i in seq(keys)) {
+      colnames(df) <- str_replace_all(colnames(df), keys[i], values[i])
+  }
+# colnames(df)[colnames(df) %>% duplicated() %>% which()]
+keys <- c("drug", "dose")
+for (i in keys) {
+      colnames(df)[str_detect(colnames(df), str_to_title(i))] <- paste(i, header, sep = "_")
+  }
+keys <- c("response", "reason", "discontinuation")
+for (i in keys) {
+      colnames(df)[str_detect(colnames(df), str_to_title(i))] <- paste(i, header[-2], sep = "_")
+  }
+
+# Format conversion
+df <- tibble(df)
+df <- update_columns(df, all_of(get_name_num(df)), as.numeric)
+var_cat <- c(3:5, 7, 10:14, 16)
+df <- update_columns(df, var_cat, as.factor)
+
+list.map(
+    colnames(df)[var_cat],
+    f(i) ~ {
+        pull(df, i) %>%
+            str_trim() %>%
+            str_to_lower() %>%
+            fct_infreq() %>%
+            fct_count()
+    }
+)
 ```
 
 # Session information
