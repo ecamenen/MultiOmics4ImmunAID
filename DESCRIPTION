@@ -51,6 +51,7 @@ Imports:
     reshape2,
     rlist,
     rstatix,
+    scales,
     see,
     skimr,
     stats,

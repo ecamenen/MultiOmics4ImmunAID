@@ -12,6 +12,7 @@
 #' @rawNamespace import(kableExtra, except = group_rows)
 #' @rawNamespace import(lubridate, except = stamp)
 #' @rawNamespace import(modelr, except = print.permutation)
+#' @rawNamespace import(scales, except = c(discard, col_factor, viridis_pal))
 #' @rawNamespace import(skimr, except = n_complete)
 #' @rawNamespace import(stats, except = c(filter, lag, lowess))
 #' @rawNamespace import(tidyr, except = extract)

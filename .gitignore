@@ -8,6 +8,9 @@
 *.temp*
 *.tiff*
 *.tsv*
+*.rda*
+/data/
+/bin/
 inst/doc
 inst/extdata/
 Meta
