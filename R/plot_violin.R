@@ -11,16 +11,24 @@ plot_piechart <- function(
     label = TRUE,
     threshold = 5,
     title = NULL,
-    wrap_title = 20
+    wrap_title = 20,
+    legend = TRUE,
+    result = FALSE
     ) {
     df <- unlist(x) %>%
         as.factor() %>%
-        fct_drop() %>%
-        fct_infreq() %>%
+        # fct_drop() %>%
+        # fct_infreq() %>%
         fct_relabel(~ str_replace_all(.x, "\\s*\\([^\\)]+\\)", "")) %>%
         fct_count()
+    if (result) {
+          return(df)
+      }
     if (!is.null(df0)) {
-        df <- rbind(data.frame(f = NA, n = c(nrow(df0) - sum(df$n))), df)
+        df <- rbind(df, data.frame(f = NA, n = c(nrow(df0) - sum(df$n))))
+    }
+    if (!is.null(legend) && !is.logical(legend)) {
+        df$f <- factor(df$f, labels = legend)
     }
     df <- mutate(
         df,
@@ -36,10 +44,11 @@ plot_piechart <- function(
     }
     i <- df$n / sum(df$n) <= threshold / 100
     df$text[i] <- ""
+    df$legend <- df$label
     if (!isTRUE(label)) {
         df$label <- rep("", nrow(df))
     }
-    ggplot(df, aes(x = hsize, y = n, fill = f)) +
+    p <- ggplot(df, aes(x = hsize, y = n, fill = f)) +
         geom_col(width = 1, color = NA, lwd = lwd) +
         geom_text(
             color = "white",
@@ -48,9 +57,8 @@ plot_piechart <- function(
             position = position_stack(vjust = 0.5)
         ) +
         coord_polar(theta = "y", clip = "off") +
-        scale_fill_manual(values = colour, na.value = colour[nrow(df)]) +
+        scale_fill_manual(values = colour, na.value = colour[nrow(df)], labels = str_wrap(df$legend, wrap), name = "") +
         scale_y_continuous(breaks = df$pos, labels = df$label) +
-        guides(fill = guide_legend(title = "Group")) +
         ggtitle(str_wrap(title, wrap_title)) +
         theme(
             plot.title = element_text(hjust = 0.5, vjust = -4, size = cex * 1.25, face = "bold"),
@@ -58,12 +66,18 @@ plot_piechart <- function(
             axis.title = element_blank(),
             axis.text.x = element_text(size = cex, colour = colour),
             axis.text.y = element_blank(),
-            # legend.text = element_text(size = cex),
-            legend.position = "none",
+            legend.text = element_text(size = cex * 0.7),
+            legend.key = element_blank(),
             panel.background = element_rect(fill = "white"),
             plot.margin = unit(c(0, 0, -1, -1), "cm")
         ) +
         xlim(0.5, hsize + 0.5)
+
+    if (is.null(legend) || legend == FALSE) {
+        p + theme(legend.position = "none")
+    } else {
+          p
+      }
 }
 
 #' @export

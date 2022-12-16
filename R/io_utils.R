@@ -14,7 +14,8 @@ save_tiff <- function(f, filename = "violinplot_clin.tiff") {
 #' @export
 kable0 <- function(x, align = "c") {
     kbl(x, escape = FALSE, align = align) %>%
-        kable_minimal(full_width = FALSE)
+        kable_minimal(full_width = FALSE) %>%
+        column_spec(1, bold = TRUE, color = "#a9a9a9")
 }
 
 save_tsv <- function(x, filename = NULL, col_names = TRUE) {

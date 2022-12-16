@@ -360,34 +360,57 @@ spec_color2 <- function(x, alpha = 1, begin = 0, end = 1,
 # plot_bar_mcat(clinic_tot0$C_2643_3798, colorRampPalette(c("blue", "gray", "red"))(16))
 plot_bar_mcat <- function(
     x,
-    colors = NULL,
+    colors = c("blue", "gray", "#cd5b45"),
     hjust = -0.1,
     vjust = 0.5,
     ratio = 5,
     cex = 10,
     title = NULL,
-    wrap = 20
+    wrap = 20,
+    parse = FALSE,
+    collapse = FALSE,
+    n = 5,
+    result = FALSE,
+    label = NULL,
+    color_title = "black"
     ) {
     if (is.null(title)) {
         title <- deparse(substitute(x))
     }
     x0 <- as.data.frame(x) -> x
     if (ncol(x0) > 1) {
-        x <- sapply(seq(ncol(x0)), function(i) rep(colnames(x0)[i], colSums(x0)[i]))
+        x <- sapply(seq(ncol(x0)), function(i) rep(colnames(x0)[i], colSums(x0, na.rm = TRUE)[i]))
     }
-    df <- unlist(x) %>%
-        as.factor() %>%
-        fct_drop() %>%
+    x <- unlist(x) %>%
+        stringi::stri_trans_general("latin-ascii") %>%
+        str_replace_all("\n", " ")
+    if (parse) {
+        x <- str_to_title(x)
+    }
+    df <- factor(x) %>%
         fct_relabel(~ str_replace_all(.x, "\\s*\\([^\\)]+\\)", "")) %>%
         fct_relabel(~ str_replace_all(.x, "\\$\\$[^\\)]+", "")) %>%
+        fct_relabel(~ str_replace_all(.x, "^0$", "No")) %>%
+        fct_relabel(~ str_replace_all(.x, "^1$", "Yes")) %>%
         str_wrap(wrap) %>%
         fct_infreq() %>%
         fct_rev() %>%
-        fct_count() %>%
-        data.frame(order = as.numeric(rownames(.)))
-    if (is.null(colors)) {
-        colors <- colorRampPalette(c("blue", "gray", "#cd5b45"))(nrow(df))
+        fct_count()
+    if (collapse) {
+        df <- group_by(df, n) %>%
+            summarise(f = paste(f, collapse = ", ") %>% str_wrap(wrap)) %>%
+            mutate(f = factor(f))
+        df$f <- reorder(df$f, df$n)
+        levels(df$f)[str_count(levels(df$f), "\\w+") > n] <- "..."
     }
+    if (!is.null(label)) {
+          df$f <- factor(df$f, labels = rev(str_wrap(label, wrap)))
+      }
+    if (result) {
+          return(df)
+      }
+    df <- data.frame(df, order = as.numeric(rownames(df)))
+    colors <- colorRampPalette(colors)(nrow(df))
     x_lab <- (round(df$n, 2) / nrow(x0) * 100) %>%
         round(1) %>%
         paste("%")
@@ -407,10 +430,10 @@ plot_bar_mcat <- function(
         geom_text(aes(label = x_lab, color = colors), data = df, hjust = hjust, vjust = vjust, size = cex) +
         ggtitle(str_wrap(title, wrap)) +
         theme(
-            plot.title = element_text(hjust = 0, vjust = 0, size = cex * 4, face = "bold"),
+            plot.title = element_text(hjust = 0, vjust = 0, size = cex * 4, face = "bold", color = color_title),
             axis.text.y = element_text(colour = colors, size = cex * 3),
             axis.text.x = element_text(size = cex * 1.75),
-            plot.margin = unit(c(-0.5, 0, 0, 0.5), "cm"),
+            plot.margin = unit(c(-0, 0, 0, 0.5), "cm"),
             panel.grid.major.y = element_blank()
         )
 }
