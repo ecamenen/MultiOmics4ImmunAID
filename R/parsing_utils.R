@@ -400,7 +400,7 @@ set_qualitative <- function(x, n = 2) {
 
 #' @export
 collapse_mcat <- function(x) {
-    lvls <- Reduce(unique, lapply(x, unique))
+    lvls <- unique(unlist(x))
     sapply(
         na.omit(lvls),
         function(i) {

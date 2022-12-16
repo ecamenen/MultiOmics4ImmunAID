@@ -22,8 +22,8 @@ plot_piechart <- function(
         fct_relabel(~ str_replace_all(.x, "\\s*\\([^\\)]+\\)", "")) %>%
         fct_count()
     if (result) {
-          return(df)
-      }
+        return(df)
+    }
     if (!is.null(df0)) {
         df <- rbind(df, data.frame(f = NA, n = c(nrow(df0) - sum(df$n))))
     }
@@ -36,7 +36,7 @@ plot_piechart <- function(
         pos = rev(cumsum(rev(n))),
         pos = n / 2 + lead(pos, 1),
         pos = if_else(is.na(pos), n / 2, pos),
-        label = str_wrap(str_glue("{f} (N={n})"), wrap),
+        label = str_wrap(str_glue("{f}"), wrap),
         text = scales::percent(n / sum(n), dec)
     )
     if (is.null(title)) {
@@ -76,8 +76,8 @@ plot_piechart <- function(
     if (is.null(legend) || legend == FALSE) {
         p + theme(legend.position = "none")
     } else {
-          p
-      }
+        p
+    }
 }
 
 #' @export

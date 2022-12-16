@@ -404,11 +404,11 @@ plot_bar_mcat <- function(
         levels(df$f)[str_count(levels(df$f), "\\w+") > n] <- "..."
     }
     if (!is.null(label)) {
-          df$f <- factor(df$f, labels = rev(str_wrap(label, wrap)))
-      }
+        df$f <- factor(df$f, labels = rev(str_wrap(label, wrap)))
+    }
     if (result) {
-          return(df)
-      }
+        return(df)
+    }
     df <- data.frame(df, order = as.numeric(rownames(df)))
     colors <- colorRampPalette(colors)(nrow(df))
     x_lab <- (round(df$n, 2) / nrow(x0) * 100) %>%

@@ -254,9 +254,10 @@ descriptive_stats <- function(x, dec = 1) {
 }
 
 #' @export
-add_significance0 <- function(x) {
+add_significance0 <- function(x, p.col = NULL) {
     add_significance(
         x,
+        p.col = NULL,
         cutpoints = c(0, 1e-03, 1e-02, 5e-02, 1),
         symbols = c("***", "**", "*", "ns")
     )
