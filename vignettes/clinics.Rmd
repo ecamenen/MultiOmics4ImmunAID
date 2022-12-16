@@ -90,7 +90,7 @@ for (i in var_na) {
 # find_na(clinic_tot)
 # set_missing
 clinic_tot_proc <- best_na_percent(clinic_tot, 50)
-# clinic_tot_proc <- clinic
+# clinic_tot_proc <- clinic_tot
 
 plot_missing(
     clinic_tot_proc,
@@ -471,7 +471,7 @@ attributes(clinic_transf)$codes <- temp2
 use_data(clinic_transf, overwrite = TRUE)
 ```
 
-## Descriptive stats by disease
+## Filter by disease
 ```{r}
 clinic <- clinic_transf
 # Filter by disease
@@ -559,7 +559,7 @@ clinic_proc0$disease <- as.factor(clinic_proc0$disease)
 stats <- clinic_proc0 %>%
     pivot_longer(!disease) %>%
     group_by(name, disease) %>%
-    summarise(
+    dplyr::summarise(
         mean = mean(value, na.rm = TRUE),
         sd = sd(value, na.rm = TRUE),
         n = length(which(!is.na(value)))
@@ -956,7 +956,7 @@ attributes(clinic_qual)$codes <- codes_qual
 # use_data(clinic_qual, overwrite = TRUE)
 ```
 
-## Descriptive stats for each disease
+## Descriptive stats for all disease
 ```{r}
 data(clinic)
 vars <- c("ferritin_mg_l", "crp_c_reactive_prot", "leucocytes_mm3", "fever_38_c_104_f", "physician_global_ass")
@@ -966,7 +966,7 @@ res <- clinic %>%
     filter(!str_detect(disease, "Negative control")) %>%
     pivot_longer(!disease) %>%
     group_by(name, disease) %>%
-    summarise(
+    dplyr::summarise(
         mean = mean(value, na.rm = TRUE),
         median = median(value, na.rm = TRUE),
         sd = sd(value, na.rm = TRUE),
@@ -1007,7 +1007,7 @@ tiff(
 dev.off()
 ```
 
-## Clinical0
+## Test with expected output
 
 ```{r}
 clinic0 <- read_tsv(file.path(path, "CleanBiologicalValues.tsv"))
@@ -1244,7 +1244,7 @@ saveWorkbook(wb, file = file_path, overwrite = TRUE)
 # common_vars <- setdiff(colnames(clinic_tot_proc), l_codes)
 ```
 
-## Bruno
+## Descriptive stats for filtered disease
 ```{r}
 clinic0 <- read_batches()
 clinic_tot0 <- Reduce(rbind, clinic0)
@@ -1554,11 +1554,13 @@ diagonalNetwork(tree,
 ```{r}
 # Before inclusion
 temp <- clinic_code[[1]] %>% filter(str_detect(group_code, "^IMA_General_treatResp"))
-select(clinic_tot1, temp$column_code) %>% set_colnames(temp$item_name) -> df
+df <- select(clinic_tot1, temp$column_code) %>% set_colnames(temp$item_name)
 df[df == "Unreported (not tested or unknown)"] <- NA
 
-df[!is.na(df[, 6]), 6]
+## Other biological
+others <- df[!is.na(df[, 6]), 6] %>% pull(1)
 
+## Which one
 separate_semicolon(df[, 5]) -> x
 sapply(
     seq(ncol(x)),
@@ -1566,55 +1568,173 @@ sapply(
 ) %>%
     plot_piechart(df, label = FALSE, hsize = 1.5, title = "", dec = 1, cex = 25)
 
-vars <- c("NSAIDs", "Paracetamol", "Prednisolone", "Biologic", "Biologic which", "Biologic precise")
-p <- list.map(
-    as.list(colnames(df)),
-    f(i, j) ~ plot_piechart(
-        df %>% pull(i),
-        colour = c(get_colors()[-4], get_colors()[5]),
-        label = FALSE,
-        cex = 25,
-        dec = 1,
-        threshold = 4,
-        title = vars[j],
-        hsize = 1.5
-    )
+biol <- select(df, 5) %>%
+    separate_semicolon() %>%
+    as_tibble() %>%
+    select(-3) %>%
+    mutate(`Anti-JAK` = 0, `Anti-CD20` = 0)
+biol[seq(2), 4] <- 1
+biol[1, 5] <- 1
+plot_bar_mcat(
+    biol,
+    title = "Which one",
+    ratio = 3
 )
-align_plots(plotlist = p[1:4], align = "vh") %>%
+
+# Response
+remission_code <- c("Complete", "Partial", "No")
+remission_col <- c(brewer_pal(, "Reds")(9)[c(9, 6, 3)], "gray")
+vars <- c("NSAIDs", "Paracetamol", "Prednisolone", "Biologic", "Biologic which", "Biologic precise")
+list.map(
+    colnames(df)[1:4],
+    f(i, j) ~ {
+        if (j == 3) {
+              cols <- remission_col[c(2, 1)]
+          } else {
+              cols <- rev(remission_col)[-1]
+          }
+        plot_piechart(
+            df %>% pull(i),
+            colour = c(cols, "gray"),
+            label = FALSE,
+            cex = 30,
+            dec = 1,
+            threshold = 4,
+            title = vars[j],
+            hsize = 1.5,
+            legend = NULL
+        )
+    }
+) %>%
     plot_grid(
         plotlist = .,
         nrow = 2,
-        ncol = 2
+        ncol = 2,
+        align = "v"
     )
 
+plot_piechart(
+    df %>% pull(i),
+    colour = c(cols, "gray"),
+    label = FALSE,
+    cex = 30,
+    dec = 1,
+    threshold = 4,
+    title = vars[j],
+    hsize = 1.5,
+    legend = NULL
+)
+
+# At inclusion
+"IMA_SYSTHERAPY_TREATMENT_GROUP"
+treatments <- immu_manif("SYSTHERAPY_TREATMENT_GROUP", df2 = clinic_tot0)
+plot_bar_mcat(treatments, cex = 8, ratio = 2, title = "All therapies")
+treat_type <- treatments %>%
+    colnames() %>%
+    str_replace_all("\\s*\\([^\\)]+\\)", "") %>%
+    sort()
+treat_type <- treat_type[-c(4, 7)]
+
+immu_manif("SYSTHERAPY_TREATMENT_GROUP_OTHER_NEW_VALUE", df2 = clinic_tot0) %>%
+    plot_bar_mcat(collapse = TRUE, parse = TRUE, result = TRUE, n = 1000, wrap = 1000) %>%
+    str_split(temp$f[1], ", ")[[1]] %>%
+    sort()
+
+# immu_manif("OTHER_NEW_VALUE", df2 = clinic_tot0) %>%
+#     plot_bar_mcat(collapse = TRUE, parse = TRUE, result = TRUE, n = 1000, wrap = 1000) %>%
+#     slice(1) %>% pull(f) %>% str_split(", ") %>% pluck(1) %>% sort()
+
+clinic_code[[1]] %>%
+    filter(str_detect(group_code, "^IMA_SystemicTherapiesKinaseBloc$")) %>%
+    immu_manif("OTHER_NEW_VALUE", df1 = ., df2 = clinic_tot1) %>%
+    colnames() %>%
+    str_to_title()
+
+get_colors()[2, 1, 3, 4, 5, 6]
+get_colors()[2, 3, 3, 4, 5, 6]
+
+biologic <- c("aIL1", "aIL6", "aTNFalpha")
+# "aIFalpha", , "aCD20"
+keys <- paste0("SYSTHERAPY_TREATMENT_", c(paste0(c("OTHER", "NSAID", "CORTICO", "BIPHO", "DMARDS", "KINASE"), "_TREAT"), "ASPI_aINF", "BIO", paste0("BIO_TREAT_", biologic)))
+values <- c("Other", "NSAIDs", "Corticosteroid", "Biphosphonate", "DMARDs", "Kinase inhibitors", "Aspirin", "Biologic", biologic)
+# , "ASPI_aPLAT", "Anti-platelets aggregation",
+p <- list.map(
+    keys,
+    f(i, j) ~ {
+        res <- immu_manif(i, df2 = clinic_tot1)
+        if (j == 8) {
+            colnames(res) <- colnames(res) %>% str_to_title()
+        }
+        if (length(res) > 0) {
+              plot_bar_mcat(res, cex = 6, ratio = 3, title = values[j], wrap = 50)
+          }
+    }
+) %>%
+    compact() %>%
+    list.sort(length(data$f)) %>%
+    list.reverse()
+# plist <- c(p[-1][c(1, 4)], list(p2), p[-1][c(3, 5:6, 6, 8:10, 7, 2)])
+plist2 <- c(p[4], list(NULL), p[5], list(NULL), p[6:9])
+p2 <- immu_manif(keys[1], df2 = clinic_tot1) %>%
+    plot_bar_mcat(cex = 6, ratio = 3, title = values[1], parse = TRUE, collapse = TRUE, n = 10)
+plot_grid(
+    plotlist = plist2,
+    nrow = 4,
+    ncol = 2,
+    align = "h",
+    rel_heights = c(1.5, 1.2, rep(1, 2))
+)
+
+remission_code0 <- c(paste0("Complete (with", c("out", ""), " flare)"), "Partial")
+
 # Follow-up
-plot_piechart(clinic_tot1$C_2742_4229)
+plot_piechart(
+    clinic_tot1$C_2742_4229,
+    colour = remission_col,
+    label = FALSE,
+    cex = 30,
+    dec = 1,
+    title = "",
+    hsize = 1.5,
+    legend = remission_code0,
+    wrap = 20
+)
 
 # Second visit
-plot_piechart(clinic_tot1$C_2733_4213)
+plot_piechart(clinic_tot1$C_2733_4213, colour = remission_col, label = FALSE, cex = 30, dec = 1, title = "", hsize = 1.5)
 temp <- clinic_code[[1]] %>%
     filter(str_detect(group_code, "^IMA_SecondVisit_General_treatResp"))
 df <- select(clinic_tot1, temp$column_code) %>% set_colnames(temp$item_name)
 df[df == "Unreported (not tested or unknown)"] <- NA
 # diagnose_category(df)
-p <- list.map(
-    as.list(colnames(df)[-6]),
-    f(i, j) ~ plot_piechart(
-        df %>% pull(i),
-        colour = c(get_colors()[-4], get_colors()[5]),
-        label = FALSE,
-        cex = 25,
-        dec = 1,
-        threshold = 4,
-        title = vars[j],
-        hsize = 1.5
-    )
-)
-align_plots(plotlist = p[1:4], align = "vh") %>%
+list.map(
+    colnames(df)[-c(5:6)],
+    f(i, j) ~ {
+        if (j == 2) {
+            col <- remission_col[-c(1:2)]
+            lab <- rev(remission_code)[1]
+        } else {
+            col <- c(rev(remission_col)[-1], "gray")
+            lab <- rev(remission_code)
+        }
+        plot_piechart(
+            df %>% pull(i),
+            colour = col,
+            label = FALSE,
+            legend = lab,
+            cex = 30,
+            dec = 1,
+            threshold = 4,
+            title = vars[j],
+            hsize = 1.5
+        )
+    }
+) %>%
     plot_grid(
         plotlist = .,
         nrow = 2,
-        ncol = 2
+        ncol = 2,
+        align = "v"
     )
 ```
 
