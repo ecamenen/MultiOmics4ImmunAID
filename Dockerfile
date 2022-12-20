@@ -24,7 +24,7 @@ RUN Rscript -e 'devtools::install_github("moldach/vapoRwave")'
 # RUN R -e "library('datawizard')"
 RUN R -e "library('sjPlot')"
 RUN R -e "library('rayshader')"
-RUN Rscript -e 'devtools::install_github("rgcca-factory/RGCCA")'
+RUN R -e "devtools::install_github('rgcca-factory/RGCCA', ref = 'develop')"
 RUN apt-get purge -y git g++ && \
 	apt-get autoremove --purge -y && \
 	apt-get clean && \

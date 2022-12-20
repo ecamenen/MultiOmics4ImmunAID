@@ -1555,7 +1555,7 @@ network_vector <- lapply(list(nodeVector, linkVector, textVector), function(j) {
 
 diagonalNetwork(
     tree,
-    fontSize = 15, 
+    fontSize = 15,
     fontFamily = "arial",
     nodeStroke = "white",
     linkColour = network_vector[[2]],
@@ -1693,9 +1693,9 @@ df_treat <- list.map(
     keys,
     f(i) ~ {
         res <- immu_manif(i, df2 = clinic_tot1)
-      if (length(res) > 0) {
-        res
-      }
+        if (length(res) > 0) {
+            res
+        }
     }
 )
 p <- list.map(
@@ -1709,22 +1709,22 @@ p <- list.map(
         } else if (j == 4) {
             cols0 <- brewer_pal(, "Reds")(9)[c(3, 6, 9)]
         } else {
-              cols0 <- cols[j]
-          }
+            cols0 <- cols[j]
+        }
         if (length(i) > 0) {
-              plot_bar_mcat(
-                  i,
-                  cex = 8,
-                  ratio = 3,
-                  title = values[j],
-                  wrap = 30,
-                  collapse = TRUE,
-                  colors = c("gray", cols0),
-                  color_title = cols[j]
-              )
+            plot_bar_mcat(
+                i,
+                cex = 8,
+                ratio = 3,
+                title = values[j],
+                wrap = 30,
+                collapse = TRUE,
+                colors = c("gray", cols0),
+                color_title = cols[j]
+            )
         }
     }
-)  %>%
+) %>%
     compact() %>%
     list.sort(length(data$f)) %>%
     list.reverse()
@@ -1804,11 +1804,12 @@ list.map(
 df_manifs <- df_manifs[-c(3:4)]
 df_treat <- compact(df_treat)
 clinic_qual2 <- Reduce(
-  cbind, 
-  c(
-    list(df_treat_all, df_treat[[1]][, 1:2], df_treat[[2]][, 1, drop = FALSE]),
-    df_manifs)
-  )
+    cbind,
+    c(
+        list(df_treat_all, df_treat[[1]][, 1:2], df_treat[[2]][, 1, drop = FALSE]),
+        df_manifs
+    )
+)
 colnames(clinic_qual2) <- colnames(clinic_qual2) %>% str_remove_all(" \\(.*\\)")
 rownames(clinic_qual2) <- clinic_tot1$C_2643_3796
 # use_data(clinic_qual2)

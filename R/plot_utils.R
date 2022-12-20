@@ -382,7 +382,7 @@ plot_bar_mcat <- function(
         x <- sapply(seq(ncol(x0)), function(i) rep(colnames(x0)[i], colSums(x0, na.rm = TRUE)[i]))
     }
     x <- unlist(x) %>%
-        stringi::stri_trans_general("latin-ascii") %>%
+        stri_trans_general("latin-ascii") %>%
         str_replace_all("\n", " ")
     if (parse) {
         x <- str_to_title(x)

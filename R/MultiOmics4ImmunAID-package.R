@@ -1,7 +1,9 @@
 #' @import correlation corrplot cowplot DataExplorer data.tree dlookr dplyr
-#' @import forcats ggforce ggplot2 ggvenn golem ggstatsplot grDevices naniar
-#' @import networkD3 openxlsx pipeR purrr readr readxl rlist
-#' @import RColorBrewer reshape2 see VIM stringr tidyverse usethis venn viridis
+#' @import forcats ggforce ggplot2 ggvenn golem ggstatsplot grDevices
+#' @import igraph kableExtra naniar networkD3 openxlsx pipeR purrr readr
+#' @import readxl rlist RColorBrewer reshape2 RGCCA see snakecase stringi
+#' @import stringr tidyverse usethis venn VIM viridis visNetwork
+#' @importFrom desc desc_get_deps
 #' @importFrom magrittr %>% set_colnames
 #' @importFrom methods is
 #' @importFrom plyr ldply .

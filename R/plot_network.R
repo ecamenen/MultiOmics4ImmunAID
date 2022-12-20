@@ -80,8 +80,6 @@ plot_network <- function(
 
     # Avoid random
     set.seed(1)
-    `V<-` <- igraph::`V<-`
-    `E<-` <- igraph::`E<-`
     V <- E <- NULL
 
     if (is.null(nodes)) {
@@ -91,7 +89,7 @@ plot_network <- function(
         edges <- get_edges(x, C)
     }
 
-    net <- igraph::graph_from_data_frame(
+    net <- graph_from_data_frame(
         d = edges,
         vertices = nodes,
         directed = FALSE
@@ -221,7 +219,7 @@ plot_network2 <- function(
     }
     edges$width <- edges$weight * cex_nodes
 
-    visNetwork::visNetwork(
+    visNetwork(
         nodes,
         edges,
         main = list(
@@ -233,7 +231,7 @@ plot_network2 <- function(
             )
         )
     ) %>%
-        visNetwork::visNodes(
+        visNodes(
             borderWidth = 2,
             shape = shape,
             shadow = TRUE,
@@ -244,7 +242,7 @@ plot_network2 <- function(
                 highlight = list(background = "black", border = "darkred")
             )
         ) %>%
-        visNetwork::visEdges(
+        visEdges(
             smooth = FALSE,
             shadow = TRUE,
             dashes = dashes,
