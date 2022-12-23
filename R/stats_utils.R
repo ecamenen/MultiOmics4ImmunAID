@@ -293,7 +293,7 @@ print_stat <- function(x, method = "mean", dec = 1) {
     get(method)(x, na.rm = TRUE) %>% round(dec)
 }
 
-descriptive_stats_immun <- function(x, dec = 1) {
+descriptive_num_immun <- function(x, dec = 1) {
     pivot_longer(x, everything()) %>%
         set_colnames(c("Variables", "value")) %>%
         group_by(Variables) %>%
@@ -307,7 +307,7 @@ descriptive_stats_immun <- function(x, dec = 1) {
 }
 
 formatting_descriptive_num <- function(x, dec = 1) {
-    descriptive_stats_immun(x, dec) %>%
+    descriptive_num_immun(x, dec) %>%
         mutate(Statistics = paste0(Mean, "\u00b1", SD, ", ", Median, " (", IQR, ")")) %>%
         select(Variables, Statistics)
 }
