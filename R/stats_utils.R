@@ -253,6 +253,82 @@ descriptive_stats <- function(x, dec = 1) {
         )
 }
 
+descriptive_stats <- function(x, dec = 1) {
+    x <- colnames(x) %>%
+        str_replace_all("_", " ") %>%
+        set_colnames(x, .)
+    pivot_longer(x, everything()) %>%
+        set_colnames(c("Variables", "value")) %>%
+        group_by(Variables) %>%
+        summarise(
+            "Mean\u00b1SD" = print_stats(value, dec),
+            "Median\u00b1IQR" = print_stats0(value, dec),
+            # mean = mean(value, na.rm = TRUE)  %>% round(dec),
+            # median = median(value, na.rm = TRUE)  %>% round(dec),
+            # sd = sd(value, na.rm = TRUE)  %>% round(dec),
+            # IQR = IQR(value, na.rm = TRUE)  %>% round(dec),
+            # Q1 = quantile(value, .25, na.rm = TRUE)  %>% round(dec),
+            # Q3 = quantile(value, .75, na.rm = TRUE)  %>% round(dec),
+            Range = paste(
+                min = min(value, na.rm = TRUE) %>% round(dec),
+                max = max(value, na.rm = TRUE) %>% round(dec),
+                sep = "-"
+            ),
+            Kurtosis = kurtosis(value, na.rm = TRUE) %>% round(dec),
+            Skewness = skewness(value, na.rm = TRUE) %>% round(dec),
+            Normality = {
+                ifelse(length(value) > 5000, 5000, length(value)) %>%
+                    sample(value, .) %>%
+                    shapiro_test() %>%
+                    add_significance0() %>%
+                    pull(p.value.signif)
+            },
+            Zeros = length(which(value == 0)), # / length(value) * 100) %>% round(dec) %>% paste0("%"),
+            NAs = length(which(is.na(value))) # / length(value) * 100) %>% round(dec)
+        )
+}
+
+
+print_stat <- function(x, method = "mean", dec = 1) {
+    get(method)(x, na.rm = TRUE) %>% round(dec)
+}
+
+descriptive_stats_immun <- function(x, dec = 1) {
+    pivot_longer(x, everything()) %>%
+        set_colnames(c("Variables", "value")) %>%
+        group_by(Variables) %>%
+        summarise(
+            "Mean" = print_stat(value, "mean", dec),
+            "\u00b1"  = "\u00b1",
+            "SD" = print_stat(value, "sd", dec),
+            "Median" = print_stat(value, "median", dec),
+            "IQR" = print_stat(value, "IQR", dec)
+        )
+}
+
+formatting_descriptive_num <- function(x, dec = 1) {
+    descriptive_stats_immun(x, dec) %>%
+        mutate(Statistics = paste0(Mean, "\u00b1", SD, ", ", Median, " (", IQR, ")")) %>%
+        select(Variables, Statistics)
+}
+
+descriptive_cat_immun <- function(x, dec = 1) {
+    pivot_longer(x, everything()) %>%
+        set_colnames(c("Variables", "value")) %>%
+        group_by(Variables) %>%
+        summarise(
+            fct_count(value) %>%
+            set_colnames(c("Levels", "N")) %>%
+            mutate(`%` = (N / length(value) * 100) %>% round(dec))
+        )
+}
+
+formatting_descriptive_cat <- function(x, dec = 1) {
+    descriptive_cat_immun(x, dec) %>%
+        mutate(stat = paste0(Levels, " (", `%`, "%)")) %>%
+        summarise(Levels = paste(stat, collapse = "; "))
+}
+
 #' @export
 add_significance0 <- function(x, p.col = NULL) {
     add_significance(

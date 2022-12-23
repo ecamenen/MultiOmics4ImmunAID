@@ -65,15 +65,14 @@ rename0 <- function(x, sep = " ") {
 
 #' @export
 get_var_names <- function(x, y) {
-    y <- as.data.frame(y)
-    (y %>%
-        filter(
+    sapply(x, function(i) {
+        filter(y,
             str_detect(
-                y[, 1],
-                paste0("^", c(x), "$", collapse = "|")
+                pull(y, 1),
+                paste0("^", i, "$")
             )
-        )
-    )$item_name
+        ) %>% pull(item_name)
+    })
 }
 
 #' @export

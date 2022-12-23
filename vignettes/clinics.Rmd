@@ -2168,6 +2168,50 @@ plot_grid(
 )
 ```
 
+# Descripve stats for osteitis
+```{r}
+clinic0 <- read_batches()
+clinic_tot0 <- Reduce(rbind, clinic0)
+clinic_osteo <- filter(clinic_tot0, str_detect(C_2643_3798, "osteitis"))
+clinic_osteo <- mutate(clinic_osteo, adult = ifelse(clinic_osteo$C_2643_3803 > 18, "Adult", "Children"))
+
+# Missing data
+# Convert some modalities into NA
+var_na <- c("Unknown", "Not applicable", "Unreported (not tested or unknown)", "Not performed")
+for (i in var_na) {
+    clinic_osteo[clinic_osteo == i] <- NA
+}
+
+formatting_descriptive_cat(clinic_osteo$adult)
+
+filter(clinic_osteo, adult == "Adult") %>% 
+  select(c("C_2650_3916")) %>%
+  set_colnames(colnames(.) %>% get_var_names(y = clinic_code[[3]])) %>%
+  formatting_descriptive_num()
+
+filter(clinic_osteo, adult == "Children") %>% 
+  select(c("C_2657_3930", "C_2657_3931", "C_2653_3917", "C_2654_3919")) %>%
+  set_colnames(colnames(.) %>% get_var_names(y = clinic_code[[3]])) %>%
+  formatting_descriptive_cat()
+
+select(clinic_osteo, c("C_2657_3933", "C_2733_4213", "C_2742_4229")) %>%
+  set_colnames(colnames(.) %>% get_var_names(y = clinic_code[[3]])) %>%
+  formatting_descriptive_cat()
+  # descriptive_cat_immun()
+
+# 
+select(clinic_osteo, c("C_2739_3934",  "C_2739_3935",  "C_2739_3936", "C_2658_3934", "C_2658_3935",  "C_2658_3936")) %>%
+  set_colnames(
+    colnames(.) %>% 
+      get_var_names(y = clinic_code[[3]]) %>%
+      str_remove_all(" \\(.*\\)") %>%
+      str_remove_all(" of disease activity") %>%
+      str_to_sentence() %>%
+      paste0(c(rep(" (Second visit)", 3), rep("", length(.) - 3)))
+    ) %>%
+  formatting_descriptive_num()
+```
+
 # Session information
 ```{r end, echo = FALSE}
 sessionInfo()
