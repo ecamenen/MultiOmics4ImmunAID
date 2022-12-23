@@ -2170,6 +2170,15 @@ plot_grid(
 
 # Descripve stats for osteitis
 ```{r}
+path_out <- file.path(get_golem_wd(), "inst", "results")
+osteitis_file <- file.path(path_out, "tsv", "osteitis.xlsx")
+write_excel <- function(x, col_names = TRUE)  {
+  write_excel_csv2(x, file = osteitis_file, delim = "\t", append = TRUE, col_names = col_names)
+}
+
+print_excel <- function(x) {
+ data.frame(c("", x)) %>% write_excel(FALSE)
+}
 clinic0 <- read_batches()
 clinic_tot0 <- Reduce(rbind, clinic0)
 clinic_osteo <- filter(clinic_tot0, str_detect(C_2643_3798, "osteitis"))
@@ -2184,22 +2193,30 @@ for (i in var_na) {
 
 formatting_descriptive_cat(clinic_osteo$adult)
 
+print_excel("Adult only")
 filter(clinic_osteo, adult == "Adult") %>% 
   select(c("C_2650_3916")) %>%
   set_colnames(colnames(.) %>% get_var_names(y = clinic_code[[3]])) %>%
-  formatting_descriptive_num()
+  descriptive_num_immun() %>%
+  write_excel()
 
+print_excel("Children only")
 filter(clinic_osteo, adult == "Children") %>% 
   select(c("C_2657_3930", "C_2657_3931", "C_2653_3917", "C_2654_3919")) %>%
   set_colnames(colnames(.) %>% get_var_names(y = clinic_code[[3]])) %>%
-  formatting_descriptive_cat()
+  descriptive_cat_immun() %>%
+  write_excel()
+
+
+print_excel("All patients")
 
 select(clinic_osteo, c("C_2657_3933", "C_2733_4213", "C_2742_4229")) %>%
   set_colnames(colnames(.) %>% get_var_names(y = clinic_code[[3]])) %>%
-  formatting_descriptive_cat()
-  # descriptive_cat_immun()
+  # formatting_descriptive_cat() %>%
+  descriptive_cat_immun() %>%
+  write_excel()
 
-# 
+print_excel("")
 select(clinic_osteo, c("C_2739_3934",  "C_2739_3935",  "C_2739_3936", "C_2658_3934", "C_2658_3935",  "C_2658_3936")) %>%
   set_colnames(
     colnames(.) %>% 
@@ -2209,7 +2226,16 @@ select(clinic_osteo, c("C_2739_3934",  "C_2739_3935",  "C_2739_3936", "C_2658_39
       str_to_sentence() %>%
       paste0(c(rep(" (Second visit)", 3), rep("", length(.) - 3)))
     ) %>%
-  formatting_descriptive_num()
+  descriptive_num_immun() %>%
+  write_excel()
+
+# sheets <- c("Adult", "Children", "All (numerical)", "All (categorical)")
+# wb <- createWorkbook()
+# for (i in seq_along(sheets)) {
+#     addWorksheet(wb, sheets[i])
+#     writeData(wb, sheets[i], list_tables[[i]])
+# }
+# saveWorkbook(wb, file = osteitis_file, overwrite = TRUE)
 ```
 
 # Session information
