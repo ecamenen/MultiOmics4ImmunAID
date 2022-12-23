@@ -432,7 +432,7 @@ plot_bar_mcat <- function(
         theme(
             plot.title = element_text(hjust = 0, vjust = 0, size = cex * 4, face = "bold", color = color_title),
             axis.text.y = element_text(colour = colors, size = cex * 3),
-            axis.text.x = element_text(size = cex * 1.75),
+            axis.text.x = element_text(size = cex * 2.2),
             plot.margin = unit(c(-0, 0, 0, 0.5), "cm"),
             panel.grid.major.y = element_blank()
         )
