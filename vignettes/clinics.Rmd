@@ -1476,12 +1476,12 @@ align_plots(plotlist = p, align = "vh") %>%
     )
 
 codes <- attributes(clinic_still_processed)$codes %>%
-  filter(!str_detect(item_name, "^max_|_5$"))
-codes$group_name %>% 
-  str_to_title() %>% 
-  str_replace_all("_", " ") %>% 
-  plot_bar_mcat(cex = 6, title = "", c("blue", "gray", "red")) +
-  scale_y_continuous(expand = c(0.1, 0))
+    filter(!str_detect(item_name, "^max_|_5$"))
+codes$group_name %>%
+    str_to_title() %>%
+    str_replace_all("_", " ") %>%
+    plot_bar_mcat(cex = 6, title = "", c("blue", "gray", "red")) +
+    scale_y_continuous(expand = c(0.1, 0))
 
 temp <- sapply(unique(codes$group_name), function(i) {
     filter(codes, group_name == i) %>%
@@ -1835,13 +1835,26 @@ header <- paste(c("pre", "at", "post"), "inclusion", sep = "_")
 
 i <- c("AOSD", "SOJIA")
 df <- lapply(i, function(i) {
-    df0 <- read.xlsx(file.path(path, paste("Treatment data", i, "EC.xlsx")), startRow = 2, fillMergedCells = TRUE)
+    df0 <- read.xlsx(
+        file.path(path, paste("Treatment data", i, "EC.xlsx")),
+        startRow = 2,
+        fillMergedCells = TRUE,
+        detectDates = TRUE
+    )
     colnames(df0)[seq(2)] <- c("id", "first_visit")
+    df0$Date.of.beginning <- read_excel(
+        file.path(path, paste("Treatment data", i, "EC.xlsx")),
+        skip = 1,
+        col_types = c("numeric", "date", rep("text", 6), "date", rep("text", 7))
+    ) %>%
+        pull(9)
+    if (i == "AOSD") {
+        df0$Date.of.beginning[58] <- as.Date("2021-1-1")
+    }
     return(df0)
-}) %>% Reduce(rbind, .)
+}) %>% list.rbind()
 
 # Rename columns
-
 colnames(df) <- colnames(df) %>%
     str_replace_all("\\.", " ") %>%
     str_remove_all(" .*")
@@ -1864,7 +1877,12 @@ for (i in keys) {
 df <- tibble(df)
 df <- update_columns(df, all_of(get_name_num(df)), as.numeric)
 var_cat <- c(3:5, 7, 10:14, 16)
-df <- update_columns(df, var_cat, as.factor)
+df <- update_columns(df, var_cat, function(i) {
+    as.factor(i) %>%
+        str_trim() %>%
+        str_to_lower() %>%
+        str_remove_all(" \\(.+\\)")
+})
 
 list.map(
     colnames(df)[var_cat],
@@ -1875,6 +1893,278 @@ list.map(
             fct_infreq() %>%
             fct_count()
     }
+)
+
+var_dates <- c(9)
+df <- update_columns(df, var_dates, as.character)
+var_na <- c("item a corriger", "not reported", "missing")
+for (i in var_na) {
+    df[df == i] <- NA
+}
+df <- update_columns(df, var_dates, as.Date)
+
+var_response <- colnames(df) %>% str_which("response")
+df <- update_columns(df, var_response, function(i) {
+    str_replace_all(i, "n?res?pons?e", "response") %>%
+        # str_replace_all("^failure$", "primary failure") %>%
+        str_replace_all(".*failure", "no response") %>%
+        str_replace_all("loss efficacy", "loss of efficacy")
+})
+list.map(colnames(df)[var_response], f(i) ~ {
+    pull(df, i) %>%
+        unique() %>%
+        sort()
+}) %>% Reduce(base::setdiff, .)
+
+var_drug <- colnames(df) %>% str_which("^drug")
+df <- update_columns(df, var_drug, function(i) {
+    str_replace_all(i, "methlyprednisolone", "methylprednisolone") %>%
+        str_replace_all("c[iy]closporine+$", "ciclosporine")
+})
+list.map(colnames(df)[var_drug], f(i) ~ pull(df, i)) %>%
+    unlist() %>%
+    unique() %>%
+    sort()
+
+biologic <- c("aIL1", "aIL6", "aIFalpha", "aTNFalpha", "aCD20")
+keys <- paste0("SYSTHERAPY_TREATMENT_", c(c(paste0(c("BIPHO", "CORTICO", "DMARDS", "KINASE", "NSAID", "OTHER"), "_TREAT"), paste0("BIO_TREAT_", paste0(rep(biologic, each = 2), c("", "_OTHER_NEW_VALUE")))), "BIO_OTHER_NEW_VALUE"))
+df_treat <- list.map(
+    keys,
+    f(i) ~ {
+        res <- immu_manif(i, df2 = clinic_tot0)
+        if (length(res) > 0) {
+            res
+        }
+    }
+)
+vars <- c("Kinase", "Cortico")
+df_treat <- list.map(vars, f(i) ~ {
+    clinic_code[[1]] %>%
+        filter(str_detect(group_code, i)) %>%
+        immu_manif("OTHER_NEW_VALUE", df1 = ., df2 = clinic_tot0)
+}) %>%
+    setNames(toupper(vars)) %>%
+    append(df_treat, .)
+l_drugs <- compact(df_treat) %>%
+    list.map(f(i) ~ {
+        colnames(i) %>%
+            str_trim() %>%
+            str_to_lower() %>%
+            str_replace_all("enatercept", "etanercept") %>%
+            str_replace_all("methotraxate", "methotrexate") %>%
+            str_replace_all("paracétamol", "paracetamol") %>%
+            str_replace_all("c[iy]closporine+$", "ciclosporine") %>%
+            str_replace_all("hydroxychlorquin", "hydroxychloroquin") %>%
+            str_replace_all("amoxicillin.*", "amoxicilline") %>%
+            sort()
+    }) %>%
+    list.map(. %>>% list.filter(f(i) ~ !str_detect(i, "anti|other")))
+
+names(l_drugs) <- names(l_drugs) %>% str_remove_all("SYSTHERAPY_TREATMENT_|BIO_|_?TREAT_?")
+unlist0 <- function(x) {
+    unlist(x) %>%
+        unname() %>%
+        list()
+}
+l_drugs <- list.map(
+    toupper(vars),
+    f(i) ~ {
+        l_drugs[names(l_drugs) == i] %>%
+            unlist0() %>%
+            pluck(1)
+    }
+) %>%
+    c(., l_drugs[c(1, 3, 5:11)])
+l_drugs[11] <- "abatacept"
+get_intersection(l_drugs[7:11])
+get_intersection(l_drugs[1:5])
+# $`KINASE:DMARDS` [1] "methotrexate"
+get_intersection(c(l_drugs[2], l_drugs[8:11]))
+# $`CORTICO:aIL6` [1] "tocilizumab"
+get_intersection(l_drugs[2:6])
+# $`DMARDS:OTHER` [1] "ciclosporine"
+l_drugs[["DMARDS"]] <- c(l_drugs[["DMARDS"]][l_drugs[["DMARDS"]] != "methotrexate"], "dmads")
+l_drugs[["CORTICO"]] <- c(l_drugs[["CORTICO"]][l_drugs[["CORTICO"]] != "tocilizumab"], "corticosteroide", "methylprednisone")
+l_drugs[["OTHER"]] <- c(l_drugs[["OTHER"]][l_drugs[["OTHER"]] != "ciclosporine"], "thalidomide", "tavanic")
+unlist(l_drugs) %>%
+    unique() %>%
+    sort()
+names(l_drugs)[11] <- "BIOL"
+l_drugs[["BIOL"]] <- c(l_drugs[["BIOL"]], "anti-il5")
+l_drugs[["NSAID"]] <- c(l_drugs[["NSAID"]], "aspirin", "nsaids")
+
+get_intersection0(
+    c(
+        TOT = unlist0(l_drugs),
+        DF = select(df, var_drug) %>% unlist0() %>% pluck(1) %>% unique() %>% list()
+    )
+) %>% pluck(1)
+
+df <- select(df, var_drug) %>%
+    list.map(f(k) ~ {
+        list.map(k, f(j) ~ {
+            list.map(l_drugs, f(i) ~ str_detect(i, paste0("^", j, "$")) %>% any()) %>%
+                unlist() %>%
+                which() %>%
+                names() -> res
+            ifelse(length(res) == 0, NA, res)
+        }) %>%
+            unlist() %>%
+            unname()
+    }) %>%
+    Reduce(cbind, .) %>%
+    set_colnames(paste0("type_", colnames(df)[var_drug])) %>%
+    cbind(df, .) %>%
+    select(1:3, 17, 4:8, 10, 18, 9, 11:12, 19, 13:16) %>%
+    tibble()
+
+colnames(df)[10] <- paste0("at_", colnames(df)[10])
+# l_ids <- list.map(c("pre_", "at_", "post_"), f(i) ~ {c(1, colnames(df) %>% str_which(i)) %>% select(df, .) %>% list.parse() %>% list.group(id)})
+
+Treat <- function(i) {
+    list(
+        id = i,
+        pre_ = NULL,
+        at_ = NULL,
+        post_ = NULL
+    )
+}
+l_treat <- lapply(unique(df$id), function(i) Treat(i)) %>% setNames(unique(df$id))
+
+
+parse_treat <- function(i, j) {
+    temp <- filter(df, id == i) %>% select(contains(c(j)))
+    temp <- select(temp, 1) %>%
+        pull(1) %>%
+        unique() %>%
+        lapply(function(i) filter(temp, temp[, 1] == i))
+    temp0 <- lapply(
+        temp,
+        function(i) slice(i, 1) %>% select(seq(2))
+    ) %>%
+        setNames(list.mapv(., f(i) ~ pull(i, 1)) %>% as.list())
+    lapply(temp, function(i) {
+        select(i, -seq(2)) %>%
+            # set_rownames(pull(., 1) %>% str_replace_na()) %>%
+            list.parse()
+    }) %>%
+        setNames(names(temp0)) %>%
+        list.merge(temp0) %>%
+        c(step = j, .)
+}
+
+options("tidylog.display" = list())
+for (i in as.character(unique(df$id))) {
+      for (j in c("pre_", "at_", "post_")) {
+            l_treat[[i]][[j]] <- parse_treat(i, j)
+        }
+  }
+options("tidylog.display" = NULL)
+
+list.is(l_treat, "anakinra" %in% names(post_))
+l_post <- list.map(l_treat, f(i) ~ pluck(i, "post_"))
+# list.search(l_post, "OTHER" %in% .) %>% names() %>% str_split("\\.") %>% list.mapv(f(i) ~ pluck(i, 1))
+# list.map(l_post, . %>>% list.search(. == "CORTICO") %>% names())
+l_treat0 <- list.map(l_drugs, f(i) ~ {
+    list.map(i, f(j) ~ {
+        list.is(l_treat, j %in% names(post_)) %>% as.numeric()
+    }) %>% list.cbind()
+})
+l_treat_tot <- list.map(l_treat0, f(i) ~ {
+    apply(i, 1, sum) %>%
+        list.mapv(f(j) ~ {
+            j > 0
+        }) %>%
+        as.integer()
+})
+l_treat_biol <- l_treat_tot[7:11] %>%
+    list.cbind() %>%
+    apply(1, sum) %>%
+    list.mapv(f(j) ~ {
+        j > 0
+    }) %>%
+    as.integer()
+var_names <- c(treat_type[c(1, 4, 2)], "Biphosphate", treat_type[c(3, 5)], "Others")
+l_treat_tot0 <- c(
+    Biol = list(l_treat_biol),
+    l_treat_tot[-c(7:11)]
+) %>%
+    setNames(var_names)
+
+plot_bar_mcat(
+    l_treat0 %>% list.cbind(),
+    cex = 10,
+    ratio = 1,
+    title = toupper("All treatments"),
+    parse = TRUE,
+    collapse = TRUE,
+    n = 3,
+    colors = c("gray", get_colors()[1])
+)
+plot_bar_mcat(
+    l_treat_tot0 %>% list.cbind(),
+    cex = 10,
+    ratio = 1,
+    title = toupper("Per type"),
+    parse = FALSE,
+    colors = get_colors()[c(5, 2, 4, 8, 1, 3)]
+)
+greens <- brewer_pal(, "YlGn")(9)[c(5, 8)]
+plot_bar_mcat(
+    l_treat_tot[7:11] %>% list.cbind(),
+    cex = 12,
+    ratio = 1,
+    title = "Biologic",
+    parse = FALSE,
+    colors = greens
+)
+
+
+l_treat_tot1 <- c(l_treat_tot0, l_treat_tot[7:11] %>% setNames(biologic))
+cols <- c(
+    get_colors()[c(4, 1)],
+    1,
+    get_colors()[c(2, 5, 8)],
+    greens,
+    rep(1, 3)
+)
+p <- list.map(
+    l_treat0,
+    f(i, j, k) ~ {
+        # if (j == 8) {
+        #     colnames(i) <- colnames(i) %>% str_to_title()
+        # }
+        if (j %in% c(1, 4, 5)) {
+            cols0 <- cols[j]
+            # } else if (j == 4) {
+            #     cols0 <- brewer_pal(, "Reds")(9)[c(3, 6, 9)]
+        } else {
+            cols0 <- "gray"
+        }
+        if (sum(i) > 0) {
+            plot_bar_mcat(
+                i,
+                cex = 8,
+                ratio = 1.5,
+                title =  k,
+                wrap = 30,
+                collapse = TRUE,
+                colors = c(cols0, cols[j]),
+                color_title = cols[j]
+            )
+        }
+    }
+) %>%
+    compact() %>%
+    list.sort(length(data$f)) %>%
+    list.reverse()
+plist <- c(p[seq(2)], list(NULL), p[3:4], list(NULL), p[5:7])
+plot_grid(
+    plotlist = plist,
+    nrow = 3,
+    ncol = 3,
+    align = "v",
+    rel_heights = c(2, 1.5, 1)
 )
 ```
 
