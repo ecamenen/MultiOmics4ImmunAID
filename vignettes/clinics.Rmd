@@ -2249,6 +2249,210 @@ list_tables[[6]] <- select(clinic_osteo, c("C_2739_3934", "C_2739_3935", "C_2739
             paste0(c(rep(" (Second visit)", 3), rep("", length(.) - 3)))
     )
 
+# General biology
+temp <- select(clinic_osteo, all_of(c("C_2643_3801", "C_2643_3802", paste0("C_2728_4054_", seq(4)))), "C_2742_4210") %>%
+    update_columns(., colnames(.), dmy) %>%
+    mutate(date_diff1 = C_2643_3801 - C_2728_4054_1, date_diff2 = C_2643_3801 - C_2728_4054_2, date_diff3 = ifelse(date_diff1 < date_diff2 | is.na(date_diff2), date_diff1, date_diff2), date_diff4 = ifelse(date_diff3 > 7, NA, date_diff3), date_diff5 = ifelse(date_diff3 > 7, 0, 1), date_diff6 = date_diff1 - date_diff2)
+select(temp, date_diff5) %>% plot_piechart(wrap = 7, hsize = 1.5, cex = 25, title = "", legend = FALSE, label = FALSE, colour = c(get_colors()[2:1], "gray"))
+
+which(temp$date_diff2 == 0) %>%
+    slice(clinic_osteo, .) %>%
+    pull(2)
+bind_cols(
+    which(temp$date_diff5 == 0) %>% slice(clinic_osteo, .) %>% pull(2),
+    which(temp$date_diff5 == 0) %>% slice(temp, .) %>% pull(date_diff3)
+) %>%
+    set_colnames(c("ID", "Date")) %>%
+    kable0(rownames = FALSE)
+
+clinic_osteo_biol <- which(temp$date_diff5 > 0 | is.na(temp$date_diff5)) %>% slice(clinic_osteo, .)
+
+# temp1 <- filter(temp, (date_diff5 == 1 | is.na(date_diff5)))
+# sapply(seq(nrow(cou)), function(l) ifelse(slice(temp1, l) %>% pull(date_diff5) > 0, slice(cou, l) %>% pull(1), slice(cou, l) %>% pull(2)))
+# !is.na(temp1$C_2728_4054_2)
+#
+# sapply(seq(nrow(cou)), function(l) ifelse(slice(temp1, l) %>% pull(C_2728_4054_2) %>% is.na(), slice(cou, l) %>% pull(1), slice(cou, l) %>% pull(2)))
+
+# clinic_code[[1]] %>% filter(str_detect(group_code,"^IMA_SecondVisit")) -> temp2; pull(temp2, column_code) %>% select(clinic_osteo, .) %>% set_colnames(pull(temp2, item_name)) %>% View()
+
+visits <- c("^IMA_BiologicalValuesGeneralBloc", "^IMA_SecondVisit")
+vars <- c("Type", "Hb", "Platelets", "Lymphocytes", "Leucocytes", "Neutrophils \\(/m", "CRP", "Erythrocyte", "SAA")
+temp1 <- list.map(visits, f(i, k) ~ {
+    if (k == 1) {
+        clinic_osteo <- clinic_osteo_biol
+    }
+    list.map(vars, f(j) ~ {
+        clinic_code[[1]] %>%
+            filter(str_detect(group_code, i)) %>%
+            filter(str_detect(item_name, paste0("^", j))) %>%
+            slice(1) %>%
+            pull(column_code) %>%
+            select(clinic_osteo, .) %>%
+            set_colnames(j)
+    }) %>% Reduce(cbind, .)
+})
+
+list_tables[[6]] <- temp1[[1]][, -1] %>%
+    tibble() %>%
+    update_columns(., seq(ncol(.)), as.numeric) %>%
+    set_colnames(colnames(.) %>% str_remove_all(" .*")) %>%
+    list() %>%
+    c(list_tables[6]) %>%
+    list.map(f(i) ~ mutate(i, id = seq(nrow(i)))) %>%
+    Reduce(full_join, .) %>%
+    select(-id)
+list_tables[[4]] <- temp1[[1]][, 1, FALSE] %>%
+    tibble() %>%
+    update_columns(., seq(ncol(.)), as.factor) %>%
+    set_colnames("Flare")
+
+list_tables[[6]] <- temp1[[2]][, 1, FALSE] %>%
+    tibble() %>%
+    update_columns(., seq(ncol(.)), as.numeric) %>%
+    set_colnames("CRP (Second visit)") %>%
+    cbind(list_tables[[6]], .)
+
+# Manifestations
+temp <- clinic_code[[1]] %>%
+    filter(str_detect(item_code, "^IMA_MUCO_"))
+#  select(clinic_tot1, temp$column_code) %>% set_colnames(temp$item_name) %>% View()
+# select(clinic_osteo, temp$column_code) %>%
+#     set_colnames(temp$item_name) %>%
+#     View()
+# Ex for Still: line 6. Only difference = particular body part. But macules are on the abdomen for both !
+
+manifs0 <- c("GASTRO", "URO", "OPHTALMO", "PULMO")
+manifs1 <- c("MUSCU", "CARDIO", "HAEMATO", "ENT", manifs0) # "NEURO",
+manifs <- c("MUCO_ACTIVE_LESIONS", paste0(manifs1, "_MANIF"), paste0(manifs0, "_FIRST_QUESTION"))
+vars <- paste(c("Mucocutaneous", "Musculoskeletal", rep(NA, 7), "Gastrointestinal"), "manifestations")
+list_tables[[5]] <- list.map(manifs, f(i, j) ~ {
+    immu_manif(i, df2 = clinic_osteo) %>%
+        descriptive_mcat_immun(vars[j])
+}) %>%
+    keep(function(x) nrow(x) > 0) %>%
+    list.rbind()
+
+temp <- clinic_code[[1]] %>%
+    filter(str_detect(item_code, "^IMA_MUSCU_MANIF_LOCALISATION"))
+# select(clinic_tot1, temp$column_code) %>%
+#     set_colnames(temp$item_name) %>%
+#     View()
+
+list_tables[[5]] <- clinic_code[[1]] %>%
+    filter(str_detect(group_code, "^IMA_Muscu")) %>%
+    filter(str_detect(item_code, "IMA_MANIF_DIAGNOSIS$")) %>%
+    pull(column_code) %>%
+    select(clinic_osteo, .) %>%
+    collapse_mcat() %>%
+    descriptive_mcat_immun("Musculoskeletal diagnosis") %>%
+    bind_rows(list_tables[[5]])
+
+cbind_list <- function(x, y = list_tables[[5]]) {
+    keep(x, function(i) nrow(i) > 0) %>%
+        list.rbind() %>%
+        bind_rows(y) %>%
+        arrange(Variables)
+}
+
+vars <- c(paste("Mucocutaneous", c("localisation", "distribution")), "Musculoskeletal sequelae")
+list_tables[[5]] <- list.map(c("C_2664_3971_1", "C_2664_3972_1", "C_2677_4004_1"), f(i, j) ~ {
+    select(clinic_osteo, all_of(i)) %>%
+        separate_semicolon() %>%
+        descriptive_mcat_immun(vars[j])
+}) %>% cbind_list()
+
+temp <- clinic_code[[1]] %>%
+    filter(str_detect(item_code, "^IMA_MUSCU_MANIF_LOCALISATION"))
+var_muscu <- pull(temp, item_code) %>%
+    str_remove_all("IMA_MUSCU_MANIF_LOCALISATION_FOR_") %>%
+    unique() %>%
+    tolower() %>%
+    str_replace_all("((other)|(bilateral)).*", "(\\1)")
+select(clinic_osteo, temp$column_code) %>%
+    set_colnames(temp$item_name) %>%
+    tibble(.name_repair = c("unique")) -> cou
+
+list_tables[[5]] <- list.map(
+    # var_muscu,
+    seq(1, 36, 3),
+    f(i, j) ~ {
+        temp0 <- select(cou, i:(i + 2)) %>%
+            update_columns(1:3, function(x) {
+                str_remove_all(x, "\"[xy]\":\\d*.\\d*,") %>%
+                    str_remove_all("\\{\"pathId\":\"") %>%
+                    str_remove_all("\\[|\\]|(\"\\})") %>%
+                    str_replace_all(",", " ; ")
+            }) %>%
+            separate_semicolon(collapse = FALSE) %>%
+            list.cbind() %>%
+            update_columns(1:ncol(.), function(x) {
+                snakecase::to_any_case(x, case = "sentence", unique_sep = NULL) %>% str_replace_all("Null", "NA")
+            })
+        if (j < 3) {
+            temp0 <- temp0 %>% update_columns(1:ncol(.), function(x) str_remove_all(x, " .*"))
+        }
+        collapse_mcat(temp0) %>%
+            descriptive_mcat_immun(paste("Musculoskeletal location for", var_muscu[j]), wrap = 50)
+    }
+) %>% cbind_list()
+
+# list.map(as.list(manifs), f(i, j) ~{
+#     immu_manif(i, df2 = clinic_tot1) %>%
+#         plot_bar_mcat(cex = 8, ratio = 4, title = vars[j])
+# }) -> p
+# align_plots(plotlist = p, align = "vh") %>%
+#     plot_grid(
+#         plotlist = .,
+#         nrow = 3,
+#         ncol = 3,
+#         # labels = "AUTO",
+#         rel_heights = c(1.5, 1, 0.6)
+#     )
+
+# Write in excel
+titles <- c("Adult only", "Children only", "All patients", "", "", "")
+col_names <- c(rep(TRUE, 3), FALSE, TRUE, FALSE)
+list.map(list_tables, f(i, j) ~ {
+    if (j %in% c(1:3, 6)) {
+        print_excel(titles[j])
+    }
+    if (j %in% c(1, 6)) {
+        i <- descriptive_num_immun(i)
+    } else if (j == 5) {
+        i
+    } else {
+        i <- descriptive_cat_immun(i)
+    }
+    write_excel(i, col_names = col_names[j])
+})
+
+list.map(list_tables, f(i, j) ~ {
+    if (j %in% c(1:3, 6)) {
+        print_excel(titles[j], file = paste0(osteitis_file, "2"))
+    }
+    if (j %in% c(1, 6)) {
+        i <- formatting_descriptive_num(i)
+    } else if (j == 5) {
+        i <- mutate(i, stat = paste0(Levels, " (", `%`, "%)")) %>%
+            group_by(Variables) %>%
+            summarise(Levels = paste(stat, collapse = "; "))
+    } else {
+        i <- formatting_descriptive_cat(i)
+    }
+    write_excel(i, file = paste0(osteitis_file, "2"), col_names = col_names[j])
+})
+
+# list.map(c(osteitis_file, paste0(osteitis_file, "2")), f(i) ~ read_tsv(i, skip = 1, col_names = FALSE))
+# sheets <- c("Raw", "Formatted")
+# wb <- createWorkbook()
+# for (i in seq_along(sheets)) {
+#     addWorksheet(wb, sheets[i])
+#     writeData(wb, sheets[i], list_tables[[i]])
+# }
+# saveWorkbook(wb, file = paste0(osteitis_file, "x"), overwrite = TRUE)
+# list.map(c(osteitis_file, paste0(osteitis_file, "2")), file.remove)
+```
+
 
 titles <- c("Adult only", "Children only", "All patients", "")
 list.map(list_tables, f(i, j) ~ {
