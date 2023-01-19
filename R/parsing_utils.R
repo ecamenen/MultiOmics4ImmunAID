@@ -3,7 +3,8 @@ clean_data <- function(
     x,
     clean_name = TRUE,
     clean_constant = TRUE,
-    clean_duplicates = TRUE
+    clean_duplicates = TRUE,
+    clean_empty = TRUE
     ) {
     if (clean_name) {
         x <- clean_names(x)
@@ -23,7 +24,10 @@ clean_data <- function(
         }
         x <- res
     }
-    remove_empty(x, c("rows", "cols"), quiet = FALSE)
+    if (clean_empty) {
+          x <- remove_empty(x, c("rows", "cols"), quiet = FALSE)
+      }
+    return(x)
 }
 
 get_name_num0 <- function(x) {
@@ -66,7 +70,8 @@ rename0 <- function(x, sep = " ") {
 #' @export
 get_var_names <- function(x, y) {
     sapply(x, function(i) {
-        filter(y,
+        filter(
+            y,
             str_detect(
                 pull(y, 1),
                 paste0("^", i, "$")
@@ -399,7 +404,8 @@ set_qualitative <- function(x, n = 2) {
 
 #' @export
 collapse_mcat <- function(x) {
-    lvls <- unique(unlist(x))
+    lvls <- unique(as.vector(unlist(x)))
+    lvls[lvls == "NA"] <- NA
     sapply(
         na.omit(lvls),
         function(i) {
@@ -420,17 +426,45 @@ collapse_mcat <- function(x) {
 #' @export
 immu_manif <- function(x, df1 = clinic_code[[1]], df2 = clinic_tot1) {
     temp <- filter(df1, str_detect(item_code, paste0("^IMA_", x, "$")))
-    temp <- select(df2, temp$column_code) %>%
+    select(df2, temp$column_code) %>%
         set_colnames(temp$item_name) %>%
         clean_names() %>%
         separate_semicolon()
 }
 
 #' @export
-separate_semicolon <- function(x) {
-    n <- str_extract_all(x, " ; ") %>%
+separate_semicolon <- function(x, sep = " ; ", collapse = TRUE) {
+    if (ncol(x) == 1) {
+        separate_semicolon0(x)
+    } else {
+        res <- list.map(x, f(y) ~ separate_semicolon0(y, sep = sep, collapse = collapse)) %>%
+            compact()
+        if (collapse) {
+            Reduce(cbind0, res)
+        } else {
+            res
+        }
+    }
+}
+
+cbind0 <- function(x, y) {
+    cols <- intersect(colnames(x), colnames(y))
+    for (i in cols) {
+        j <- which(colnames(y) == i)
+        i <- which(colnames(x) == i)
+        x[, i] <- as.numeric(x[, i] | y[, j])
+        y <- y[, -j, drop = FALSE]
+    }
+    cbind(x, y)
+}
+
+separate_semicolon0 <- function(x, sep = " ; ", collapse = TRUE) {
+    n <- str_extract_all(x, sep) %>%
         map_int(~ length(na.omit(.))) %>%
         max() + 1
-    separate(x, 1, LETTERS[seq(n)], sep = " ; ") %>%
-        collapse_mcat()
+    res <- as_tibble(x) %>% separate(1, LETTERS[seq(n)], sep = sep)
+    if (!collapse) {
+        return(res)
+    }
+    collapse_mcat(res)
 }
