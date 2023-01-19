@@ -2126,24 +2126,23 @@ plot_bar_mcat(
     n = 3,
     colors = c("gray", get_colors()[1])
 )
-plot_bar_mcat(
+ptot <- plot_bar_mcat(
     l_treat_tot0 %>% list.cbind(),
-    cex = 10,
-    ratio = 1,
-    title = toupper("Per type"),
+    cex = 8,
+    ratio = 1.5,
+    title = toupper("Type of treatment"),
     parse = FALSE,
     colors = get_colors()[c(5, 2, 4, 8, 1, 3)]
 )
 greens <- brewer_pal(, "YlGn")(9)[c(5, 8)]
-plot_bar_mcat(
+pbiol <- plot_bar_mcat(
     l_treat_tot[7:11] %>% list.cbind(),
-    cex = 12,
-    ratio = 1,
-    title = "Biologic",
+    cex = 8,
+    ratio = 1.5,
+    title = toupper("Biologic"),
     parse = FALSE,
     colors = greens
 )
-
 
 l_treat_tot1 <- c(l_treat_tot0, l_treat_tot[7:11] %>% setNames(biologic))
 cols <- c(
@@ -2171,8 +2170,8 @@ p <- list.map(
                 i,
                 cex = 8,
                 ratio = 1.5,
-                title =  k,
-                wrap = 30,
+                title = k,
+                wrap = 10,
                 collapse = TRUE,
                 colors = c(cols0, cols[j]),
                 color_title = cols[j]
@@ -2183,7 +2182,7 @@ p <- list.map(
     compact() %>%
     list.sort(length(data$f)) %>%
     list.reverse()
-plist <- c(p[seq(2)], list(NULL), p[3:4], list(NULL), p[5:7])
+plist <- c(list(ptot), p[seq(2)], list(pbiol), p[3:4], p[5:7])
 plot_grid(
     plotlist = plist,
     nrow = 3,
@@ -2191,6 +2190,15 @@ plot_grid(
     align = "v",
     rel_heights = c(2, 1.5, 1)
 )
+
+i_tab <- which(sapply(l_treat_tot, sum) > 2)
+
+still_treatment <- list.map(l_treat_tot[i_tab], f(i) ~ tibble(i)) %>%
+    list.cbind() %>%
+    set_colnames(c("JAK", "Corticosteroid", "Other", paste0("Anti-IL", c(1, 6)))) %>%
+    set_rownames(ids) %>%
+    cbind(., Anakinra = l_treat0[["aIL1"]][, 1])
+use_data(still_treatment, overwrite = TRUE)
 ```
 
 # Descripve stats for osteitis
