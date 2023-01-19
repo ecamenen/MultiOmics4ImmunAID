@@ -12,10 +12,14 @@ save_tiff <- function(f, filename = "violinplot_clin.tiff") {
 }
 
 #' @export
-kable0 <- function(x, align = "c") {
-    kbl(x, escape = FALSE, align = align) %>%
-        kable_minimal(full_width = FALSE) %>%
-        column_spec(1, bold = TRUE, color = "#a9a9a9")
+kable0 <- function(x, align = "c", rownames = TRUE, color = "#a9a9a9") {
+    res <- kbl(x, escape = FALSE, align = align) %>%
+        kable_minimal(full_width = FALSE)
+    if (isTRUE(rownames)) {
+        column_spec(res, 1, bold = TRUE, color = color)
+    } else {
+        return(res)
+    }
 }
 
 save_tsv <- function(x, filename = NULL, col_names = TRUE) {

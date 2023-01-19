@@ -293,36 +293,51 @@ print_stat <- function(x, method = "mean", dec = 1) {
     get(method)(x, na.rm = TRUE) %>% round(dec)
 }
 
+#' @export
 descriptive_num_immun <- function(x, dec = 1) {
     pivot_longer(x, everything()) %>%
         set_colnames(c("Variables", "value")) %>%
         group_by(Variables) %>%
         summarise(
             "Mean" = print_stat(value, "mean", dec),
-            "\u00b1"  = "\u00b1",
+            "\u00b1" = "\u00b1",
             "SD" = print_stat(value, "sd", dec),
             "Median" = print_stat(value, "median", dec),
             "IQR" = print_stat(value, "IQR", dec)
         )
 }
 
+#' @export
 formatting_descriptive_num <- function(x, dec = 1) {
     descriptive_num_immun(x, dec) %>%
         mutate(Statistics = paste0(Mean, "\u00b1", SD, ", ", Median, " (", IQR, ")")) %>%
         select(Variables, Statistics)
 }
 
+#' @export
 descriptive_cat_immun <- function(x, dec = 1) {
     pivot_longer(x, everything()) %>%
         set_colnames(c("Variables", "value")) %>%
         group_by(Variables) %>%
         summarise(
             fct_count(value) %>%
-            set_colnames(c("Levels", "N")) %>%
-            mutate(`%` = (N / length(value) * 100) %>% round(dec))
+                set_colnames(c("Levels", "N")) %>%
+                mutate(`%` = (N / length(value) * 100) %>% round(dec))
         )
 }
 
+#' @export
+descriptive_mcat_immun <- function(x, var, dec = 1, parse = FALSE, wrap = 20, collapse = FALSE, label = NULL) {
+    count_cat(x, wrap = wrap) %>%
+        set_colnames(c("Levels", "N")) %>%
+        mutate(
+            `%` = (N / nrow(x) * 100) %>% round(dec),
+            Variables = var
+        ) %>%
+        select(Variables, Levels, N, `%`)
+}
+
+#' @export
 formatting_descriptive_cat <- function(x, dec = 1) {
     descriptive_cat_immun(x, dec) %>%
         mutate(stat = paste0(Levels, " (", `%`, "%)")) %>%

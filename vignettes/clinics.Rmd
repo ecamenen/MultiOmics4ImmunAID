@@ -1682,7 +1682,6 @@ immu_manif("SYSTHERAPY_TREATMENT_GROUP_OTHER_NEW_VALUE", df2 = clinic_tot0) %>%
 # str_split(", ") %>%
 # pluck(1) %>%
 # sort()
-    # sort()
 
 # immu_manif("OTHER_NEW_VALUE", df2 = clinic_tot0) %>%
 #     plot_bar_mcat(collapse = TRUE, parse = TRUE, result = TRUE, n = 1000, wrap = 1000) %>%
