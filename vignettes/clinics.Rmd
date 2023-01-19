@@ -2453,33 +2453,170 @@ list.map(list_tables, f(i, j) ~ {
 # list.map(c(osteitis_file, paste0(osteitis_file, "2")), file.remove)
 ```
 
+# Parsing treatments
+```{r}
+parse_treat0 <- function(x, y = "Date", type = FALSE) {
+    set_colnames(x, seq(30)) %>%
+        list.parse() %>%
+        list.map(f(i) ~ {
+            discard(i, is.na) %>%
+                list.map({
+                    temp <- str_remove_all(., " \\(.+\\)")
+                    if (type > 0) {
+                        temp <- str_to_sentence(temp)
+                    }
+                    if (type == 2) {
+                        for (i in c("il", "cd", "tnf")) {
+                              temp <- str_replace_all(temp, paste0("Anti[- ](", i, ") ?(\\d{1,2}|α)$"), paste0("Anti-", toupper(i), "\\2"))
+                          }
+                    } else if (type == 3) {
+                        temp <- str_replace_all(temp, "Antibiot(ic|ique|herapie)", "Anti-biotic") %>%
+                            str_replace_all("(Antihistamine)s?", "\\1") %>%
+                            str_replace_all("Betebloquant", "Betablocker") %>%
+                            str_replace_all("(Calcium).*", "\\1 antagonist") %>%
+                            str_replace_all(".*[Cc][iy]closporine?$", "Ciclosporine") %>%
+                            str_replace_all("Paracétamol", "Paracetamol") %>%
+                            str_replace_all("Immunosup+res+(ant|eur|or).?$", "Immunosuppressant") %>%
+                            str_replace_all("Vit(amin)? d", "Vitamin D") %>%
+                            str_replace_all("Inteferon alpha", "Other") %>%
+                            str_replace_all("(Anti) ", "\\1-") %>%
+                            str_replace_all("((Anti-plate?let)s?( aggregation)?)|(Antiagregent plaquettaire)", "Anti-platelets aggregation")
+                    }
+                    list(temp) %>% set_names(y)
+                })
+        })
+}
+# TODO: check whithout str_to_sentence to see the uppercase abbrevations
+# str_replace_all("enatercept", "etanercept") %>%
+# str_replace_all("methotraxate", "methotrexate") %>%
+#
+# str_replace_all("hydroxychlorquin", "hydroxychloroquin") %>%
+# str_replace_all("amoxicillin.*", "amoxicilline") %>%
 
-titles <- c("Adult only", "Children only", "All patients", "")
-list.map(list_tables, f(i, j) ~ {
-  print_excel(titles[j])
-  if (j %in% c(1, 4)) {
-    i <- descriptive_num_immun(i)
-  } else
-    i <- descriptive_cat_immun(i)
-  write_excel(i)
-})
+vars <- paste0("IMA_SYSTHERAPY_TREATMENT_", c("BEGIN_DATE", paste0("GROUP", c("", "_OTHER_NEW_VALUE")), "OVER", "RESP", paste0("STOP_", c("DATE", paste0("REASON", c("", "_OTHER_NEW_VALUE"))))))
+# "Date",
+var_names <- c("Date", "Type", "Name", "Over", "Response", paste("Stop", c("date", paste0("reason", c("", " (other)")))))
 
-list.map(list_tables, f(i, j) ~ {
-  print_excel(titles[j], file = paste0(osteitis_file, "2"))
-  if (j %in% c(1, 4)) {
-    i <- formatting_descriptive_num(i)
-  } else
-    i <- formatting_descriptive_cat(i)
-  write_excel(i, file = paste0(osteitis_file, "2"))
-})
+list_treat <- list.map(
+    vars,
+    f(i, j) ~ {
+        temp <- clinic_code[[1]] %>%
+            filter(str_detect(item_code, paste0("^", i, "$"))) %>%
+            pull(column_code) %>%
+            select(clinic_tot0, .)
+        if (j %in% c(1, 6)) {
+            temp <- update_columns(temp, 1:30, dmy)
+        }
+        if (j == 2) {
+            type <- 0
+        } else if (j == 3) {
+            type <- 3
+        } else {
+            type <- 1
+        }
+        parse_treat0(temp, var_names[j], type = type)
+    }
+) %>% Reduce(function(x, y) list.merge(x, y), .)
 
-# sheets <- c("Adult", "Children", "All (numerical)", "All (categorical)")
-# wb <- createWorkbook()
-# for (i in seq_along(sheets)) {
-#     addWorksheet(wb, sheets[i])
-#     writeData(wb, sheets[i], list_tables[[i]])
-# }
-# saveWorkbook(wb, file = osteitis_file, overwrite = TRUE)
+list.map(list_treat, f(i) ~ list.map(i, f(j) ~ j[names(j) == "Name"]) %>% compact()) %>%
+    compact() %>%
+    unlist() %>%
+    unname() %>%
+    sort() %>%
+    unique()
+
+temp <- clinic_code[[1]] %>%
+    filter(str_detect(group_code, "^IMA_SystemicTherapiesAspiBloc"))
+# select(clinic_tot0, temp$column_code) %>%
+#     set_colnames(temp$item_name) %>%
+#     View()
+```
+
+```{r}
+treats0 <- c("ASPI", "NSAID", "CORTICO", "COLCH", "BIPHO", "IVIG", "DMARDS", "BIO", "KINASE", "OTHER")
+treats <- paste0("IMA_SYSTHERAPY_TREATMENT_", c(paste0(treats0, "_"), ""))
+vars <- c("((PRECISION)|(TREAT))", "((aINF)|(aPLAT)|(DOSE))", "FREQUENCY", "DURATION")
+var_names <- c("Name", "Administrated dose", "Frequency", "Period")
+list_treat <- list.map(
+    treats,
+    f(i, j) ~ {
+        list.map(
+            paste0(i, vars),
+            f(k, l) ~ {
+                temp <- clinic_code[[1]] %>%
+                    filter(str_detect(item_code, paste0("^", k, "$"))) %>%
+                    pull(column_code) %>%
+                    select(clinic_tot0, .)
+                if (j == 8 && l == 1) {
+                    key <- "Subtype"
+                } else if (j == 2 && l == 2) {
+                    key <- "Dose"
+                } else {
+                    key <- var_names[l]
+                }
+                if (l == 1) {
+                    type <- 3
+                } else {
+                    type <- 1
+                }
+                if (ncol(temp) > 0) {
+                    parse_treat0(temp, key, type)
+                }
+            }
+        )
+    }
+) %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+    list.merge(list_treat)
+
+treats0 <- c("aIFalpha", "aIL1", "aIL6", "aTNFalpha", "aCD20")
+treats <- paste0("IMA_SYSTHERAPY_TREATMENT_BIO", c("", paste0("_TREAT_", treats0)))
+vars <- c("_OTHER_NEW_VALUE")
+list_treat0 <- list.map(
+    treats,
+    f(i, j) ~ {
+        list.map(
+            paste0(i, vars),
+            f(k, l) ~ {
+                temp <- clinic_code[[1]] %>%
+                    filter(str_detect(item_code, paste0("^", k, "$"))) %>%
+                    pull(column_code) %>%
+                    select(clinic_tot0, .)
+                if (j == 1) {
+                    key <- "Subtype"
+                    type <- 2
+                } else {
+                    key <- "Name"
+                    type <- 3
+                }
+                if (ncol(temp) > 0) {
+                    parse_treat0(temp, key, type)
+                }
+            }
+        )
+    }
+) %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+    Reduce(function(x, y) list.merge(x, y), .) #
+# %>%
+#   list.merge(list_treat)
+
+# NSAID dose = Dose (not administrative)
+# IVG : period = month
+# Other
+# Verif si chaque case de date pour les traitements generaux ne correspond pas a plusieurs cases pour chaque different traitement
+# Abatacept, Canakinumab, Enate in Group
+for (x in c("Name", "Type", "Over", "Response", "Stop reason", "Stop reason (other)", "Subtype")) {
+    cat("\n***\n")
+    list.map(list_treat0, f(i) ~ list.map(i, f(j) ~ j[names(j) == x]) %>% compact()) %>%
+        compact() %>%
+        unlist() %>%
+        unname() %>%
+        sort() %>%
+        unique() %>%
+        print()
+}
 ```
 
 # Session information
