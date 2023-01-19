@@ -930,13 +930,13 @@ temp <- temp %>%
     clean_names()
 
 for (i in c("response", "response_3")) {
-      clinic_proc[, i] <- recode_factor(
-          clinic_proc[, i],
-          `Loss of efficacy` = "Failure or loss of efficacy",
-          `Primary failure` = "Failure or loss of efficacy",
-          .default = levels(clinic_proc[, i])
-      )
-  }
+    clinic_proc[, i] <- recode_factor(
+        clinic_proc[, i],
+        `Loss of efficacy` = "Failure or loss of efficacy",
+        `Primary failure` = "Failure or loss of efficacy",
+        .default = levels(clinic_proc[, i])
+    )
+}
 
 clinic_proc$response_2 <- recode_factor(as.numeric(clinic_proc$response_2), !!!c("Complete response", rep("Partial response or failure", 2)))
 
@@ -1264,7 +1264,8 @@ clinic_tot1 <- clinic_tot0 %>%
             c("SOJIA", "AOSD"),
             collapse = "|"
         ))
-    ))
+    )) %>%
+    clean_data(FALSE, FALSE, TRUE, FALSE)
 
 data(clinic)
 attributes(clinic)$codes
@@ -1437,6 +1438,19 @@ df_manifs <- list.map(manifs, f(i) ~ {
     immu_manif(i, df2 = clinic_tot1)
 })
 df_manifs[[2]] <- df_manifs[[2]][, seq(3)]
+# Table
+ids <- pull(clinic_tot1, 2) %>% as.numeric()
+still_manif <- df_manifs %>%
+    list.cbind() %>%
+    set_colnames(colnames(.) %>% str_remove_all(" \\(.+\\)")) %>%
+    as_tibble() %>%
+    mutate(ids = ids) %>%
+    arrange(ids) %>%
+    select(-ids) %>%
+    set_rownames(ids)
+use_data(still_manif, overwrite = TRUE)
+apply(still_manif, 2, sum) %>% kable0()
+
 p <- list.map(df_manifs, f(i, j) ~ {
     plot_bar_mcat(i, cex = 12, ratio = 3, title = vars[j])
 })
@@ -1475,7 +1489,7 @@ align_plots(plotlist = p, align = "vh") %>%
         ncol = 4
     )
 
-codes <- attributes(clinic_still_processed)$codes %>%
+codes <- attributes(blocks_clinic_tot)$codes %>%
     filter(!str_detect(item_name, "^max_|_5$"))
 codes$group_name %>%
     str_to_title() %>%
@@ -1588,6 +1602,7 @@ sapply(
     seq(ncol(x)),
     function(i) rep(colnames(x)[i], colSums(x)[i])
 ) %>%
+    unlist() %>%
     plot_piechart(df, label = FALSE, hsize = 1.5, title = "", dec = 1, cex = 25)
 
 biol <- select(df, 5) %>%
@@ -1611,10 +1626,10 @@ list.map(
     colnames(df)[1:4],
     f(i, j) ~ {
         if (j == 3) {
-              cols <- remission_col[c(2, 1)]
-          } else {
-              cols <- rev(remission_col)[-1]
-          }
+            cols <- remission_col[c(2, 1)]
+        } else {
+            cols <- rev(remission_col)[-1]
+        }
         plot_piechart(
             df %>% pull(i),
             colour = c(cols, "gray"),
@@ -1853,7 +1868,7 @@ df <- lapply(i, function(i) {
     }
     return(df0)
 }) %>% list.rbind()
-
+ids <- (df$id) %>% unique()
 # Rename columns
 colnames(df) <- colnames(df) %>%
     str_replace_all("\\.", " ") %>%
@@ -1861,17 +1876,17 @@ colnames(df) <- colnames(df) %>%
 keys <- c("Date", "N")
 values <- c("beginnning_date", "nb_treatment")
 for (i in seq(keys)) {
-      colnames(df) <- str_replace_all(colnames(df), keys[i], values[i])
-  }
+    colnames(df) <- str_replace_all(colnames(df), keys[i], values[i])
+}
 # colnames(df)[colnames(df) %>% duplicated() %>% which()]
 keys <- c("drug", "dose")
 for (i in keys) {
-      colnames(df)[str_detect(colnames(df), str_to_title(i))] <- paste(i, header, sep = "_")
-  }
+    colnames(df)[str_detect(colnames(df), str_to_title(i))] <- paste(i, header, sep = "_")
+}
 keys <- c("response", "reason", "discontinuation")
 for (i in keys) {
-      colnames(df)[str_detect(colnames(df), str_to_title(i))] <- paste(i, header[-2], sep = "_")
-  }
+    colnames(df)[str_detect(colnames(df), str_to_title(i))] <- paste(i, header[-2], sep = "_")
+}
 
 # Format conversion
 df <- tibble(df)
@@ -1895,13 +1910,13 @@ list.map(
     }
 )
 
-var_dates <- c(9)
+var_dates <- c(2, 9)
 df <- update_columns(df, var_dates, as.character)
 var_na <- c("item a corriger", "not reported", "missing")
 for (i in var_na) {
     df[df == i] <- NA
 }
-df <- update_columns(df, var_dates, as.Date)
+# df <- update_columns(df, var_dates, as.Date)
 
 var_response <- colnames(df) %>% str_which("response")
 df <- update_columns(df, var_response, function(i) {
@@ -2055,10 +2070,10 @@ parse_treat <- function(i, j) {
 
 options("tidylog.display" = list())
 for (i in as.character(unique(df$id))) {
-      for (j in c("pre_", "at_", "post_")) {
-            l_treat[[i]][[j]] <- parse_treat(i, j)
-        }
-  }
+    for (j in c("pre_", "at_", "post_")) {
+        l_treat[[i]][[j]] <- parse_treat(i, j)
+    }
+}
 options("tidylog.display" = NULL)
 
 list.is(l_treat, "anakinra" %in% names(post_))
@@ -2070,6 +2085,7 @@ l_treat0 <- list.map(l_drugs, f(i) ~ {
         list.is(l_treat, j %in% names(post_)) %>% as.numeric()
     }) %>% list.cbind()
 })
+names(l_treat0)[c(2:4)] <- c("CORTICOID", "BIPHOSPHATE", "DMARD")
 l_treat_tot <- list.map(l_treat0, f(i) ~ {
     apply(i, 1, sum) %>%
         list.mapv(f(j) ~ {
@@ -2091,6 +2107,15 @@ l_treat_tot0 <- c(
 ) %>%
     setNames(var_names)
 
+# Tables
+l_treat0 %>% list.map(f(i) ~ {
+    apply(i, 2, sum) %>%
+        keep(~ .x > 0) %>%
+        sort(TRUE)
+})
+sapply(l_treat_tot, sum)
+
+# Plots
 plot_bar_mcat(
     l_treat0 %>% list.cbind(),
     cex = 10,
