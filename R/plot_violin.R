@@ -13,17 +13,11 @@ plot_piechart <- function(
     title = NULL,
     wrap_title = 20,
     legend = TRUE,
-    result = FALSE
+    parse = FALSE,
+    collapse = FALSE,
+    label_name = NULL
     ) {
-    df <- unlist(x) %>%
-        as.factor() %>%
-        # fct_drop() %>%
-        # fct_infreq() %>%
-        fct_relabel(~ str_replace_all(.x, "\\s*\\([^\\)]+\\)", "")) %>%
-        fct_count()
-    if (result) {
-        return(df)
-    }
+    df <- count_cat(x, parse = parse, wrap = wrap, collapse = collapse, label = label_name)
     if (!is.null(df0)) {
         df <- rbind(df, data.frame(f = NA, n = c(nrow(df0) - sum(df$n))))
     }

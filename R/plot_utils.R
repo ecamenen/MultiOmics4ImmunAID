@@ -125,8 +125,7 @@ theme_violin1 <- function(
             panel.grid.major.x = element_blank(),
             panel.grid.minor.x = element_blank()
         )
-    }
-    else {
+    } else {
         p
     }
 }
@@ -357,27 +356,8 @@ spec_color2 <- function(x, alpha = 1, begin = 0, end = 1,
 }
 
 #' @export
-# plot_bar_mcat(clinic_tot0$C_2643_3798, colorRampPalette(c("blue", "gray", "red"))(16))
-plot_bar_mcat <- function(
-    x,
-    colors = c("blue", "gray", "#cd5b45"),
-    hjust = -0.1,
-    vjust = 0.5,
-    ratio = 5,
-    cex = 10,
-    title = NULL,
-    wrap = 20,
-    parse = FALSE,
-    collapse = FALSE,
-    n = 5,
-    result = FALSE,
-    label = NULL,
-    color_title = "black"
-    ) {
-    if (is.null(title)) {
-        title <- deparse(substitute(x))
-    }
-    x0 <- as.data.frame(x) -> x
+count_cat <- function(x, parse = FALSE, wrap = 20, collapse = FALSE, label = NULL) {
+    x0 <- as.data.frame(x)
     if (ncol(x0) > 1) {
         x <- sapply(seq(ncol(x0)), function(i) rep(colnames(x0)[i], colSums(x0, na.rm = TRUE)[i]))
     }
@@ -406,10 +386,32 @@ plot_bar_mcat <- function(
     if (!is.null(label)) {
         df$f <- factor(df$f, labels = rev(str_wrap(label, wrap)))
     }
-    if (result) {
-        return(df)
+    return(df)
+}
+
+#' @export
+# plot_bar_mcat(clinic_tot0$C_2643_3798, colorRampPalette(c("blue", "gray", "red"))(16))
+plot_bar_mcat <- function(
+    x,
+    colors = c("blue", "gray", "#cd5b45"),
+    hjust = -0.1,
+    vjust = 0.5,
+    ratio = 5,
+    cex = 10,
+    title = NULL,
+    wrap = 20,
+    parse = FALSE,
+    collapse = FALSE,
+    label = NULL,
+    n = 5,
+    color_title = "black"
+    ) {
+    if (is.null(title)) {
+        title <- deparse(substitute(x))
     }
-    df <- data.frame(df, order = as.numeric(rownames(df)))
+    x0 <- as.data.frame(x)
+    df <- count_cat(x0, parse = parse, wrap = wrap, collapse = collapse, label = label) %>%
+        data.frame(., order = as.numeric(rownames(.)))
     colors <- colorRampPalette(colors)(nrow(df))
     x_lab <- (round(df$n, 2) / nrow(x0) * 100) %>%
         round(1) %>%

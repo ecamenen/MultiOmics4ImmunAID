@@ -1652,20 +1652,7 @@ list.map(
 
 lapply(
     colnames(df)[-c(5:6)],
-    function(i) {
-        plot_piechart(
-            df %>% pull(i),
-            colour = col,
-            label = FALSE,
-            legend = lab,
-            cex = 30,
-            dec = 1,
-            threshold = 4,
-            title = vars[j],
-            hsize = 1.5,
-            result = TRUE
-        )
-    }
+    function(i) count_cat(df %>% pull(i))
 ) %>%
     Reduce(function(i, j) left_join(i, j, by = "f"), .) %>%
     set_colnames(c("Response", vars[seq(4)])) %>%
@@ -1690,11 +1677,11 @@ treat_type <- treatments %>%
 treat_type <- treat_type[-c(2, 7)]
 
 immu_manif("SYSTHERAPY_TREATMENT_GROUP_OTHER_NEW_VALUE", df2 = clinic_tot0) %>%
-    plot_bar_mcat(collapse = TRUE, parse = TRUE, n = 1000, wrap = 1000) #, result = TRUE) %>%
-    # slice(1) %>%
-    # pull(2) %>%
-    # str_split(", ") %>%
-    # pluck(1) %>%
+    plot_bar_mcat(collapse = TRUE, parse = TRUE, n = 1000, wrap = 1000)
+# pull(2) %>%
+# str_split(", ") %>%
+# pluck(1) %>%
+# sort()
     # sort()
 
 # immu_manif("OTHER_NEW_VALUE", df2 = clinic_tot0) %>%
