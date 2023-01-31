@@ -346,6 +346,14 @@ finalise_data <- function(x, col_name = NULL, clean_name = TRUE, row_name = 1) {
 }
 
 #' @export
+formate_immu <- function(x) {
+    clean_data(x, FALSE, FALSE, TRUE, FALSE) %>% 
+    mutate(ID = as.numeric(C_2643_3796)) %>%
+    arrange(ID) %>% 
+    select(-ID)
+}
+
+#' @export
 ordinal_variables <- function(x, n = nrow(x) / 2^3) {
     which(
         sapply(

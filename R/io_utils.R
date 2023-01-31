@@ -37,14 +37,14 @@ save_tsv <- function(x, filename = NULL, col_names = TRUE) {
 read_batches <- function(
     k = "Clinical",
     export = "export",
-    date = "20220512",
+    date = "20230103",
     n_batch = 3,
     clin_path = file.path(
         golem::get_golem_wd(),
         "inst",
         "extdata",
         "clinical",
-        "20220501"
+        "20230103"
     )
 ) {
     lapply(

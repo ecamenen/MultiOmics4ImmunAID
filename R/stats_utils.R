@@ -327,11 +327,11 @@ descriptive_cat_immun <- function(x, dec = 1) {
 }
 
 #' @export
-descriptive_mcat_immun <- function(x, var, dec = 1, parse = FALSE, wrap = 20, collapse = FALSE, label = NULL) {
+descriptive_mcat_immun <- function(x, var, dec = 1, parse = FALSE, wrap = 20, collapse = FALSE, label = NULL, n = nrow(x)) {
     count_cat(x, wrap = wrap) %>%
         set_colnames(c("Levels", "N")) %>%
         mutate(
-            `%` = (N / nrow(x) * 100) %>% round(dec),
+            `%` = (N / n * 100) %>% round(dec),
             Variables = var
         ) %>%
         select(Variables, Levels, N, `%`)
