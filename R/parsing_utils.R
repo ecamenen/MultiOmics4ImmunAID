@@ -468,3 +468,21 @@ separate_semicolon0 <- function(x, sep = " ; ", collapse = TRUE) {
     }
     collapse_mcat(res)
 }
+
+list_cbind <- function(x) {
+    x <- list.map(x, f(i) ~ as.data.frame(i))
+    tmp <- sapply(x, nrow)
+    maxi <- max(tmp)
+    test <- tmp < maxi
+    for (i in 1:length(tmp)) {
+        if (test[i]) {
+            add <- matrix(nrow = maxi - tmp[i], ncol = ncol(x[[i]]))
+            if (is.data.frame(x[[i]])) {
+                add <- as.data.frame(add)
+            }
+            colnames(add) <- colnames(x[[i]])
+            x[[i]] <- rbind(x[[i]], add)
+        }
+    }
+   list.cbind(x)
+}
