@@ -2199,7 +2199,7 @@ print_excel <- function(x, file = osteitis_file) {
 }
 
 clinic0 <- read_batches()
-clinic_tot0 <- Reduce(rbind, clinic0) %>%  formate_immu()
+clinic_tot0 <- Reduce(rbind, clinic0) %>% formate_immu()
 clinic_osteo <- filter(clinic_tot0, str_detect(C_2643_3798, "osteitis"))
 clinic_osteo <- mutate(clinic_osteo, adult = ifelse(clinic_osteo$C_2643_3803 > 18, "Adult", "Children"))
 
@@ -2443,8 +2443,8 @@ list.map(list_tables, f(i, j) ~ {
 ```{r}
 # clinic_tot1 <- clinic_osteo
 parse_treat0 <- function(x, y = "Date", type = FALSE) {
-    x %>% 
-        set_colnames(rep(seq(30), ncol(.)/30)) %>%
+    x %>%
+        set_colnames(rep(seq(30), ncol(.) / 30)) %>%
         list.parse() %>%
         list.map(f(i) ~ {
             discard(i, is.na) %>%
@@ -2455,8 +2455,8 @@ parse_treat0 <- function(x, y = "Date", type = FALSE) {
                     }
                     if (type == 2) {
                         for (i in c("il", "cd", "tnf")) {
-                              temp <- str_replace_all(temp, paste0("Anti[- ](", i, ") ?(\\d{1,2}|α)$"), paste0("Anti-", toupper(i), "\\2"))
-                          }
+                            temp <- str_replace_all(temp, paste0("Anti[- ](", i, ") ?(\\d{1,2}|α)$"), paste0("Anti-", toupper(i), "\\2"))
+                        }
                     } else if (type == 3) {
                         temp <- str_replace_all(temp, "Antibiot(ic|ique|herapie)", "Anti-biotic") %>%
                             str_replace_all("(Antihistamine)s?", "\\1") %>%
@@ -2471,7 +2471,7 @@ parse_treat0 <- function(x, y = "Date", type = FALSE) {
                             str_replace_all("((Anti-plate?let)s?( aggregation)?)|(Antiagregent plaquettaire)", "Anti-platelets aggregation")
                     }
                     else if (type == 4) {
-                        temp <- str_replace_all(temp, "Month\\(s\\)", "Month") 
+                        temp <- str_replace_all(temp, "Month\\(s\\)", "Month")
                     }
                     list(temp) %>% set_names(y)
                 })
@@ -2581,7 +2581,7 @@ list_treat <- list.map(
                 temp <- clinic_code[[1]] %>%
                     filter(str_detect(item_code, paste0("^", k, "$"))) %>%
                     pull(column_code) %>%
-                    select(clinic_tot1, .)  %>%
+                    select(clinic_tot1, .) %>%
                     set_rownames(ids)
                 if (j == 1) {
                     key <- "Subtype"
@@ -2619,22 +2619,28 @@ for (x in c("Drug name", "Type", "Discontinuation", "Response", "Reason for disc
 
 sub <- list.map(list_treat, f(i) ~ list.map(i, f(j) ~ j[names(j) == "Subtype" & j %in% c("Abatacept", "Canakinumab", "Enatercept")]) %>% compact()) %>%
     compact() %>%
-  list.map(f(i) ~ list.map(i, f(j)  ~ setNames(j, "Drug name")))
+    list.map(f(i) ~ list.map(i, f(j) ~ setNames(j, "Drug name")))
 list_treat <- list.merge(sub, list_treat)
 for (i in names(sub)) {
-  for (j in names(sub[[i]])) {
-    if (sub[[i]][[j]]$`Drug name` == "Canakinumab") {
-      type <- "Anti-IL1"
-    } else {
-      type <- "Anti-TNFα"
+    for (j in names(sub[[i]])) {
+        if (sub[[i]][[j]]$`Drug name` == "Canakinumab") {
+            type <- "Anti-IL1"
+        } else {
+            type <- "Anti-TNFα"
+        }
+        list_treat[[i]][[j]]$Subtype <- type
     }
-    list_treat[[i]][[j]]$Subtype = type
-  }
 }
 
-list_other <- list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ is.list(j) && j$Type == "Other") %>% list.map(f(k) ~ k$`Drug name`)) %>% compact() %>% unlist() %>% unique()
+list_other <- list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ is.list(j) && j$Type == "Other") %>% list.map(f(k) ~ k$`Drug name`)) %>%
+    compact() %>%
+    unlist() %>%
+    unique()
 
-list.map(list_other, f(x) ~ list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ is.list(j) && j$`Drug name` == x) %>% list.map(f(k) ~ k$Type)) %>% compact() %>% unlist() %>% unique())
+list.map(list_other, f(x) ~ list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ is.list(j) && j$`Drug name` == x) %>% list.map(f(k) ~ k$Type)) %>%
+    compact() %>%
+    unlist() %>%
+    unique())
 
 # list_treat[["7006"]][["2"]]$Type <- "DMARDs"
 ```
@@ -2649,7 +2655,7 @@ list_date <- list.map(
             filter(str_detect(column_code, paste0("^", i, "$"))) %>%
             pull(column_code) %>%
             select(clinic_tot1, .) %>%
-            set_rownames(ids) %>% 
+            set_rownames(ids) %>%
             parse_treat2(var_names[j], type = 1)
     }
 ) %>% Reduce(function(x, y) list.merge(x, y), .)
@@ -2664,23 +2670,30 @@ list_treat00 <- list.map(list_treat, f(i) ~ list.class(i, f(j) ~ if (is.list(j))
     if (dmy(j[["Date of beginning"]]) >= dmy(i[["Date of the 1st visit"]])) {
         return("Post-inclusion")
     } else {
-      if (is.null(j[["Date of discontinuation"]]))
-        return("Ongoing treatment")
-      else {
-        if (dmy(j[["Date of discontinuation"]]) >= dmy(i[["Date of the 1st visit"]])) {
-        return("Ongoing treatment")
-      } else
-        return("Pre-inclusion")
-      }
+        if (is.null(j[["Date of discontinuation"]])) {
+            return("Ongoing treatment")
+        } else {
+            if (dmy(j[["Date of discontinuation"]]) >= dmy(i[["Date of the 1st visit"]])) {
+                return("Ongoing treatment")
+            } else {
+                return("Pre-inclusion")
+            }
+        }
     }
 } else {
-  return("Patient")
-}
-))
-list_treat0 <- list.map(list_treat00, f(i) ~ list.map(i, f(j) ~ list.map(j, f(k) ~ unlist(k)) %>% bind_rows()) %>% list_cbind() %>% mutate(ID2 = i$Patient$ID))
+    return("Patient")
+}))
+list_treat0 <- list.map(list_treat00, f(i) ~ list.map(i, f(j) ~ list.map(j, f(k) ~ unlist(k)) %>% bind_rows()) %>%
+    list_cbind() %>%
+    mutate(ID2 = i$Patient$ID))
 
 var_names2 <- c("Date of beginning", "Drug name", "Type", "Subtype", "Administrated dose", "Dose", "Frequency", "Period", "Response", "Discontinuation", "Date of discontinuation", "Reason for discont.", "Reason for discont. (other)")
-list_treat1 <- Reduce(bind_rows, list_treat0) %>% as_tibble() %>% group_by(ID2) %>% mutate(`N previous treatment`  = unique(`Pre-inclusion.Drug name`) %>% na.omit() %>% length()) %>% ungroup() %>% select(., contains(c(var_names, "N previous treatment", paste(rep(c("Pre-inclusion", "Ongoing treatment", "Post-inclusion"), each = length(var_names2)), var_names2, sep = ".")))) 
+list_treat1 <- Reduce(bind_rows, list_treat0) %>%
+    as_tibble() %>%
+    group_by(ID2) %>%
+    mutate(`N previous treatment` = unique(`Pre-inclusion.Drug name`) %>% na.omit() %>% length()) %>%
+    ungroup() %>%
+    select(., contains(c(var_names, "N previous treatment", paste(rep(c("Pre-inclusion", "Ongoing treatment", "Post-inclusion"), each = length(var_names2)), var_names2, sep = "."))))
 
 list_treat2 <- select(list_treat1, -ID2) %>% set_colnames(colnames(.) %>% str_remove_all("((Patient)|(((Post)|(Pre))-inclusion)|(Ongoing treatment))."))
 write.xlsx(list_treat2, file = file.path(path_tsv, "still_treatments.xlsx"))
@@ -2703,17 +2716,54 @@ treat_subtypes <- list.map(list_treat, f(i) ~ list.map(i, f(j) ~ j[names(j) == "
 t_treat_subtypes <- list.map(treat_subtypes, f(i) ~ list.mapv(list_treat0, f(j) ~ i %in% j$`Post-inclusion.Subtype`) %>% as.numeric()) %>% list.cbind()
 apply(t_treat_subtypes, 2, sum)
 
-list.map(treat_types, f(i) ~ list.map(list_treat0, f(j) ~ {if(all(c("Post-inclusion.Type", "Post-inclusion.Drug name") %in% colnames(j))) { filter(j, `Post-inclusion.Type` == i) %>% pull(`Post-inclusion.Drug name`) %>% unique() } else {NULL}}) %>% unlist() %>% factor() %>% fct_count())
+list.map(treat_types, f(i) ~ list.map(list_treat0, f(j) ~ {
+    if (all(c("Post-inclusion.Type", "Post-inclusion.Drug name") %in% colnames(j))) {
+        filter(j, `Post-inclusion.Type` == i) %>%
+            pull(`Post-inclusion.Drug name`) %>%
+            unique()
+    } else {
+        NULL
+    }
+}) %>%
+    unlist() %>%
+    factor() %>%
+    fct_count())
 
-list.search(list_treat0, "Anakinra" %in% .) %>% list.match("Post-inclusion") %>% length()
-l_per_treat <- list.map(treat_types, f(i) ~ {l_drugs <- list.map(list_treat0, f(j) ~ if(all(c("Post-inclusion.Type", "Post-inclusion.Drug name") %in% colnames(j))) filter(j, `Post-inclusion.Type` == i) %>% pull(`Post-inclusion.Drug name`)) %>% unlist() %>% unique() ; list.map(list_treat0, f(j) ~ {list.mapv(l_drugs, f(k) ~ (all(c("Post-inclusion.Type", "Post-inclusion.Drug name") %in% colnames(j))) && (k %in% (filter(j, `Post-inclusion.Type` == i) %>% pull(`Post-inclusion.Drug name`))) )} %>% as.numeric()) %>% list.rbind() %>% set_colnames(l_drugs)}) %>% compact()
+list.search(list_treat0, "Anakinra" %in% .) %>%
+    list.match("Post-inclusion") %>%
+    length()
+l_per_treat <- list.map(treat_types, f(i) ~ {
+    l_drugs <- list.map(list_treat0, f(j) ~ if (all(c("Post-inclusion.Type", "Post-inclusion.Drug name") %in% colnames(j))) filter(j, `Post-inclusion.Type` == i) %>% pull(`Post-inclusion.Drug name`)) %>%
+        unlist() %>%
+        unique()
+    list.map(list_treat0, f(j) ~ {
+        list.mapv(l_drugs, f(k) ~ (all(c("Post-inclusion.Type", "Post-inclusion.Drug name") %in% colnames(j))) && (k %in% (filter(j, `Post-inclusion.Type` == i) %>% pull(`Post-inclusion.Drug name`))))
+    } %>% as.numeric()) %>%
+        list.rbind() %>%
+        set_colnames(l_drugs)
+}) %>% compact()
 list.map(l_per_treat, f(i) ~ apply(i, 2, sum))
 
-list.map(list_other, f(x) ~ list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ is.list(j) && j$`Drug name` == x) %>% list.map(f(k) ~ k$Type)) %>% compact() %>% unlist() %>% unique())
+list.map(list_other, f(x) ~ list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ is.list(j) && j$`Drug name` == x) %>% list.map(f(k) ~ k$Type)) %>%
+    compact() %>%
+    unlist() %>%
+    unique())
 
 
 titles <- c("Treatment response", "Reason for discontinuation")
-list.map(c("Response", "Reason for discont."), f(k, l) ~ list.map(treat_types, f(i) ~ list.map(list_treat0, f(j) ~ {if(all(c("Post-inclusion.Type", paste0("Post-inclusion.", k)) %in% colnames(j))) { filter(j, `Post-inclusion.Type` == i) %>% pull(paste0("Post-inclusion.", k)) %>% unique() } else {character(0)}}) %>% list.map(f(i) ~ if(length(i) == 0) NA else i) %>% unlist() %>% tibble() %>% descriptive_mcat_immun(var = paste0(titles[l], " (", tolower(i), ")"), n = 38, wrap = 1000)) %>% list.rbind()) %>% list.rbind()
+list.map(c("Response", "Reason for discont."), f(k, l) ~ list.map(treat_types, f(i) ~ list.map(list_treat0, f(j) ~ {
+    if (all(c("Post-inclusion.Type", paste0("Post-inclusion.", k)) %in% colnames(j))) {
+        filter(j, `Post-inclusion.Type` == i) %>%
+            pull(paste0("Post-inclusion.", k)) %>%
+            unique()
+    } else {
+        character(0)
+    }
+}) %>%
+    list.map(f(i) ~ if (length(i) == 0) NA else i) %>%
+    unlist() %>%
+    tibble() %>%
+    descriptive_mcat_immun(var = paste0(titles[l], " (", tolower(i), ")"), n = 38, wrap = 1000)) %>% list.rbind()) %>% list.rbind()
 ```
 
 # Session information
