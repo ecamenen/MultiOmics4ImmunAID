@@ -20,9 +20,9 @@ def merge_empty_cells(column):
             continue
         # If the cell is empty but we have found a non-empty cell, merge it with the first non-empty cell
         elif not cell.value and first_non_empty_cell is not None:
-            cell_to_merge = "{}{}".format(cell.column_letter, first_non_empty_cell_index)
+            cell_to_merge = "{}{}".format(cell.column_letter, cell.row)
             first_non_empty_cell_to_merge = "{}{}".format(first_non_empty_cell.column_letter, first_non_empty_cell_index)
-            sheet.merge_cells("{}:{}".format(cell_to_merge, first_non_empty_cell_to_merge))
+            sheet.merge_cells("{}:{}".format(first_non_empty_cell_to_merge, cell_to_merge))
         # If the cell is not empty, record it as the first non-empty cell
         else:
             first_non_empty_cell = cell
