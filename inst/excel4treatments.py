@@ -17,6 +17,9 @@ column_colors = {
     "AS:BD": get_color[4]
 }
 
+header = ["Patient", "Pre-treatment", "Ongoing at V1", "Ongoing at V2", "Post V2"]
+header = [x.upper() for x in header]
+
 # Define the fill pattern to use for highlighting cells containing "Missing"
 missing_fill = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')
 
@@ -27,10 +30,13 @@ def merge_empty_cells(column):
 
     # Iterate over all cells in the column
     for cell in column:
+        cell.alignment = Alignment(vertical='center')
         # If the cell is empty and we haven't found a non-empty cell yet, skip it
         if str(cell.value) == "None" and first_non_empty_cell is None:
             continue
         if cell.value in columns_to_merge:
+            continue
+        if cell.row == 1:
             continue
         # If the cell is empty but we have found a non-empty cell, merge it with the first non-empty cell
         elif str(cell.value) == "None" and first_non_empty_cell is not None:
@@ -51,6 +57,19 @@ wb = openpyxl.load_workbook(args.filename)
 
 # Iterate over all sheets in the workbook
 for sheet in wb:
+    # Add a first row with the specified merged cells
+    sheet.insert_rows(1)
+    sheet.merge_cells("A1:B1")
+    sheet["A1"] = header[0]
+    sheet.merge_cells("C1:P1")
+    sheet["C1"] = header[1]
+    sheet.merge_cells("Q1:AF1")
+    sheet["Q1"] = header[2]
+    sheet.merge_cells("AG1:AR1")
+    sheet["AG1"] = header[3]
+    sheet.merge_cells("AS1:BD1")
+    sheet["AS1"] = header[4]
+
     # Color each column with the corresponding color
     for range_str, color in column_colors.items():
         for cell in sheet[range_str]:
@@ -64,7 +83,7 @@ for sheet in wb:
     # Iterate over all columns in the sheet
     for col in sheet.columns:
         # If the column is one we want to merge cells in, merge the empty cells
-        if col[0].value in columns_to_merge:
+        if col[1].value in columns_to_merge:
             merge_empty_cells(col)
 
         # Highlight cells containing the word "Missing" in yellow
@@ -75,9 +94,10 @@ for sheet in wb:
             if cell.value == "NA":
                 cell.value = ""
 
-
     # Make the header row bold
-    for cell in sheet["1"]:
+    for cell in sheet[1]:
+        cell.font = Font(name='Calibri', bold=True)
+    for cell in sheet[2]:
         cell.font = Font(name='Calibri', bold=True, italic=True)
 
 # Save the modified Excel file with the same name as the original file
