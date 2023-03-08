@@ -2,20 +2,11 @@ import openpyxl
 import argparse
 from openpyxl.styles import Alignment, PatternFill, Font
 
-get_color = ["c1bcbc", "ffd92f", "76cf73", "519fd5", "ef6e69"]
+colors = ["c1bcbc", "ffd92f", "76cf73", "519fd5", "ef6e69"]
 
 # Define the columns that we want to merge cells in
 columns_to_merge = ["ID", "Disease", "N previous treatment", "Date of the 1st visit",
                     "Date of the 2nd visit", "Date of the follow-up", "Eligible for a 2nd visit"]
-
-# Define the colors to use for each column
-column_colors = {
-    "A:B": get_color[0],
-    "C:P": get_color[1],
-    "Q:AF": get_color[2],
-    "AG:AR": get_color[3],
-    "AS:BD": get_color[4]
-}
 
 header = ["Patient", "Pre-treatment", "Ongoing at V1", "Ongoing at V2", "Post V2"]
 header = [x.upper() for x in header]
@@ -47,6 +38,11 @@ def merge_empty_cells(column):
         else:
             first_non_empty_cell = cell
 
+def create_header(sheet, i):
+    header_coordinates = [cell.column_letter+"1" for cell in headers0[i]]
+    sheet.merge_cells(':'.join(header_coordinates))
+    sheet[header_coordinates[0]] = header[i]
+
 # Parse the filename argument from the command line
 parser = argparse.ArgumentParser()
 parser.add_argument("filename", help="the name of the Excel file to merge empty cells in")
@@ -57,18 +53,32 @@ wb = openpyxl.load_workbook(args.filename)
 
 # Iterate over all sheets in the workbook
 for sheet in wb:
+    # Find column indices by header name
+    headers = sheet[1]
+    col_date_1st_visit = None
+    col_date_2nd_visit = None
+    col_followup = None
+
+    for cell in headers:
+        if "Date of the 1st visit" == str(cell.value):
+            col_date_1st_visit = cell.column-1
+        elif "Date of the 2nd visit" == str(cell.value):
+            col_date_2nd_visit = cell.column-1
+        elif "Date of the follow-up" == str(cell.value):
+            col_followup  = cell.column-1
+
+    headers0 = [[headers[0], headers[1]], [headers[2], headers[col_date_1st_visit-1]],
+               [headers[col_date_1st_visit], headers[col_date_2nd_visit-1]],
+               [headers[col_date_2nd_visit], headers[col_followup-1]], [headers[col_followup], headers[-1]]]
+    header_letters = [[cell.column_letter for cell in row] for row in headers0]
+
+    # Define the colors to use for each column
+    column_colors = dict(zip([':'.join(row) for row in header_letters], colors))
+
     # Add a first row with the specified merged cells
     sheet.insert_rows(1)
-    sheet.merge_cells("A1:B1")
-    sheet["A1"] = header[0]
-    sheet.merge_cells("C1:P1")
-    sheet["C1"] = header[1]
-    sheet.merge_cells("Q1:AF1")
-    sheet["Q1"] = header[2]
-    sheet.merge_cells("AG1:AR1")
-    sheet["AG1"] = header[3]
-    sheet.merge_cells("AS1:BD1")
-    sheet["AS1"] = header[4]
+    for i in range(len(headers0)):
+        create_header(sheet, i)
 
     # Color each column with the corresponding color
     for range_str, color in column_colors.items():
