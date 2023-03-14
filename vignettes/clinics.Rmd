@@ -2822,8 +2822,11 @@ list_treat1 <- Reduce(bind_rows, list_treat0) %>%
     as_tibble() %>%
     select(., contains(c(var_names[c(1, 5)], l_var_names[[1]], "N previous treatment", var_names[2], l_var_names[[2]], var_names[c(3, 6)], l_var_names[[3]], var_names[4], l_var_names[[4]])))
 
-list_treat1 <- relocate(list_treat1, "Pre-inclusion.Reason for discont. (side effect(s))", .before = "Patient.N previous treatment") 
+if (!is.null(list_treat1[["Pre-inclusion.Reason for discont. (side effect(s))"]]))
+list_treat1 <- relocate(list_treat1, "Pre-inclusion.Reason for discont. (side effect(s))", .before = "Patient.N previous treatment")
+if (!is.null(list_treat1[["Ongoing at V1.Reason for discont. (side effect(s))"]]))
 list_treat1 <- relocate(list_treat1, "Ongoing at V1.Reason for discont. (side effect(s))", .before = "Patient.Date of the 2nd visit")
+if (!is.null(list_treat1[["Post V2.Reason for discont. (side effect(s))"]]))
 list_treat1 <- relocate(list_treat1, "Post V2.Reason for discont. (side effect(s))", .after = last_col())
 
 list_treat2 <- select(list_treat1, -ID2) %>% set_colnames(colnames(.) %>% str_remove_all("((Patient)|(Ongoing at ((V1)|(V2)))|(Pre-inclusion)|(Post V2))."))
@@ -2988,6 +2991,13 @@ list.map(
         align = "v",
         rel_heights = c(1.5, 0.8, 1.2)
     )
+```
+
+```{r}
+temp <- read.xlsx(file.path(path, "AOSD_SOJIA_Reponse_traitements.xlsx"), startRow = 2, cols = 3:8)
+temp <- temp %>% set_colnames(str_remove_all(colnames(temp), "[Aa]u.") %>% str_replace_all("\\.", " ") %>% str_to_title()) %>% set_rownames(temp[, 1])
+emna_treat <- left_join(select(clinic_tot1, 2) %>% mutate(C_2643_3796 = as.numeric(C_2643_3796)), temp, by = c("C_2643_3796" = "Id Patient")) %>% as.data.frame() %>% set_rownames(pull(., 1)) %>% select(-1) %>% set_colnames(c("Corticoteroid", paste0("Anti-IL", c(1, 6)), "DMARDs", "Kinase Inhibitor"))
+use_data(emna_treat, overwrite = TRUE)
 ```
 
 # Session information
