@@ -25,8 +25,8 @@ clean_data <- function(
         x <- res
     }
     if (clean_empty) {
-          x <- remove_empty(x, c("rows", "cols"), quiet = FALSE)
-      }
+        x <- remove_empty(x, c("rows", "cols"), quiet = FALSE)
+    }
     return(x)
 }
 
@@ -347,10 +347,10 @@ finalise_data <- function(x, col_name = NULL, clean_name = TRUE, row_name = 1) {
 
 #' @export
 formate_immu <- function(x) {
-    clean_data(x, FALSE, FALSE, TRUE, FALSE) %>% 
-    mutate(ID = as.numeric(C_2643_3796)) %>%
-    arrange(ID) %>% 
-    select(-ID)
+    clean_data(x, FALSE, FALSE, TRUE, FALSE) %>%
+        mutate(ID = as.numeric(C_2643_3796)) %>%
+        arrange(ID) %>%
+        select(-ID)
 }
 
 #' @export
@@ -477,12 +477,13 @@ separate_semicolon0 <- function(x, sep = " ; ", collapse = TRUE) {
     collapse_mcat(res)
 }
 
+#' @export
 list_cbind <- function(x) {
     x <- list.map(x, f(i) ~ as.data.frame(i))
     tmp <- sapply(x, nrow)
     maxi <- max(tmp)
     test <- tmp < maxi
-    for (i in 1:length(tmp)) {
+    for (i in seq(length(tmp))) {
         if (test[i]) {
             add <- matrix(nrow = maxi - tmp[i], ncol = ncol(x[[i]]))
             if (is.data.frame(x[[i]])) {
@@ -492,5 +493,5 @@ list_cbind <- function(x) {
             x[[i]] <- rbind(x[[i]], add)
         }
     }
-   list.cbind(x)
+    list.cbind(x)
 }

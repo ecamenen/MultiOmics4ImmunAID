@@ -2994,14 +2994,19 @@ list.map(
 ```
 
 ```{r}
-temp <- read.xlsx(file.path(path, "AOSD_SOJIA_Reponse_traitements.xlsx"), startRow = 2, cols = 3:8) %>% set_rownames(pull(., 1)) %>% set_colnames(c("id", "Corticoteroid", paste0("Anti-IL", c(1, 6)), "DMARDs", "Kinase Inhibitor"))
-
-temp0 <- read.xlsx(file.path(path, "AOSD_SOJIA_Reponse_traitements.xlsx"), startRow = 2, cols = seq(2)) 
+temp <- read.xlsx(file.path(path, "AOSD_SOJIA_Reponse_traitements.xlsx"), startRow = 2, cols = 3:8) %>% set_rownames(pull(., 1)) %>% set_colnames(c("id", "Corticosteroid", paste0("Anti-IL", c(1, 6)), "DMARDs", "Kinase Inhibitor"))
+temp0 <- read.xlsx(file.path(path, "AOSD_SOJIA_Reponse_traitements.xlsx"), startRow = 2, cols = seq(2))
 all_ids <- unlist(temp0) %>% unique() %>% na.omit()
-emna_treat <- sapply(seq(2), function(i) as.numeric(all_ids %in% temp0[, i])) %>% data.frame() %>% set_colnames(paste0("with", c("out", ""), " treatment history")) %>% mutate(id = all_ids) %>% full_join(temp) %>% set_rownames(pull(., id)) %>% select(-id)
-
+emna_treat <- sapply(seq(2), function(i) as.numeric(all_ids %in% temp0[, i])) %>% data.frame() %>% set_colnames(paste0("with", c("out", ""), " treatment history")) %>% mutate(id = all_ids) %>% full_join(temp) %>% arrange(id) %>% set_rownames(pull(., id)) %>% select(-id) %>% mutate(Naive = `without treatment history` + `with treatment history`)
 emna_treat[is.na(emna_treat)] <- 0
 use_data(emna_treat, overwrite = TRUE)
+
+df <- read.xlsx(file.path(path, "AOSD_SOJIA_Reponse_traitements.xlsx"), sheet = 3, startRow = 2, cols = seq(3)) %>% set_rownames(pull(., 1)) %>% set_colnames(c("id", "Corticosteroid","Anti-IL1"))
+df2 <- read.xlsx(file.path(path, "AOSD_SOJIA_Reponse_traitements.xlsx"), sheet = 3, startRow = 2, cols = 7:8)
+all_ids <- unlist(df2) %>% unique() %>% na.omit()
+treat_v2 <- sapply(seq(2), function(i) as.numeric(all_ids %in% df2[, i])) %>% data.frame() %>% set_colnames(paste0("with", c("out", ""), " treatment history")) %>% mutate(id = all_ids) %>% full_join(df) %>% arrange(id) %>% set_rownames(pull(., id)) %>% select(-id) %>% mutate(Naive = `without treatment history` + `with treatment history`)
+treat_v2[is.na(treat_v2)] <- 0
+use_data(treat_v2, overwrite = TRUE)
 ```
 
 # Session information
