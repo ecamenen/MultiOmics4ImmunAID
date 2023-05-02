@@ -2487,6 +2487,8 @@ parse_treat0 <- function(x, y = "Date", type = FALSE) {
                             str_replace_all("(Anti) ", "\\1-") %>%
                             str_replace_all("(Methotrexate) po", "\\1") %>%
                             str_replace_all("(Colchicin)e", "\\1") %>%
+                            str_replace_all("Enatercept", "Etanercept") %>%
+                            str_replace_all("Flunarazine|Flunarizina", "Flunarizine") %>%
                             str_replace_all("((Anti-plate?let)s?( aggregation)?)|(Antiagregent plaquettaire)", "Anti-platelets aggregation")
                     } else if (type == 4) {
                         temp <- str_replace_all(temp, "Month\\(s\\)", "Month")
@@ -2680,6 +2682,26 @@ list.map(list_other, f(x) ~ list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ is
     compact() %>%
     unlist() %>%
     unique())
+
+list_bio_other <- list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ is.list(j) && j$Subtype == "Other") %>% list.map(f(k) ~ k$`Drug name`)) %>%
+    compact() %>%
+    unlist() %>%
+    unique()
+
+l_bio_other <- list.map(list_bio_other, f(x) ~ list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ is.list(j) && j$`Drug name` == x) %>% list.map(f(k) ~ k$Subtype)) %>%
+    compact() %>%
+    unlist() %>%
+    unique()) %>% 
+  keep(function(x) length(x) > 1) %>% 
+  list.map(f(i) ~ i[i != "Other"])
+
+
+
+list.map(l_bio_other, f(x, y, z) ~ list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ is.list(j) & j$Subtype == "Other" & j$`Drug name` == z)) %>% compact())
+
+list_treat <- list.map(l_bio_other, f(x, y, z) ~ list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ is.list(j) & j$Subtype == "Other" & j$`Drug name` == z)) %>% compact() %>% list.map(f(j) ~ list.map(j, f(k) ~ list(Subtype = x)))) %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+    list.merge(list_treat, .)
 
 if (!is.null(list_treat[["7006"]])) {
     list_treat[["7006"]][["2"]]$Type <- "DMARDs"
