@@ -1407,6 +1407,420 @@ summary_num(i)
 plot_violin0(clinic_tot$bmi_automatic, brewer.pal(n, "Set2")[6], size = 3)
 plot_violin0(clinic_tot$age_at_inclusion_tim, brewer.pal(n, "Set2")[5], size = 3)
 # Manifestations
+
+# Parsing manifestation data
+```{r}
+clinic_tot1 <- clinic_tot0 %>% formate_immu()
+clinic_osteo <- filter(clinic_tot0, str_detect(C_2643_3798, "osteitis")) %>% formate_immu()
+vars0 <- clinic_code[[3]] %>%
+    filter(str_detect(group_code, "IMA_ImpactedOrganOrSysTab"))
+vars1 <- vars0 %>%
+    pull(item_name) %>%
+    str_replace("(\\d{1,2}. )", "") %>%
+    str_replace("\\s*\\([^\\)]+\\)", "")
+vars <- c("NEURO", "MUSCU", "CARDIO", "RENAL", "PULMO", "GASTRO", "ENT", "OPHTALMO", "URO", "HAEMATO")
+var_names <- c("is_active", "active_description", "non_active_description", "date_non_active", rep("diagnosis", 2))
+
+var_na <- c("null", "none", "none actually", "No sequelae", "No sequellea", "NO", "Unknown")
+for (i in var_na) {
+    clinic_tot1[clinic_tot1 == i] <- NA
+}
+
+# list.map(manifs, f(i) ~ {
+#    list.map(c("MANIF", paste0("MANIF", c(paste0(c("_IS", "", "_NON"), "_ACTIVE"), "_NON_ACTIVE_DATE", "_DIAGNOSIS")), "OTHER_NEW_VALUE"), f(j) ~ {
+#     temp <- filter(clinic_code[[1]], str_detect(group_code, paste0("^IMA_", str_to_title(i), "Manif(Bloc|Activity|Workup)$"))) %>%
+#         filter(str_detect(item_code, paste0("^IMA_", j, "$")))
+#     select(clinic_tot1, temp$column_code) %>%
+#         set_colnames(temp$item_name) %>%
+#         clean_names() %>%
+#         separate_semicolon()
+#   }) %>% compact()
+# }) -> tmp1
+
+parse_manif0 <- function(x, y, z, a, b = NULL, type = 0, parse = FALSE) {
+  x0 <- pull(x, column_code) %>%
+            select(clinic_tot1, .) %>%
+            set_rownames(ids)
+    n <- ncol(x0)
+    if (n > 0)
+    x0 %>%
+        set_colnames(rep(seq(n), n / n)) %>%
+        list.parse() %>%
+        list.map(f(i, it) ~ {
+            temp <- list.map(
+              i,
+              f(j, jt) ~ {
+                j <- j %>%
+                str_remove_all(" \\(.+\\)") %>%
+                str_replace_all("CLINICAL EXAMINATION", "Clinical examination") %>%
+                str_replace_all("blood exams", "blood test") %>%
+                str_replace_all("physcial examination", "Clinically") %>%
+                str_replace_all("UVEITE ANTERIEURE", "Anterior uveitis") %>%
+                str_replace_all("MYALGIE", "Myalgia") %>%
+                str_replace_all("rthralgie", "rthralgia") %>%
+                str_replace_all("rthrite", "rthritis") %>%
+                str_replace_all("(Artthralgie-myalgie)|(Myalgia\\, arthralgia)|(Athralgia + myalgia)", "Arthralgia ; Myalgia") %>%
+                str_replace_all("pieds gauche", "Foot left") %>%
+                str_replace_all("the (lateral tibial plateau)", "\\1") %>%
+                str_replace_all(" Limb", " limb") %>%
+                str_replace_all("Thoracic Anterior", "Thoracic anterior") %>%
+                to_title()
+                if (type == 1) {
+                    j <- str_remove_all(j, "[\\[\\{\\}\\]\\\"]") %>%
+                      str_remove_all("x:\\d+(\\.\\d+)?,y:\\d+(\\.\\d+)?,pathId:") %>% 
+                      str_replace_all("([A-Z])", " \\1") %>% 
+                      str_squish() %>%
+                      str_split(", ") %>%
+                      pluck(1) %>% 
+                      list.map(f(k) ~ if(length(k) == 1 && str_detect(k, ";")) k else str_to_sentence(k)) %>%
+                      unlist() %>%
+                      paste0(collapse = " ; ")
+                }
+              if (type == 2) {
+                j <- str_to_sentence(j)
+              }
+              if (type == 3) {
+                j <- ifelse(j == "Yes", pull(x, item_name)[jt], j)
+              }
+              if (type == 4) {
+                j <- str_split(j, "\\$\\$") %>% pluck(1)
+                if(length(j) > 1)
+                  j <- j[2:1] %>% paste0(collapse = ": ")
+              }
+              if(type == 5 | parse) {
+                pattern <- " ((\\+)|(and)|(et)) "
+                if (str_detect(j, pattern))
+                  j <- str_split(j, pattern) %>%
+                    pluck(1) %>%
+                    str_squish() %>%
+                    to_title() %>%
+                    paste0(collapse = " ; ")
+                j <- str_remove_all(j, "\\.$")
+              }
+              str_split(j, " ; ") %>% set_names(z)
+            }
+            ) %>% purrr::discard(function(x) x %in% c("NANA", "Nana", "N a n a"))
+            if (type == 3) {
+              temp <- purrr::discard(temp, function(x) str_detect(x, "No"))
+            }
+          if(!is.null(b))
+            temp <- list(temp) %>% set_names(b) %>% compact()
+          list(temp) %>% set_names(a) %>% compact() %>% list(.) %>% set_names(y) %>% compact()
+        }) %>%
+            compact()
+}
+
+parse_manif1 <- function(x, y, z, a, type = 0, parse = TRUE) {
+  if (pull(x, repeat_inds) %>% purrr::discard(is.na) %>% length(.) > 0 && pull(x, repeat_inds) %>% str_detect("\\.") %>% any()) {
+    n <- pull(x, repeat_inds) %>% str_split("\\.") %>% list.map(f(i) ~ pluck(i, 1)) %>% unlist() %>% max() %>% as.numeric()
+    list.map(seq(n), f(i, j) ~ filter(x, str_detect(repeat_inds, paste0(i, "\\."))) %>% parse_manif0(y, z, a, j, type = type, parse = parse)) %>% compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .)
+  } else {
+    parse_manif0(x, y, z, a, type = type, parse = parse)
+  }
+}
+
+parse_manif <- function(x, y, z, a, type = 0, parse = TRUE) {
+  id <- unique(pull(x, item_id))
+  if (length(id > 1)) {
+    list.map(id, f(i) ~ filter(x, item_id == i) %>% parse_manif1(y, z, a, type = type, parse = parse)) %>% compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .)
+  } else {
+    parse_manif1(x, y, z, a, type = type, parse = parse)
+  }
+}
+
+# filter(clinic_code[[1]], str_detect(group_code, paste0("^IMA_", str_to_title("MUSCU")))) %>%
+#     filter(str_detect(item_code, "_LOCALISATION")) %>%
+#     parse_manif("MUSCU", "localisation", "manif", type = 3)  %>% pluck("8002") %>% pluck("MUSCU")
+
+ids <- pull(clinic_tot1, C_2643_3796) %>% as.integer()
+list_manif <- ids %>% setNames(ids) %>% data.frame(id = .) %>% list.parse()
+list_manif <- list.map(
+  vars, 
+  f(x, y) ~{
+list.map(
+    c(paste0("MANIF", c(paste0(c("_IS", "", "_NON"), "_ACTIVE"), "_NON_ACTIVE_DATE", "_DIAGNOSIS")), "OTHER_NEW_VALUE"),
+    f(i, j) ~ {
+        clinic_code[[1]] %>%
+            filter(str_detect(group_code, paste0("^IMA_", str_to_title(x), "Manif(Bloc|Activity|Workup)$"))) %>%
+        filter(str_detect(item_code, paste0("^IMA_", i, "$"))) %>%
+            parse_manif(x, var_names[j], "manif")
+    }
+) %>% compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .)
+  }) %>% compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+  list.merge(list_manif, .)
+
+# x <- "non_active_description"; list.map(tmp0, f(a) ~ list.map(a, f(b) ~ list.map(b$manif, f(d) ~ if(!is.null(d[[x]])) d[[x]] %>% compact()) %>% compact()) %>% compact()) %>% unlist() %>% unname() %>% unique()
+#  x <- "diagnosis"; list.map(tmp0, f(a) ~ list.map(a, f(b) ~ list.map(b$manif, f(d) ~ list.map(d, f(e) ~ if(is.list(e) && !is.null(e[[x]])) e[[x]] %>% compact()) %>% compact()) %>% compact())%>% compact()) %>% unlist() %>% unique()
+#  
+list_manif <- list.map(
+  vars, 
+  f(x, y) ~{
+        clinic_code[[1]] %>%
+            filter(str_detect(group_code, paste0("^IMA_", str_to_title(x), "ManifBloc$"))) %>%
+        filter(str_detect(item_code, paste0("^IMA_", x, "_MANIF$"))) %>%
+            parse_manif(x, "manif", "manif", type = 4)
+    }
+) %>% compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+  list.merge(list_manif, .)
+
+# lapply(tmp, function(x) x %>% unlist() %>% unname() %>% unique())
+
+list_manif <- list.map(
+  c("LESION_IS_ACTIVE", "ACTIVE_LESIONS", "NON_ACTIVE_LESIONS"), f(i, j) ~ {
+    filter(clinic_code[[1]], str_detect(group_code, paste0("^IMA_Mucocutaneous_manifestations"))) %>%
+        filter(str_detect(item_code, paste0("^IMA_MUCO_", i, "$"))) %>%
+    parse_manif("MUCO", var_names[j], "manif")
+  })  %>% compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+  list.merge(list_manif, .)
+
+
+list_manif <- filter(clinic_code[[1]], str_detect(item_code, "^IMA_MUSCU_MANIF_ACTIVE_OSTEISIS$")) %>%
+    parse_manif("MUSCU", "active_description_osteitis", "manif") %>%
+  list.merge(list_manif, .)
+
+list_manif <- list.map(vars, f(i) ~ {
+   list.map(seq(2), f(j) ~ {
+    temp <- filter(clinic_code[[1]], str_detect(group_code, paste0("^IMA_", str_to_title(i), "SequellaeBloc$")))
+    if(j == 1)
+        temp <- filter(temp, str_detect(item_code, paste0("^IMA_", i, "_SEQUELLAE$")))
+    else
+        temp <- filter(temp, str_detect(item_code, paste0("^IMA_OTHER_NEW_VALUE$")))
+    parse_manif(temp, i, "sequellae", "sequellae", type = 5)
+  }) %>% compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .)
+}) %>% compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+  list.merge(list_manif, .)
+
+# list.search(list_manif, str_detect(., "Sterility"))
+sympt_names <- c("symptom", "frequency")
+list_manif <- list.map(vars, f(i, it) ~ {
+   list.map(paste0("_FIRST_QUESTION", c("", "_FREQ")), f(j, jt) ~ {
+    temp <- filter(clinic_code[[1]], str_detect(group_code, paste0("^IMA_", str_to_title(i), "FirstQuestionBloc$")))
+    if (it == 8 && jt == 1) 
+      type <- 3
+    else
+      type <- 0
+    if(it == 1)
+        temp <- filter(temp, str_detect(item_code, paste0("^IMA_MANIF_DESCRIPTION$")))
+    else
+        temp <- filter(temp, str_detect(item_code, paste0("^IMA_", i, j, "$")))
+    parse_manif(temp, i, sympt_names[jt], "symptom", type = type)
+  }) %>% compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .)
+}) %>% compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+  list.merge(list_manif, .)
+
+
+list_manif <- filter(clinic_code[[1]], str_detect(group_code, "^IMA_NeuroManifDescription$")) %>% 
+  parse_manif("NEURO", "symptom", "symptom", type = 2)  %>%
+  list.merge(list_manif, .)
+
+list_manif <- filter(clinic_code[[1]], str_detect(group_code, "^IMA_RenalManifBloc$")) %>% 
+  parse_manif0("RENAL", "manif", "manif", type = 3)  %>%
+  list.merge(list_manif, .)
+
+list_manif <- filter(clinic_code[[1]], str_detect(item_code, "^IMA_MANIF_DIAGNOSIS_DESCRIPTION$")) %>% 
+  parse_manif("MUSCU", "diag_description", "manif")  %>%
+  list.merge(list_manif, .)
+
+list_manif <- list.map(
+  c("CERVICAL_ADENITIS", "PAIN"), 
+  f(i, j) ~ {
+    filter(clinic_code[[1]], str_detect(item_code, paste0("^IMA_HAEMATO_MANIF_", i, "$"))) %>%
+    parse_manif("HAEMATO", str_to_lower(i), "manif")
+  })  %>% compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+  list.merge(list_manif, .)
+
+list_manif <- list.map(
+  c("PULM_HYP", "CHRO_CAR", "AMP", "ANEURYSM"), 
+  f(i, j) ~ {
+    filter(clinic_code[[1]], str_detect(item_code, paste0("^IMA_CARDIO_SEQUELLAE_FOR_", i, "$"))) %>%
+    parse_manif("CARDIO", str_to_lower(i), "sequellae")
+  })  %>% compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+  list.merge(list_manif, .)
+
+var_names0 <- c("localisation_configuration", "localisation_number_lesion", "localisation_body_parts", "localisation_distribution", "localisation_symetry", "localisation_exposition", "localisation_other_signs", "localisation_disease_specific")
+list_manif <- list.map(
+ c(paste0("LESION_", c("CONF", "LOC_S_OR_M", "LOC_ON_BODY", "DISTRIBUTION_1", "DISTRIBUTION_2", "ON_SKIN", "OTHER_CLIN_SIGNS")), "DISEASE_SPEC_LESIONS"),
+  f(i, j) ~ {
+    filter(clinic_code[[1]], str_detect(item_code, paste0("^IMA_MUCO_", i, "$"))) %>%
+  parse_manif("MUCO", var_names0[j], "manif")
+  })  %>% compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+  list.merge(list_manif, .)
+
+# list.map(list_manif, f(i) ~ if(!is.null(i$NEURO)) i$NEURO) %>% compact()
+# list.map(list_manif, f(i) ~ if(!is.null(i$NEURO$manif)) list.map(i$NEURO$manif, f(j) ~ j$manif) %>% compact()) %>% compact()
+# list.map(list_manif, f(i) ~ if(!is.null(i$NEURO$manif)) list.map(i$NEURO$manif, f(j) ~ if(!is.null(j$manif) && str_detect(j$manif, "Cranial")) j$manif) %>% compact()) %>% compact()
+# pluck(list_manif, "8002") %>% pluck("MUSCU")
+
+list_manif <- list.map(
+  vars, 
+  f(x, y) ~{
+        clinic_code[[1]] %>%
+            filter(str_detect(group_code, paste0("^IMA_", str_to_title(x), "(Loc|Manif)"))) %>%
+        filter(str_detect(item_code, paste0("^IMA_MANIF_LEFT_RIGHT_BILATERAL$"))) %>%
+            parse_manif(x, "laterality", "manif")
+    }
+) %>% compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+  list.merge(list_manif, .)
+
+list_manif <- list.map(
+  vars, 
+  f(x, y) ~{
+        temp <- filter(clinic_code[[1]], str_detect(group_code, paste0("^IMA_", str_to_title(x)))) %>%
+        filter(str_detect(item_code, "_LOCALISATION")) %>%
+          filter(!str_detect(column_code, "C_2674_4001"))
+            if (y == 2) 
+              type <- 1
+            else if (y == 3) 
+              type <- 4
+            else
+              type <- 0
+            parse_manif(temp, x, "localisation", "manif", type = type, parse = TRUE)
+    }
+) %>% compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+  list.merge(list_manif, .)
+
+
+list_manif <- filter(clinic_code[[1]], str_detect(column_code, "^C_2720_3885")) %>%
+  parse_manif("HAEMATO", "localisation", "manif", type = 1)  %>%
+  list.merge(list_manif, .)
+
+list_manif <- list.map(
+  vars, 
+  f(x, y) ~{
+        clinic_code[[1]] %>%
+            filter(str_detect(group_code, paste0("^IMA_", str_to_title(x), "Manif"))) %>%
+        filter(str_detect(item_code, paste0("_TYPE|_TRANS|_DIF_INTER"))) %>%
+            parse_manif(x, "type", "manif")
+    }
+) %>% compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+  list.merge(list_manif, .)
+
+list_manif <- filter(clinic_code[[1]], str_detect(group_code, "^IMA_EntSequellaeBloc$")) %>%
+filter(str_detect(item_code, paste0("^IMA_MANIF_LEFT_RIGHT_BILATERAL$"))) %>%
+  parse_manif("ENT", "laterality", "sequellae")  %>%
+  list.merge(list_manif, .)
+
+list_manif <- filter(clinic_code[[1]], str_detect(item_code, paste0("^IMA_OPHTALMO_SEQUELLAE_LEFT_RIGHT_BILATERAL_FOR"))) %>%
+  parse_manif("OPHTALMO", "laterality", "sequellae") %>%
+  list.merge(list_manif, .)
+
+id_osteo <- pull(clinic_osteo, C_2643_3796) %>% as.numeric() %>% as.character()
+list_manif0 <- list.filter(list_manif, id %in% id_osteo)
+
+get_manif <- function(x, y, z = "manif", pattern = "", l = list_manif0) {
+  list.map(
+    l,
+    f(i) ~ list.map(
+      i[[x]][[z]], 
+      f(j) ~ keep(j[[y]], str_detect(j[[y]], pattern))
+      ) %>% compact()
+    )
+}
+
+get_manif0 <- function(x, y, z = "manif", pattern = "", l = list_manif0) {
+  list.map(
+    l, 
+    f(i) ~ list.map(
+      i[[x]]$manif, 
+      f(j) ~ list.map(
+        j, 
+        f(k) ~ if(is.list(k)) keep(k[[y]], str_detect(k[[y]], pattern)) %>% compact()
+      ) %>% compact()
+    ) %>% compact()
+  )
+}
+
+get_occ_list <- function(x, fx = function(x) x) {
+  unlist(x) %>% fx %>% sort() %>% unique() %>% sort() %>% list.map(f(i) ~ list.map(x, f(j) ~ unlist(j) %>% fx %>% str_detect(i) %>% any() %>% as.numeric())) %>% list_cbind0()
+}
+
+list.map(c(vars, "MUCO"), f(x) ~ list.map(list_manif0, f(i) ~ names(i[[x]])) %>% compact() %>% unlist() %>% unique()) %>% compact()
+list.map(c(vars, "MUCO"), f(x) ~ list.map(list_manif0, f(i) ~ list.map(i[[x]]$manif, f(j) ~ list.map(j, f(k) ~ names(k)) %>% compact()) %>% compact()) %>% compact() %>% unlist() %>% unique()) %>% compact() 
+
+(l_manifs <- list.map(vars, f(x) ~ get_manif(x, "manif") %>% get_occ_list()) %>% compact())
+list.map(l_manifs, f(x) ~ apply(x, 2, function(i) sum(i, na.rm = TRUE)))
+
+list.map(list_manif0, f(i) ~ list.map(i[["MUCO"]]$manif, f(j) ~ names(j))) %>% compact() %>% unlist() %>% unique() -> ids
+var_names1 <- c("Is active ?", "Active manifestation", "Number of lesion", "Affected body parts", "Distribution", "Symetry", "Exposition", "Specific disease", "Non-active manifestation", "Configuration", "Other signs")
+list.map(ids, f(i, j) ~ get_manif("MUCO", i) %>% get_occ_list(fx = function(x) str_remove_all(x, " describes.*$") %>% str_remove_all(" is.*$")) %>% plot_bar_mcat(collapse = TRUE, cex = 8, wrap = 20, n = 100, ratio =5, title = var_names1[j])) -> p
+plot_grid(
+    plotlist = c(p[c(2, 4, 1, 3, 5:8, 11, 9:10)]),
+    nrow = 4,
+    ncol = 3,
+    # labels = "AUTO",
+    rel_heights = c(1.5, 1, 1, 0.8)
+)
+
+t_muco_manif <- get_manif("MUCO", "active_description") %>% get_occ_list() %>% apply(1, function(x) any(x == 1) %>% as.numeric()) %>% data.frame(Mucocutaneous = .)
+t_local <- get_manif("MUSCU", "localisation") %>% get_occ_list(
+    fx = function(x) str_replace_all(x, "(.*interphalangeal.*)|(Metacarpophalangeal.*)|(Hands)|(Wrist)|(I p p 1er rayon main gauche)", "Hand") %>% str_replace_all("(Metatarsophalangeal.*)|(Ankle)", "Foot") %>% str_replace_all("(Pubis)|(Hip)|(Sacroiliac)", "Pelvis") %>% str_replace_all("clavicular", "Elbow")  %>% str_replace_all("Knees", "Knee") %>% str_replace_all("(femoral)|(tibia)", "Inferior limb") %>% str_replace_all("(Lumbar column)|(Cervical column)|(Thoracic column)", "Spine") %>% str_remove_all("(right)|(left)|(Lateral)|(l plateau)|(joint)|(Acromio)|(Sterno)") %>% str_squish()) %>% select(-contains("Skull"))
+
+x <- "MUSCU"
+list.map(list_manif0, f(i) ~ list.map(i[[x]]$manif, f(j) ~ names(j))) %>% compact() %>% unlist() %>% unique() %>% purrr:::discard(function(x) str_detect(x, "\\d")) -> ids
+# l_manif <- list.map(ids, f(i, j, k) ~ get_manif(x, i) %>% get_occ_list())
+l_manif <- list.map(ids, f(i, j, k) ~ get_manif(x, i) %>% get_occ_list(
+    fx = function(x) str_replace_all(x, "(.*interphalangeal.*)|(Metacarpophalangeal.*)|(Hands)|(Wrist)|(I p p 1er rayon main gauche)", "Hand") %>% str_replace_all("(Metatarsophalangeal.*)|(Ankle)", "Foot") %>% str_replace_all("(Pubis)|(Hip)|(Sacroiliac)", "Pelvis") %>% str_replace_all("clavicular", "Elbow")  %>% str_replace_all("Knees", "Knee") %>% str_replace_all("(femoral)|(tibia)", "Inferior limb") %>% str_replace_all("(Lumbar column)|(Cervical column)|(Thoracic column)", "Spine") %>% str_remove_all("(right)|(left)|(Lateral)|(l plateau)|(joint)|(Acromio)|(Sterno)") %>% str_squish()) %>% select(-contains("Skull")))
+list.map(l_manif, f(i, j, k) ~ plot_bar_mcat(i, collapse = TRUE, cex = 8, wrap = 20, n = 100, ratio =5, title = str_replace_all(k, "_", " ") %>% str_to_sentence())) %>%
+plot_grid(
+    plotlist = .,
+    nrow = 2,
+    ncol = 3
+)
+
+t_manifs <- Reduce(cbind, c(l_manif[2:4], list(t_muco_manif)))
+# use_data(t_manifs, overwrite = TRUE)
+
+get_manif0(x, "diagnosis") %>% get_occ_list() %>% plot_bar_mcat(collapse = TRUE, cex = 8, wrap = 20, n = 100, ratio =5, title = "Diagnosis")
+
+x <- "NEURO"
+y <- "symptom"
+list.map(list_manif0, f(i) ~ list.map(i[[x]][[y]], f(j) ~ names(j))) %>% compact() %>% unlist() %>% unique() %>%
+list.map(f(i, j, k) ~ get_manif(x, i, y) %>% get_occ_list() %>% plot_bar_mcat(collapse = TRUE, cex = 8, wrap = 20, n = 100, ratio =5, title = str_replace_all(k, "_", " ") %>% str_to_sentence())) %>%
+plot_grid(
+    plotlist = .,
+    nrow = 2,
+    ncol = 1
+)
+
+get_manif0(x, "diagnosis") %>% get_occ_list() %>% plot_bar_mcat(collapse = TRUE, cex = 8, wrap = 20, n = 100, ratio =5, title = "Diagnosis")
+
+list.map(list_manif0, f(i) ~ list.map(i[["MUSCU"]]$manif, f(j) ~ j$localisation)) %>% unlist() %>% str_replace_all("(.*interphalangeal.*)|(Metacarpophalangeal.*)|(Hands)|(Wrist)|(I p p 1er rayon main gauche)", "Hand") %>% str_replace_all("(Metatarsophalangeal.*)|(Ankle)", "Foot") %>% str_replace_all("(Pubis)|(Hip)|(Sacroiliac)", "Pelvis") %>% str_replace_all("clavicular", "Elbow")  %>% str_replace_all("Knees", "Knee") %>% str_replace_all("(femoral)|(tibia)", "Inferior limb") %>% str_replace_all("(Lumbar column)|(Cervical column)|(Thoracic column)", "Spine") %>% str_remove_all("(right)|(left)|(Lateral)|(l plateau)|(joint)|(Acromio)|(Sterno)") %>% str_squish() %>% unique() %>% sort()
+
+get_manif("MUSCU", "localisation") %>% get_occ_list(
+    fx = function(x) str_replace_all(x, "(.*interphalangeal.*)|(Metacarpophalangeal.*)|(Hands)|(Wrist)|(I p p 1er rayon main gauche)", "Hand") %>% str_replace_all("(Metatarsophalangeal.*)|(Ankle)", "Foot") %>% str_replace_all("(Pubis)|(Hip)|(Sacroiliac)", "Pelvis") %>% str_replace_all("clavicular", "Elbow")  %>% str_replace_all("Knees", "Knee") %>% str_replace_all("(femoral)|(tibia)", "Inferior limb") %>% str_replace_all("(Lumbar column)|(Cervical column)|(Thoracic column)", "Spine") %>% str_remove_all("(right)|(left)|(Lateral)|(l plateau)|(joint)|(Acromio)|(Sterno)") %>% str_squish()
+) %>% plot_bar_mcat(collapse = TRUE, cex = 25, wrap = 35, n = 100, ratio = 2, title = "Localisation")
+
+get_manif("MUSCU", "localisation") %>% get_occ_list() %>%  count_cat(collapse = TRUE, wrap = 1000)
+
+# manifs <- list.map(list_manif, f(i) ~names(i)) %>% unlist() %>% unique()
+list.map(c("manif", "symptom", "sequellae"), f(z) ~ {
+  list.map(c(vars, "MUCO"), f(x) ~ list.map(list_manif, f(i) ~ list.map(i[[x]][[z]], f(j) ~ names(j))) %>% compact()) %>% unlist() %>% unique() %>% purrr:::discard(function(x) str_detect(x, "\\d")) %>%
+  list.map(f(x) ~ list.map(manifs, f(y) ~ get_manif(y, x, z, l = list_manif)) %>% compact() %>% unlist() %>% unique() %>% sort()) %>% compact()
+})
+
+# list.map(c(vars, "MUCO"), f(x) ~ list.map(list_manif, f(i) ~ names(i[[x]])) %>% compact()) %>% compact() %>% unlist() %>% unique()
+ids <- list.map(c(vars, "MUCO"), f(x) ~ list.map(list_manif, f(i) ~ list.map(i[[x]]$manif, f(j) ~ list.map(j, f(k) ~ names(k)) %>% compact()) %>% compact()) %>% compact()) %>% compact() %>%  unlist() %>% unique()
+list.map(ids, f(x) ~ list.map(manifs, f(y) ~ get_manif0(y, x, l = list_manif)) %>% compact() %>% unlist() %>% unique() %>% sort()) %>% compact()
+# use_data(list_manif, overwrite = TRUE)
+```
+
+```{r}
 vars0 <- clinic_code[[3]] %>%
     filter(str_detect(group_code, "IMA_ImpactedOrganOrSysTab"))
 vars1 <- vars0 %>%
