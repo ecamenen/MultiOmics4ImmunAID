@@ -2888,6 +2888,17 @@ list.map(treat_types, f(i) ~ list.map(list_treat0, f(j) ~ {
     factor() %>%
     fct_count())
 
+l_drugs <- list.map(list_treat0, f(j) ~ if (all(c("Ongoing at V1.Drug name") %in% colnames(j))) pull(j, `Ongoing at V1.Drug name`)) %>%
+    unlist() %>%
+    unique() %>% na.omit()
+t_drugs <- list.map(
+    list_treat0, f(j) ~ {
+        list.mapv(l_drugs, f(k) ~ (all(c("Ongoing at V1.Drug name") %in% colnames(j))) && (k %in% (pull(j, `Ongoing at V1.Drug name`))))
+    } %>% as.numeric()
+) %>%
+    list.rbind() %>%
+    set_colnames(l_drugs)
+  
 list.search(list_treat0, "Anakinra" %in% .) %>%
     list.match("Ongoing at V1") %>%
     length()
@@ -2915,6 +2926,8 @@ l_per_bio_treat <- list.map(treat_subtypes, f(i) ~ {
         list.rbind() %>%
         set_colnames(l_drugs)
 }) %>% compact()
+# l_per_bio_treat[[2]]["20010", 2] <- 1
+# l_per_bio_treat[[3]] <- l_per_bio_treat[[3]][, 1, drop = FALSE]
 list.map(l_per_bio_treat, f(i) ~ apply(i, 2, sum))
 
 still_treatment_post <- Reduce(cbind, c(list(t_treat_types), list(t_treat_subtypes), l_per_treat))
@@ -2938,9 +2951,9 @@ if (length(tmp) == 10) {
     tmp[-c(3:5, 9:10)] %>% get_intersection()
 }
 if (length(tmp) < 8) {
-    tmp[-seq(2)] %>% get_intersection0()
-    tmp[-c(3:4)] %>% get_intersection0()
-    tmp[-c(6:7)] %>% get_intersection0()
+    tmp[-seq(2)] %>% get_intersection()
+    tmp[-c(3:4)] %>% get_intersection()
+    tmp[-c(6:7)] %>% get_intersection()
 }
 # DMARDs:Other` "Methotrexate" "Ciclosporine"
 
@@ -2975,21 +2988,27 @@ list.map(list_treat, f(i) ~ list.map(i, f(j) ~ if (is.list(j) && !is.null(j$`Typ
     names()
 
 greens <- brewer_pal(, "YlGn")(9)[c(4, 5, 7, 9)]
-cols <- c(1, get_colors()[c(seq(2), 5, 8)], rev(greens))
+cols <- c(1, get_colors()[c(4, 8, 7, 5, 9, 1)], greens[4], rev(greens))
+tmp <- colnames(l_per_treat$Biphosphonate)
+if (!is.null(tmp)) {
+  l_per_treat$Biphosphonate <- l_per_treat$Biphosphonate[, which(!is.na(tmp))]
+}
+c(list(`Type of treatment` = t_treat_types), l_per_treat %>% purrr:::discard(str_detect(names(.), "Biologic|Other")), l_per_bio_treat[2], list(Biologic = t_treat_subtypes)) %>%
 list.map(
-    c(list(`Type of treatment` = t_treat_types), l_per_treat[-1], l_per_bio_treat, list(Biologic = t_treat_subtypes)),
     f(i, j, k) ~ {
-        if (j == 8) {
+        if (j == length(.)) {
             cols0 <- greens
-        } else if (j == 2) {
-            cols0 <- brewer_pal(, "Reds")(9)[c(3, 6, 9)]
+        } else if (j == 7) {
+            cols0 <- brewer_pal(, "Reds")(9)[c(3, 5, 7, 9)]
+        } else if (j == 8) {
+            cols0 <- greens[4]
         } else {
             cols0 <- cols[j]
         }
-        if (j %in% c(3:5, 8)) {
+        if (j %in% c(3:5)) {
             colors <- cols0
         } else if (j == 1) {
-            colors <- rev(get_colors()[c(1, 3, 8, 2, 5)])
+            colors <- rev(get_colors()[c(1, 3, 4, 2, 5, 7:9)])
         } else {
             colors <- c("gray", cols0)
         }
@@ -2998,21 +3017,44 @@ list.map(
             plot_bar_mcat(
                 title = k,
                 cex = 8,
-                ratio = 3,
+                ratio = 2,
                 collapse = TRUE,
                 wrap = 30,
                 colors = colors,
                 color_title = cols[j]
             )
     }
-) %>%
+) -> p
+  # c(.[c(1, 7, 9, 2, 8)], list(NULL), .[c(3:5)]) %>%
+
+plot_bar_mcat(
+    l_per_treat$Other,
+    title = "Others",
+    cex = 8,
+    ratio = 3,
+    collapse = TRUE,
+    wrap = 30,
+    colors =  c("gray", brewer_pal(, "Blues")(9)[c(3, 5, 7, 9)]),
+    color_title = get_colors()[2]
+) -> p2
+
+plot_bar_mcat(
+    t_drugs,
+    title = "All drugs",
+    cex = 8,
+    ratio = 3,
+    collapse = TRUE,
+    wrap = 30,
+    colors =  c(colorRampPalette(c("white", "black"))(11)[c(3, 5, 7, 9, 11)], rev(get_colors()[c(4, 1, 3, 5, 3, 7)]))
+)
     plot_grid(
-        plotlist = c(.[1], NULL, .[-1]),
+        plotlist = c(p[1], list(p2),  p[c(7, 9, 2, 8, 3:5)]),
         nrow = 3,
         ncol = 3,
         align = "v",
-        rel_heights = c(1.5, 0.8, 1.2)
+        rel_heights = c(1.5, 1.2, 0.8)
     )
+
 ```
 
 ```{r}
