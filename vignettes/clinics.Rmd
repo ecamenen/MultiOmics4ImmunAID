@@ -1350,8 +1350,13 @@ plot_piechart(
 plot_piechart(
     clinic_tot$will_have_a_second_v,
     colour = brewer.pal(9, "Paired")[7:8],
-    cex = 20
+    cex = 40,
+    dec = 1,
+    hsize = 1.5,
+    title = "",
+    label = FALSE
 )
+
 df <- cut(clinic_tot$age_at_inclusion_tim, breaks = seq(0, 70, 10)) %>%
     data.frame() %>%
     set_colnames("ages")
@@ -1404,8 +1409,9 @@ summary_num <- function(i, colors = "red") {
 i <- "ferritin_mg_l"
 summary_num(i)
 # plot_outlier(var)
-plot_violin0(clinic_tot$bmi_automatic, brewer.pal(n, "Set2")[6], size = 3)
-plot_violin0(clinic_tot$age_at_inclusion_tim, brewer.pal(n, "Set2")[5], size = 3)
+# plot_violin0(clinic_tot$bmi_automatic, brewer.pal(8, "Set2")[6], size = 3)
+plot_violin0(clinic_tot$age_at_inclusion_tim, brewer.pal(8, "Set2")[5], cex = 1.2, size = 3, pch_alpha = 0.75, coef = 1.5)
+descriptive_stats(select(clinic_tot, age_at_inclusion_tim)) %>% View()
 # Manifestations
 
 # Parsing manifestation data
@@ -1835,19 +1841,24 @@ manifs <- c("MUSCU", "CARDIO", "GASTRO", "HAEMATO")
 vars <- vars1[c(1, 3:4, 7, 11)]
 manifs <- c("MUCO_ACTIVE_LESIONS", paste0(manifs, "_MANIF"))
 
-# list.map(as.list(manifs), f(i, j) ~{
-#     immu_manif(i, df2 = clinic_tot1) %>%
-#         collapse_mcat() %>%
-#         plot_bar_mcat(cex = 8, ratio = 4, title = vars[j])
-# }) -> p
-# align_plots(plotlist = p, align = "vh") %>%
-#     plot_grid(
-#         plotlist = .,
-#         nrow = 3,
-#         ncol = 3,
-#         # labels = "AUTO",
-#         rel_heights = c(1.5, 1, 0.6)
-#     )
+# plot_piechart(tmp1$MUSCU$MANIF_ACTIVE, colour = brewer_pal(, "Reds")(9)[c(3, 9, 6)], dec = 1, cex = 20, hsize = 1.6, label = FALSE, title = "Chronicity")
+# plot_piechart(tmp0[[1]][[2]], colour = get_colors()[c(1, 3)], dec = 1, cex = 20, hsize = 1.6, label = FALSE, title = "Is Active?")
+# plot_piechart(tmp0[[5]][[2]], colour = get_colors(), dec = 1, cex = 20, hsize = 1.6, label = FALSE, title = "Diagnostic", wrap = 20) -> p
+# plot_bar_mcat(cex = 12, ratio = 2, title = "Is active ?", collapse = TRUE, colors = c(brewer.pal(8, "Set2")[5:6]))
+
+list.map(manifs, f(i, j, k) ~{
+    tmp <- immu_manif(i, df2 = clinic_tot1)
+    if(!is.null(nrow(tmp)))
+        plot_bar_mcat(tmp, cex = 8, ratio = 4, title = vars1[j], collapse = TRUE)
+}) %>% compact() -> p
+align_plots(plotlist = p[c(3, 1)], align = "vh") %>%
+    plot_grid(
+        plotlist = .,
+        nrow = 2,
+        ncol = 1,
+        # labels = "AUTO",
+        rel_heights = c(1.5, 1)
+    )
 temp <- filter(clinic_code[[1]], str_detect(group_code, paste0("^IMA_ImpactedOrganOrSysTab$")))
 df_manifs0 <- select(clinic_tot1, temp$column_code) %>%
     list.map(f(i) ~ as.factor(i) %>%
@@ -1895,25 +1906,24 @@ align_plots(plotlist = p, align = "vh") %>%
 # ((colSums(temp0) / nrow(temp0)) * 100) %>% round(1)
 # align_plots(plotlist = c(p2[-1], p2[1])) %>% plot_grid(plotlist = ., align = "vh", nrow = 4, ncol = 2, labels = LETTERS, rel_heights = c(rep(1, 3), 1.5))
 vars <- vars0 %>%
-    pull(column_code) %>%
-    paste0("^", ., "$", collapse = "|")
-vars <- filter(attributes(clinic_tot)$codes, str_detect(codes, vars)) %>% pull(name)
-p <- list.map(
-    as.list(vars),
+    pull(column_code) 
+# vars <- filter(attributes(clinic_tot)$codes, str_detect(codes, vars)) %>% pull(name)
+list.map(
+    vars,
     f(i, j) ~ plot_piechart(
-        clinic_tot %>% pull(i),
+        clinic_osteo %>% pull(i),
         label = FALSE,
         cex = 20,
         dec = 1,
         # legend = TRUE,
-        colour = c(get_colors()[c(1, 3)], "gray"),
+        colour = get_colors()[c(1, 3)],
         threshold = 5,
         title = vars1[j],
         hsize = 1.5
     )
-)
-align_plots(plotlist = p, align = "vh") %>%
+) %>%
     plot_grid(
+        align = "vh",
         plotlist = .,
         nrow = 3,
         ncol = 4
@@ -2629,7 +2639,7 @@ print_excel <- function(x, file = osteitis_file) {
 }
 
 clinic0 <- read_batches()
-clinic_tot0 <- Reduce(rbind, clinic0)
+clinic_tot0 <- Reduce(rbind, clinic0) %>% formate_immu()
 clinic_osteo <- filter(clinic_tot0, str_detect(C_2643_3798, "osteitis")) %>% formate_immu()
 clinic_osteo <- mutate(clinic_osteo, adult = ifelse(clinic_osteo$C_2643_3803 > 18, "Adult", "Children"))
 
