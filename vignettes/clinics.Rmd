@@ -1559,7 +1559,7 @@ list_biol0 <- select(list_biol[[1]], unlist(biol_func) %>% unname())
 list.map(
     list_biol0,
     f(i, j, k) ~
-    plot_violin0(i, colour = color_var[j], cex = 1.2, title = k, subtitle = TRUE, wrap_title = 19, color_title = color_title[j]) +
+    plot_violin0(i, colour = color_var[j], cex = 1.2, title = k, wrap_title = 19, color_title = color_title[j]) +
         theme(panel.grid.minor = element_blank())
 ) %>%
     plot_grid(
@@ -1569,9 +1569,81 @@ list.map(
         ncol = 8
     )
 
-list_biol1 <- list.map(list_biol0, f(i) ~ get_outliers(i, method = "iqr", c = 6)) %>% compact()
-outs <- list.map(list_biol0, f(i) ~ get_outliers(i, method = "iqr", c = 6, replace = FALSE)) %>% compact()
-slice(clinic_tot1, lapply(outs, names) %>% unlist() %>% as.numeric() %>% unique()) %>% pull(C_2643_3796)
+list_biol1 <- list.map(
+  list_biol, 
+  f(i) ~ list.map(i, get_outliers(., method = "iqr", c = 6)) %>% compact()
+)
+
+outs <- list.map(
+  list_biol, 
+  f(i) ~ list.map(i, get_outliers(., method = "iqr", c = 6, replace = FALSE)) %>% compact() %>% lapply(names) %>% unlist() %>% as.numeric() %>% unique() %>% slice(clinic_tot1, .) %>% pull(C_2643_3796)
+) %>% unlist(.) %>% paste0("^", ., "$", collapse = "|")
+
+metadata <- clinic_code[[3]] %>% filter(str_detect(column_code, paste0("^", c("C_2643_3796", "C_2643_3803", "C_2649_3888", "C_2649_3895", "C_2649_3891", "C_2643_3797"), "$", collapse = "|")))
+filter(clinic_tot1, str_detect(C_2643_3796, outs)) %>% mutate(C_2643_3797 = str_remove_all(C_2643_3797, "\\d{2} - ")) %>% select(metadata$column_code) %>% set_colnames(str_remove_all(metadata$item_name, "\\(.+\\)")) %>% select(2:6, 1) %>% kable0()
+
+col <- c("Blues", "Greens", "Reds")
+list.map(
+  names(list_biol$FollowUp),
+  f(i, j) ~ list.map(list_biol1, .[[i]]) %>% compact() %>% as.data.frame() %>% set_colnames(paste(c("First", "Second", "Third"), "visit")) %>% plot_violin0(colour = brewer.pal(9, col[j])[c(7, 5, 3)], pch_colour = "black", pch_alpha = 0.25, size  = 3, title = i, cex = 1.5, method = "kruskal")
+) %>% 
+    plot_grid(
+        plotlist = .,
+        # align = "hv",
+        nrow = 1,
+        ncol = 3
+    )
+
+list.map(
+    names(list_biol$FollowUp),
+    f(i, j) ~ list.map(list_biol1[-4], .[[i]]) %>% compact() %>% as.data.frame() %>% set_colnames(paste(c("First", "Third"), "visit")) %>% plot_violin0(colour = brewer.pal(9, col[j])[c(7, 3)], pch_colour = "black", pch_alpha = 0.25, size  = 3, title = i, cex = 1.5, method = "wilcox")
+) %>% 
+    plot_grid(
+        plotlist = .,
+        # align = "hv",
+        nrow = 1,
+        ncol = 3
+    )
+
+# res.kruskal <- df2 %>% get_melt() %>% kruskal_test(value ~ name)
+# df2 %>% get_melt() %>% kruskal_effsize(value ~ name)
+# pwc <- df2 %>% get_melt() %>% dunn_test(value ~ name, p.adjust.method = "BH") %>% add_xy_position(x = "name")
+# plot_violin0(df2, colour = brewer.pal(9, "Reds")[c(7, 5, 3)], pch_colour = "black", pch_alpha = 0.25, size  = 3, lim2 = 138)  +
+#     stat_pvalue_manual(pwc, hide.ns = TRUE) +
+#     labs(
+#         subtitle = get_test_label(res.kruskal, detailed = TRUE),
+#         caption = get_pwc_label(pwc)
+#     )
+# dunn_test(weight ~ group, p.adjust.method = "bonferroni")
+
+list.map(
+    names(list_biol$FollowUp),
+    f(i, j) ~ list.map(list_biol1[-4], .[[i]]) %>% compact() %>% as.data.frame() %>% set_colnames(paste(c("First", "Third"), "visit")) %>% get_melt() %>% wilcox_test(value ~ name)
+)
+
+t_biol <- lapply(list_biol1[c(1, 4, 5)], function(x) list.cbind(x) %>% as.data.frame() %>% select(contains(unlist(biol_func) %>% unname()))) %>% list_cbind() %>% set_colnames(colnames(.) %>% str_replace_all("General", "V1") %>% str_replace_all("SecondVisit", "V2") %>% str_replace_all("FollowUp", "V3")) %>% set_rownames(as.numeric(clinic_tot1$C_2643_3796))
+use_data(t_biol, overwrite = TRUE)
+
+t_biol0 <- list.cbind(list_biol1[[1]]) %>% as.data.frame() 
+
+tiff(
+    "cor_biol.tiff",
+    units = "px",
+    width = 4000,
+    height = 4000,
+    res = 300
+)
+t_biol0 %>% plot_corr0(method = "spearman")
+dev.off()
+res <- t_biol0 %>% get_corr1()
+i <- res$C %>% `>`(0) %>% which(arr.ind = TRUE) %>% as.data.frame()
+cols <- get_colors()[c(2, 2, 1, 1, 3)]
+mapply(function(x, y) c(rownames(res$C)[x], colnames(res$C)[y]) %>% sort(), i$row, i$col, SIMPLIFY = FALSE) %>% unique() %>% list.map(f(i, j) ~ plot_cor2(select(t_biol0, c(i[1], i[2])), color = cols[j], cex = 1.5)) %>%
+    plot_grid(
+        plotlist = .,
+        nrow = 2,
+        ncol = 3
+    )
 ```
 
 # AIDAI scores
