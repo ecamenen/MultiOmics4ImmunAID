@@ -215,18 +215,53 @@ plot_violin0 <- function(
     pch_alpha = 1,
     class = 1,
     value = 1,
-    guide = FALSE,
-    subtitle = NULL,
-    caption = NULL
-    ) {
-    colour_fill <- colour
+    subtitle = FALSE,
+    caption = NULL,
+    color_title = "black",
+    ratio = 5,
+    title_center = 0.5,
+    lim1 = NULL,
+    lim2 = NULL,
+    method = "anova"
+) {
+    set.seed(1)
+    if (is.null(title)) {
+        title <- paste0(deparse(substitute(x)))
+    }
+    if (isFALSE(subtitle)) {
+        if (!(class(x) %in% c("data.frame", "tibble"))) {
+            subtitle <- paste0(print_stats0(x), ", N=", length(na.omit(x)))
+        } else {
+            subtitle <- get_melt(x) %>% 
+                get(paste0(method, "_test"))(value ~ name) %>%
+                print_mean_test()
+        }
+    }
     if (!(class(x) %in% c("data.frame", "tibble"))) {
         df <- data.frame(value = x, name = class)
+        colour_fill <- colour
+        sub_labs <- ""
+        guide <- FALSE
     } else {
-        df <- data.frame(value = pull(x, value), name = pull(x, class))
-        x <- df$value
+        df <- get_melt(x)
+        # df$name <- factor(df$name, labels = colnames(x)) %>% as.numeric()
+        # x <- df$value
+        colour_fill <- sort(colnames(x)) %>% match(., colnames(x)) %>% colour[.]
         colour <- factor(df$name, labels = colour)
+        sub_labs <- get_melt(x) %>% 
+            group_by(name) %>%
+            summarise(label = paste0(print_stats0(value), ", N=", length(na.omit(value)))) %>%
+            mutate(label = paste(name, label, sep = "\n")) %>% 
+            pull(label)
+        sub_labs <- sort(colnames(x)) %>% match(colnames(x), .) %>% sub_labs[.]
+        guide <- TRUE
     }
+    colour_fill1 <- factor(df$name, labels = colour_fill)
+    colour_fill0 <- colour
+    if (is.null(lim1))
+        lim1 <- min(df$value, na.rm = TRUE)
+    if (is.null(lim2))
+        lim2 <- max(df$value, na.rm = TRUE)
     quant <- group_by(df, name) %>%
         summarise(quantile(value, probs, na.rm = TRUE)) %>%
         pull(2)
@@ -234,44 +269,62 @@ plot_violin0 <- function(
         summarise(quantile(value, c(0, 1), na.rm = TRUE)) %>%
         pull(2)
     iqr <- quant - c(-1, 1) * (1 - coef) * quant
-    if (iqr[1] < quant0[1]) {
-        iqr[1] <- quant0[1]
+    iqr_even <- function(x) {
+        which(seq(length(iqr)) %% 2 == x)
     }
-    if (iqr[2] > quant0[2]) {
-        iqr[2] <- quant0[2]
+    for (i in iqr_even(1)) {
+        if (iqr[i] < quant0[i]) {
+            iqr[i] <- quant0[i]
+        }
     }
-    if (is.null(title)) {
-        title <- deparse(substitute(x))
+    for (i in iqr_even(0)) {
+        if (iqr[i] > quant0[i]) {
+            iqr[i] <- quant0[i]
+        }
     }
-    p <- ggplot(df, aes(x = name, y = value)) +
+    get_iqr <- function(x) {
+        factor(df$name, labels = iqr[iqr_even(x)]) %>% as.character() %>% as.numeric()
+    }
+    p <- ggplot(df, aes(x = as.character(name), y = as.numeric(value))) +
+        # expand_limits(x = 1 + 1 / ratio) +
         geom_errorbar(
             width = .1,
             lwd = lwd,
-            colour = colour,
+            colour = colour_fill1,
             aes(
-                ymin = iqr[1],
-                ymax = iqr[2]
+                ymin = get_iqr(1),
+                ymax = get_iqr(0)
             )
         ) +
         geom_boxplot(
             coef = 0,
             outlier.shape = NA,
             colour = "white",
-            fill = colour_fill,
-            lwd = lwd
+            aes(fill = colour_fill0),
+            lwd = lwd * 0.25
         ) +
-        # geom_violin(alpha = alpha, fill = colour_fill, colour = NA) +
-        geom_sina(size = size, colour = pch_colour, alpha = pch_alpha) +
-        ggtitle(str_wrap(title, wrap_title)) +
+        geom_violin(alpha = alpha, aes(fill = colour_fill0), colour = NA) +
         theme_minimal() +
-        labs(subtitle = subtitle, caption = caption)
-        # scale_y_continuous(expand = c(0, 0))
+        labs(
+            title = str_wrap(title, wrap_title), 
+            subtitle = subtitle, 
+            caption = caption
+        ) + 
+        scale_fill_manual(values = colour_fill) +
+        scale_x_discrete(limits = colnames(x), labels = sub_labs) +
+        scale_y_continuous(limits = c(lim1, lim2))
+    if (length(na.omit(df$value)) > 3)
+        p <- p + geom_sina(size = size, colour = pch_colour, alpha = pch_alpha, seed = 1)
+    else
+        p <- p + geom_point(size = size, colour = pch_colour, alpha = pch_alpha)
     theme_violin1(
         p,
         cex = cex,
         cex_main = cex_main,
         cex_sub = cex_sub,
-        guide = guide
+        guide = guide,
+        color_title = color_title,
+        title_center = title_center
     ) %>% suppressMessages()
 }
 
