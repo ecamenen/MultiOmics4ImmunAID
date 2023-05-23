@@ -495,3 +495,35 @@ list_cbind <- function(x) {
     }
     list.cbind(x)
 }
+
+#' @export
+list_cbind0 <- function(x) {
+    list(x) %>% lapply(function(i) lapply(i, unlist) %>% Reduce(cbind, .) %>% data.frame() %>% set_colnames(names(i))) %>% 
+        Reduce(cbind, .)
+}
+
+#' @export
+#' Uppercase only for the first letter
+#' @example to_title("Hi there, I'm a sentence to format.")
+to_title <- function(x) {
+    paste0(toupper(substr(x, 1, 1)), substr(x, 2, nchar(x)))
+}
+
+
+#' @export
+#' Cuts a sentence to a given number of characters and leaves the words as integers
+#' @example str_trunc1("Hi there, I'm a sentence to format.")
+str_trunc1 <- function(x, n = 20) {
+    x0 <- strsplit(x, " ")[[1]]
+    lapply(seq(length(x0)), function(i) str_trunc0(x, i)) %>% 
+        detect(function(x) str_length(x) <= n, .dir = "backward")
+}
+
+#' @export
+#' Cuts a sentence to a given number of words
+#' @example str_trunc0("Hi there, I'm a sentence to format.")
+str_trunc0 <- function(x, n = 5) {
+    strsplit(x, " ")[[1]] %>%
+        .[1:n] %>%
+        paste(collapse = " ")
+}
