@@ -1648,7 +1648,6 @@ mapply(function(x, y) c(rownames(res$C)[x], colnames(res$C)[y]) %>% sort(), i$ro
 
 # AIDAI scores
 ```{r}
-
 aid_scores <- list.map(
     c("", "SecondVisit_"),
     f(i) ~ {
@@ -1671,12 +1670,19 @@ colors <- c(
     "#4575B4", "#313695", "#01665E", "#35978F", "#80CDC1", "#B8E186", "#7FBC41", "#4D9221",
     "#276419"
 )
-i <- 2
+
+aid_scores0 <- list()
+for (i in seq_along(aid_scores)) {
+  aid_scores0[[i]] <- aid_scores[[i]]
+  aid_scores0[[i]][aid_scores0[[i]] == 0] <- NA
+}
+
+i <- 1
 color_var <- colorRampPalette(colors)(ncol(aid_scores[[i]]))
 list.map(
     aid_scores[[i]],
     f(i, j, k) ~
-    plot_violin0(i, colour = color_var[j], cex = 1.2, title = k, subtitle = TRUE, wrap_title = 15, color_title = color_var[j]) +
+    plot_violin0(i, colour = color_var[j], cex = 1.2, title = k, wrap_title = 15, color_title = color_var[j]) +
         theme(panel.grid.minor = element_blank())
 ) %>%
     plot_grid(
@@ -1686,25 +1692,52 @@ list.map(
         ncol = 9
     )
 
-aid_scores0 <- aid_scores[[i]]
-aid_scores0[aid_scores0 == 0] <- NA
-
 # list.map(aid_scores0, f(x, y, z) ~ is.na(x) %>% which() %>% length() %>% rep(z, .)) %>% unlist %>% plot_bar_mcat(cex = 6, wrap = 50, df0 = aid_scores[[i]])
 list.mapv(aid_scores[[i]], f(x) ~ which(x > 0) %>% length()) %>% plotHistogram(df = ., cex = 2, rows = nrow(aid_scores[[i]]))
-color_var <- colorRampPalette(colors)(ncol(aid_scores0))
-as.list(aid_scores0) %>%
-    discard(function(x) all(is.na(x))) %>%
+color_var <- colorRampPalette(colors)(ncol(aid_scores0[[i]]))
+as.list(aid_scores0[[i]]) %>%
+    purrr::discard(function(x) all(is.na(x))) %>%
     list.map(
         f(i, j, k) ~
-        plot_violin0(i, colour = color_var[j], cex = 1.5, size = 3.5, title = k, subtitle = TRUE, wrap_title = 15, color_title = color_var[j], pch_colour = "black", pch_alpha = 0.5) +
+        plot_violin0(i, colour = color_var[j], cex = 1.5, size = 3.5, title = k, wrap_title = 15, color_title = color_var[j], pch_colour = "black", pch_alpha = 0.5, lim1 = 0, lim2 = 30) +
             theme(panel.grid.minor = element_blank())
     ) %>%
     plot_grid(
         plotlist = .,
-        # align = "hv",
+        align = "hv",
         nrow = 2,
         ncol = 7
     )
+
+t_aidai <- aid_scores[[1]] %>% as.data.frame() %>% set_rownames(as.numeric(clinic_tot1$C_2643_3796))
+use_data(t_aidai, overwrite = TRUE)
+
+color_var0 <- color_var[c(9, 12)]
+list.map(
+    names(aid_scores0[[1]])[c(9, 13)], 
+    f(i, j) ~ list.map(aid_scores0, .[[i]]) %>% data.frame() %>% set_colnames(paste(c("First", "Second"), "visit")) %>% plot_violin0(colour = c(color_var0[j], alpha(color_var0[j],  alpha = 0.5)), pch_colour = "black", pch_alpha = 0.25, size  = 3, title = i, cex = 1.5, method = "wilcox", lim1 = 0, lim2 = 30)
+) %>% 
+    plot_grid(
+        plotlist = .,
+        align = "hv",
+        nrow = 1,
+        ncol = 2
+    )
+
+tiff(
+    "cor_biol.tiff",
+    units = "px",
+    width = 2500,
+    height = 2500,
+    res = 300
+)
+aid_scores0[[1]] %>% plot_corr0(method = "spearman")
+dev.off()
+
+res <- aid_scores0[[1]] %>% get_corr1()
+i <- res$C %>% `>`(0) %>% which(arr.ind = TRUE) %>% as.data.frame()
+tmp <- mapply(function(x, y) c(rownames(res$C)[x], colnames(res$C)[y]) %>% sort(), i$row, i$col, SIMPLIFY = FALSE) %>% unique()
+plot_cor2(select(aid_scores0[[1]], c(tmp[[1]][1], tmp[[1]][2])), color = "red", cex = 1.5)
 ```
 
 ```{r}
