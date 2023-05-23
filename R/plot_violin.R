@@ -15,8 +15,9 @@ plot_piechart <- function(
     legend = TRUE,
     parse = FALSE,
     collapse = FALSE,
-    label_name = NULL
-    ) {
+    label_name = NULL,
+    legend_name = NULL
+) {
     df <- count_cat(x, parse = parse, wrap = wrap, collapse = collapse, label = label_name)
     if (!is.null(df0)) {
         df <- rbind(df, data.frame(f = NA, n = c(nrow(df0) - sum(df$n))))
@@ -38,10 +39,21 @@ plot_piechart <- function(
     }
     i <- df$n / sum(df$n) <= threshold / 100
     df$text[i] <- ""
-    df$legend <- df$label
+    if (!is.null(legend_name)) {
+        df$legend <- str_replace_all(legend_name, "\\(", "\\\\(") %>% str_replace_all("\\)", "\\\\)") %>% c("NA")
+        i <- sapply(df$legend, function(i) paste(df$f) %>% str_replace_all("\n", " ") %>% str_which(i))
+        colour0 <- c(rev(colour), "gray")[i]
+        colour <- colour0
+        df$legend <- df$f[i]
+    } else {
+        df$legend <- df$f
+        colour0 <- c(colour[seq(length(levels(df$f)))], "gray")
+    }
+    df$legend0 <- paste0(df$legend, ": ", df$n)
     if (!isTRUE(label)) {
         df$label <- rep("", nrow(df))
     }
+    df$legend[df$legend == "NA"] <- NA
     p <- ggplot(df, aes(x = hsize, y = n, fill = f)) +
         geom_col(width = 1, color = NA, lwd = lwd) +
         geom_text(
@@ -51,22 +63,21 @@ plot_piechart <- function(
             position = position_stack(vjust = 0.5)
         ) +
         coord_polar(theta = "y", clip = "off") +
-        scale_fill_manual(values = colour, na.value = colour[nrow(df)], labels = str_wrap(df$legend, wrap), name = "") +
+        scale_fill_manual(values = colour, na.value = "gray", labels = df$legend0, breaks = df$legend, name = "") +
         scale_y_continuous(breaks = df$pos, labels = df$label) +
         ggtitle(str_wrap(title, wrap_title)) +
         theme(
             plot.title = element_text(hjust = 0.5, vjust = -4, size = cex * 1.25, face = "bold"),
             axis.ticks = element_blank(),
             axis.title = element_blank(),
-            axis.text.x = element_text(size = cex, colour = colour),
+            axis.text.x = element_text(size = cex, colour = colour0),
             axis.text.y = element_blank(),
-            legend.text = element_text(size = cex * 0.7),
+            legend.text = element_text(size = cex * 0.85),
             legend.key = element_blank(),
             panel.background = element_rect(fill = "white"),
             plot.margin = unit(c(0, 0, -1, -1), "cm")
         ) +
         xlim(0.5, hsize + 0.5)
-
     if (is.null(legend) || legend == FALSE) {
         p + theme(legend.position = "none")
     } else {
@@ -121,10 +132,14 @@ plot_histo0 <- function(
     dotsize = 1,
     binwidth = 1.5,
     method = "histodot",
-    probs = c(.25, .75)
-    ) {
+    probs = c(.25, .75),
+    subtitle = NULL
+) {
     df <- data.frame(x) %>% get_melt()
     quant <- quantile(x, probs, na.rm = TRUE)
+    if (!is.null(subtitle)) {
+        subtitle <- paste0(print_stats0(df$value), ", N=", length(na.omit(df$value)))
+    }
     p <- gghistogram(
         df,
         x = "value",
@@ -141,15 +156,16 @@ plot_histo0 <- function(
             colour = color,
             fill = color,
             alpha = 0.25
-        # ) +
-        # geom_dotplot(
-        #     fill = color,
-        #     color = color,
-        #     binwidth = binwidth,
-        #     dotsize = dotsize,
-        #     method = method
+            # ) +
+            # geom_dotplot(
+            #     fill = color,
+            #     color = color,
+            #     binwidth = binwidth,
+            #     dotsize = dotsize,
+            #     method = method
         ) +
         geom_vline(xintercept = quant, color = "red", lty = 2) +
+        labs(subtitle = subtitle, title = title) +
         theme_minimal() +
         scale_x_continuous(expand = c(0.01, 0), labels = function(x) paste0(x)) +
         guides(color = "none", fill = "none")
