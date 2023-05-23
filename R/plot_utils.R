@@ -101,20 +101,21 @@ theme_violin0 <- function(p, colors = get_colors()) {
 }
 
 theme_violin1 <- function(
-    p,
-    colors = get_colors(),
-    cex = 1,
-    cex_main = 12 * cex,
-    cex_sub = 10 * cex,
-    guide = FALSE,
-    grid = FALSE,
-    color_title = "black",
-    title_center = 0.5,
-    x_axis = FALSE
-    ) {
+        p,
+        colors = get_colors(),
+        cex = 1,
+        cex_main = 15 * cex,
+        cex_sub = 13 * cex,
+        cex_axis = 17 * cex,
+        guide = FALSE,
+        grid = FALSE,
+        color_title = "black",
+        title_center = 0.5,
+        x_axis = FALSE,
+        color_subtitle = "gray50"
+) {
     p <- p +
-        xlab("") +
-        ylab("") +
+        theme_minimal() +
         guides(
             color = "none",
             fill = "none"
@@ -122,13 +123,13 @@ theme_violin1 <- function(
         theme(
             plot.title = element_text(
                 hjust = title_center,
-                size = cex * 15,
+                size = cex_main,
                 face = "bold",
                 color = color_title
             ),
             plot.subtitle = element_text(
                 hjust = title_center,
-                size = cex * 13,
+                size = cex_sub,
                 color = "gray50"
             ),
             plot.caption = element_text(
@@ -137,18 +138,18 @@ theme_violin1 <- function(
                 color = "gray"
             )
         ) +
-        theme_perso(cex, cex_main, cex_sub)
+        theme_perso(cex, cex_main, cex_sub, cex_axis)
     if (!isTRUE(guide)) {
         p <- p + guides(x = "none")
     } else {
-        p <- p + 
+        p <- p +
             theme(
                 axis.text.x = element_text(
-                hjust = title_center,
-                size = cex * 13,
-                color = "gray50"
+                    hjust = title_center,
+                    size = cex * 13,
+                    color = color_subtitle
+                )
             )
-        )
     }
     if (!isTRUE(grid)) {
         p <- p + theme(
@@ -175,14 +176,14 @@ theme_violin <- function(
 
 #' @export
 theme_perso <- function(
-    cex = 1,
-    cex_main = 12 * cex,
-    cex_sub = 10 * cex,
-    cex_axis = 10 * cex
-    ) {
+        cex = 1,
+        cex_main = 12 * cex,
+        cex_sub = 15 * cex,
+        cex_axis = 10 * cex
+) {
     theme(
-        axis.text = element_text(size = cex_axis * cex),
-        axis.title = element_text(face = "bold.italic", size = cex_sub),
+        axis.text = element_text(size = 10 * cex),
+        axis.title = element_text(face = "bold.italic", size = cex_axis),
         strip.text = element_text(
             size = cex_main,
             face = "bold",

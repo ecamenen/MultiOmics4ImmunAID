@@ -199,30 +199,35 @@ plot_violin1 <- function(
 
 #' @export
 plot_violin0 <- function(
-    x,
-    colour = "red",
-    lwd = 1,
-    size = cex,
-    cex = 1,
-    cex_main = 12 * cex,
-    cex_sub = 10 * cex,
-    alpha = 0.1,
-    title = NULL,
-    wrap_title = 20,
-    probs = c(.25, .75),
-    coef = 1.5,
-    pch_colour = "#828282",
-    pch_alpha = 1,
-    class = 1,
-    value = 1,
-    subtitle = FALSE,
-    caption = NULL,
-    color_title = "black",
-    ratio = 5,
-    title_center = 0.5,
-    lim1 = NULL,
-    lim2 = NULL,
-    method = "anova"
+        x,
+        colour = "red",
+        lwd = 1,
+        cex = 1,
+        size = cex,
+        cex_main = 21 * cex,
+        cex_sub = 15 * cex,
+        cex_axis = 17 * cex,
+        alpha = 0.1,
+        title = NULL,
+        wrap_title = 20,
+        probs = c(.25, .75),
+        coef = 1.5,
+        pch_colour = "#828282",
+        pch_alpha = 1,
+        class = 1,
+        value = 1,
+        subtitle = FALSE,
+        caption = NULL,
+        color_title = "black",
+        ratio = 5,
+        title_center = 0.5,
+        lim1 = NULL,
+        lim2 = NULL,
+        method = "anova",
+        ylab = NULL,
+        method_adjust = "BH",
+        wrap = 20,
+        ratio_y = 7
 ) {
     set.seed(1)
     if (is.null(title)) {
@@ -232,11 +237,12 @@ plot_violin0 <- function(
         if (!(class(x) %in% c("data.frame", "tibble"))) {
             subtitle <- paste0(print_stats0(x), ", N=", length(na.omit(x)))
         } else {
-            subtitle <- get_melt(x) %>% 
+            subtitle <- get_melt(x) %>%
                 get(paste0(method, "_test"))(value ~ name) %>%
-                print_mean_test()
+                print_mean_test(dec_p = 3)
         }
     }
+    color_subtitle <- colour
     if (!(class(x) %in% c("data.frame", "tibble"))) {
         df <- data.frame(value = x, name = class)
         colour_fill <- colour
@@ -248,10 +254,9 @@ plot_violin0 <- function(
         # x <- df$value
         colour_fill <- sort(colnames(x)) %>% match(., colnames(x)) %>% colour[.]
         colour <- factor(df$name, labels = colour)
-        sub_labs <- get_melt(x) %>% 
-            group_by(name) %>%
-            summarise(label = paste0(print_stats0(value), ", N=", length(na.omit(value)))) %>%
-            mutate(label = paste(name, label, sep = "\n")) %>% 
+        sub_labs <- group_by(df, name) %>%
+            dplyr::summarise(label = paste0(print_stats0(value), ", N=", length(na.omit(value)))) %>%
+            mutate(label = paste(name, label, sep = "\n") %>% str_wrap(wrap)) %>%
             pull(label)
         sub_labs <- sort(colnames(x)) %>% match(colnames(x), .) %>% sub_labs[.]
         guide <- TRUE
@@ -263,10 +268,10 @@ plot_violin0 <- function(
     if (is.null(lim2))
         lim2 <- max(df$value, na.rm = TRUE)
     quant <- group_by(df, name) %>%
-        summarise(quantile(value, probs, na.rm = TRUE)) %>%
+        dplyr::summarise(quantile(value, probs, na.rm = TRUE)) %>%
         pull(2)
     quant0 <- group_by(df, name) %>%
-        summarise(quantile(value, c(0, 1), na.rm = TRUE)) %>%
+        dplyr::summarise(quantile(value, c(0, 1), na.rm = TRUE)) %>%
         pull(2)
     iqr <- quant - c(-1, 1) * (1 - coef) * quant
     iqr_even <- function(x) {
@@ -306,13 +311,32 @@ plot_violin0 <- function(
         geom_violin(alpha = alpha, aes(fill = colour_fill0), colour = NA) +
         theme_minimal() +
         labs(
-            title = str_wrap(title, wrap_title), 
-            subtitle = subtitle, 
-            caption = caption
-        ) + 
+            title = str_wrap(title, wrap_title),
+            subtitle = subtitle,
+            caption = caption,
+            y = ylab
+        ) +
         scale_fill_manual(values = colour_fill) +
         scale_x_discrete(limits = colnames(x), labels = sub_labs) +
-        scale_y_continuous(limits = c(lim1, lim2))
+        xlab("")
+    if ((class(x) %in% c("data.frame", "tibble")) && ncol(x) > 2) {
+        stats <- dunn_test(df, value ~ name, p.adjust.method = method_adjust) %>%
+            filter(p.adj.signif <= 0.05) %>%
+            mutate(y.position = max(value, na.rm = TRUE) + (as.numeric(rownames(.)) * max(value, na.rm = TRUE) / ratio_y))
+        p <- p + ggpubr::stat_pvalue_manual(
+            stats,
+            label = "p.adj.signif",
+            color = "gray50",
+            bracket.size = 0.7,
+            size = cex * 6,
+            hide.ns = TRUE,
+            tip.length = 0
+        )
+        max_stats <- pull(stats, y.position) %>% max()
+        if (lim2 < max_stats)
+            lim2 <- max_stats
+    }
+    p <- p + scale_y_continuous(limits = c(lim1, lim2))
     if (length(na.omit(df$value)) > 3)
         p <- p + geom_sina(size = size, colour = pch_colour, alpha = pch_alpha, seed = 1)
     else
@@ -322,9 +346,11 @@ plot_violin0 <- function(
         cex = cex,
         cex_main = cex_main,
         cex_sub = cex_sub,
+        cex_axis = cex_axis,
         guide = guide,
         color_title = color_title,
-        title_center = title_center
+        title_center = title_center,
+        color_subtitle = color_subtitle
     ) %>% suppressMessages()
 }
 

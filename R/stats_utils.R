@@ -209,7 +209,7 @@ remove_cofunding <- function(x, vars, block = 1) {
 
 #' @export
 print_stats <- function(x, dec = 1) {
-    paste0(mean(x, na.rm = TRUE) %>% round(dec), "\u00b1", sd(x, na.rm = TRUE) %>% round(dec))
+    paste(mean(x, na.rm = TRUE) %>% round(dec), "\u00b1", sd(x, na.rm = TRUE) %>% round(dec))
 }
 
 #' @export
