@@ -127,16 +127,22 @@ plot_network <- function(
     title(title, cex.main = cex_main * 0.1)
 }
 
-#' @export
-plot_corr_network <- function(x, method = "pearson", cutoff = 0.75, ...) {
+get_corr1 <- function(x, method = "spearman", method_adjust = "BH", cutoff = 0.75) {
     C <- get_corr(x, TRUE, method)
-    title <- round(mean(C, na.rm = TRUE), 2)
     C[abs(C) < cutoff] <- 0 -> diag(C)
     C[is.na(C)] <- 0
+    p <- get_corr(x, FALSE, method) %>% as.vector() %>% p.adjust(method_adjust) %>% matrix(nrow = sqrt(length(.)), ncol = sqrt(length(.)))
+    C[p >= 0.05] <- 0
+    
+    colnames(C) <- colnames(p) <- colnames(x) -> rownames(p) -> rownames(C)
+    return(list(C = C, p = p))
+}
 
-    p <- get_corr(x, method)
-
-    edges <- get_edges(x, C, p)
+#' @export
+plot_corr_network <- function(x, method = "spearman", method_adjust = "BH", cutoff = 0.75, ...) {
+    res <- get_corr1(x, method, method_adjust, cutoff)
+    title <- round(mean(res$C, na.rm = TRUE), 2)
+    edges <- get_edges(x, res$C, res$p)
     # edges <- adjust_pvalue(edges, "p")
     # font <- "14px arial black"
     # edges$font.bold.mod <- ifelse(edges$p.adj < 0.05, paste(font, "bold"), font)
@@ -151,7 +157,7 @@ plot_corr_network <- function(x, method = "pearson", cutoff = 0.75, ...) {
 
     plot_network2(
         x,
-        C,
+        res$C,
         shape = "dot",
         dashes = FALSE,
         nodes = nodes,
