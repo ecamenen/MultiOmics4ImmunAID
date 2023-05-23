@@ -2337,9 +2337,9 @@ list.map(list_manif0, f(i) ~ list.map(i[["MUCO"]]$manif, f(j) ~ names(j))) %>%
     unlist() %>%
     unique() -> ids
 var_names1 <- c("Is active ?", "Active manifestation", "Number of lesion", "Affected body parts", "Distribution", "Symetry", "Exposition", "Specific disease", "Non-active manifestation", "Configuration", "Other signs")
-list.map(ids, f(i, j) ~ get_manif("MUCO", i) %>%
-    get_occ_list(fx = function(x) str_remove_all(x, " describes.*$") %>% str_remove_all(" is.*$")) %>%
-    plot_bar_mcat(collapse = TRUE, cex = 8, wrap = 20, n = 100, ratio = 5, title = var_names1[j])) -> p
+l_muco <- list.map(ids, f(i, j) ~ get_manif("MUCO", i) %>%
+    get_occ_list(fx = function(x) str_remove_all(x, " describes.*$") %>% str_remove_all(" is.*$")))
+list.map(l_muco, f(i, j) ~ plot_bar_mcat(i, collapse = TRUE, cex = 8, wrap = 20, n = 100, ratio = 5, title = var_names1[j])) -> p
 plot_grid(
     plotlist = c(p[c(2, 4, 1, 3, 5:8, 11, 9:10)]),
     nrow = 4,
@@ -2347,6 +2347,11 @@ plot_grid(
     # labels = "AUTO",
     rel_heights = c(1.5, 1, 1, 0.8)
 )
+
+t_muco <- Reduce(cbind, l_muco)
+colnames(t_muco)[c(1:2)] <- c("Non active", "Active")
+apply(t_muco, 2, sum) %>% `>`(2) %>% apply(t_muco, 2, sum)[.]
+use_data(t_muco, overwrite = TRUE)
 
 t_muco_manif <- get_manif("MUCO", "active_description") %>%
     get_occ_list() %>%
@@ -2397,8 +2402,8 @@ list.map(l_manif, f(i, j, k) ~ plot_bar_mcat(i, collapse = TRUE, cex = 8, wrap =
         ncol = 3
     )
 
-t_manifs <- Reduce(cbind, c(l_manif[2:4], list(t_muco_manif)))
-# use_data(t_manifs, overwrite = TRUE)
+t_muscu <- l_manif$active_description_osteitis %>%  apply(1, function(x) any(x == 1) %>% as.numeric()) %>% data.frame(`Active osteitis` = .) %>% list() %>% c(l_manif[2:4]) %>% Reduce(cbind, .)
+use_data(t_muscu, overwrite = TRUE)
 
 get_manif0(x, "diagnosis") %>%
     get_occ_list() %>%
@@ -2463,7 +2468,7 @@ list.map(c("manif", "symptom", "sequellae"), f(z) ~ {
         unlist() %>%
         unique() %>%
         purrr:::discard(function(x) str_detect(x, "\\d")) %>%
-        list.map(f(x) ~ list.map(manifs, f(y) ~ get_manif(y, x, z, l = list_manif)) %>%
+        list.map(f(x) ~ list.map(vars, f(y) ~ get_manif(y, x, z, l = list_manif)) %>%
             compact() %>%
             unlist() %>%
             unique() %>%
@@ -2476,7 +2481,7 @@ ids <- list.map(c(vars, "MUCO"), f(x) ~ list.map(list_manif, f(i) ~ list.map(i[[
     compact() %>%
     unlist() %>%
     unique()
-list.map(ids, f(x) ~ list.map(manifs, f(y) ~ get_manif0(y, x, l = list_manif)) %>%
+list.map(ids, f(x) ~ list.map(vars, f(y) ~ get_manif0(y, x, l = list_manif)) %>%
     compact() %>%
     unlist() %>%
     unique() %>%
