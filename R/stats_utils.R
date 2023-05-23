@@ -355,24 +355,36 @@ add_significance0 <- function(x, p.col = NULL) {
 }
 
 #' @export
-print_mean_test <- function(x, method = "anova", n = 1e-3) {
-    stopifnot(method %in% c("anova", "ks"))
+print_mean_test <- function(x, dec = 1, dec_p = 2) {
+    
+    method <- class(x)[2] %>% str_remove_all("_test")
+    if (method == "data.frame")
+        method <- "anova"
+    
+    # stopifnot(method %in% c("anova", "ks"))
     # e <- effectsize(x) %>% suppressMessages()
-
-    if (is.null(x$p.signif)) {
+    if (is.null(x$p.signif) %>% suppressWarnings()) {
         x <- x %>% add_significance0()
+        if (x$p.signif == "ns")
+            x$p.signif <- ""
     }
-    dfn <- switch(method,
-        anova = x$DFn,
-        ks = x$df
-    )
-    dfd <- switch(method,
-        anova = x$DFd,
-        ks = x$n - x$df - 1
-    )
-    statistic <- switch(method,
-        anova = x$F,
-        ks = x$statistic
-    )
-    paste0("F(", dfn, ", ", dfd, ") = ", statistic, ",", " p = ", x$p, x$p.signif)
+    if (x$p < 0.001)
+        x$p <- "< 0.001"
+    else
+        x$p <- paste0("= ", round(x$p, dec_p))
+    
+    if (method == "anova") {
+        par <- paste0("(", x$DFn, ", ", x$DFd, ")")
+        statistic <- x$F %>% round(dec)
+        index <- "Anova, F"
+    } else if (method %in% c("kruskal", "t")) {
+        par <- paste0("(", round(x$df, 1), ")")
+        statistic <- x$statistic %>% round(dec)
+        index <- ifelse(method == "t", "T-test, F", "Kruskal-Wallis, K")
+    } else if (method == "wilcox") {
+        par <- ""
+        statistic <- x$statistic %>% round(dec)
+        index <- "Wilcoxon, W"
+    }
+    paste0(index, par, " = ", statistic, ",", " p ", x$p, x$p.signif)
 }
