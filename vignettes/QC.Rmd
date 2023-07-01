@@ -15,13 +15,8 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
-library("tidyverse")
-```
-
-```{r}
-library(plotly)
-path <- file.path(golem::get_golem_wd(), "inst", "extdata")
-qcs <- c("qc", "fastp", "kallisto")
+path <- file.path(golem::get_golem_wd(), "inst", "extdata", "rna")
+n_batch <- 4
 
 plot_bar_cum <- function(x) {
   sum_col <- rowSums(x)
@@ -98,11 +93,16 @@ read_qc_summary <- function(batch = 4, tool = "qc") {
   return(qc0)
 }
 
-get_qc <- function(x, batch = 4, tool = "qc", geom = "line", draw = TRUE) {
+get_qc <- function(x, batch = 4, tool = "qc", geom = "line", draw = FALSE, translated = FALSE) {
   cwd <- file.path(path, tool)
-  files <- list.files(file.path(cwd, "4"), pattern = "mqc_")
-  qc <<- read_tsv(file.path(cwd, batch, files[x])) %>%
-  mutate(Sample = str_remove_all(Sample, "(_001$)|(\\d{2}PB1)|(\\-1_S\\d*)|( \\- nextera_transposase_sequence)")) %>%
+  files <- list.files(file.path(cwd, batch), pattern = "mqc_")
+  df <- read_tsv(file.path(cwd, batch, files[x]))
+  if (translated) 
+    df <- t(df) %>% 
+      row_to_names(row_number = 1) %>% 
+      as.data.frame() %>% 
+      rownames_to_column("Sample")
+  qc <<- mutate(df, Sample = str_remove_all(Sample, "(_001$)|(\\d{2}PB1)|(\\-1_S\\d*)|( \\- nextera_transposase_sequence)")) %>%
   column_to_rownames("Sample")
 
   if (geom == "line") {
@@ -113,40 +113,42 @@ get_qc <- function(x, batch = 4, tool = "qc", geom = "line", draw = TRUE) {
   if (draw)
     ggplotly(p)
   else
-    return(p)
+    invisible(p)
 }
+```
 
+
+```{r parse}
 p <- list()
 stats <- list()
-
-for (batch in seq(4)) {
+for (batch in seq(n_batch)) {
 stats[[batch]] <- list()
 
 tool <- "qc"
-if (batch != 2) {
+# if (batch != 2) {
 # Adaptater
-get_qc(1, batch, tool)
-stats[[batch]][[1]] <- apply(qc, 1, max)
+get_qc(1, batch, tool)#, translated = TRUE)
+stats[[batch]][[3]] <- apply(qc, 1, function(x) as.numeric(x) %>% max())
 # print_stats0(stats[[1]], dec = 2)
-# p[[4]] <- plot_violin0(stats[[1]], colour = get_colors()[1], title = "Adaptaters %", pch_colour = "gray20", pch_alpha = 0.5)
+# p[[4]] <- plot_violin0(stats[[batch]][[3]], colour = get_colors()[1], title = "Adaptaters %", pch_colour = "gray20", pch_alpha = 0.5)
 
 # N
 get_qc(3, batch, tool)
-stats[[batch]][[2]] <- apply(qc, 1, sum)
+stats[[batch]][[2]] <- apply(qc, 1, function(x) as.numeric(x) %>% median())
 # print_stats0(stats[[2]], dec = 2)
-# p[[3]] <- plot_violin0(stats[[2]], colour = get_colors()[2], title = "Unknown bases %", pch_colour = "gray20", pch_alpha = 0.5)
+# p[[3]] <- plot_violin0(stats[[batch]][[2]], colour = get_colors()[2], title = "Unknown bases %", pch_colour = "gray20", pch_alpha = 0.5)
 
 # Phred
 get_qc(4, batch, tool)
-stats[[batch]][[3]] <- apply(qc, 1, median)
+stats[[batch]][[1]] <- apply(qc, 1, function(x) as.numeric(x) %>% median())
 # print_stats0(stats[[3]], dec = 2)
-# p[[1]] <- plot_violin0(stats[[3]], colour = get_colors()[3], title = "Phred median", pch_colour = "gray20", pch_alpha = 0.5)
+# p[[1]] <- plot_violin0(stats[[batch]][[1]], colour = get_colors()[3], title = "Phred median", pch_colour = "gray20", pch_alpha = 0.5)
 
 # get_qc(6, batch)
-# apply(qc, 1, function(x) colnames(qc)[which.max(x)] %>% as.double) %>% median()
-
+# stats[[batch]][[4]] <- apply(qc, 1, function(x) colnames(qc)[which.max(x)] %>% as.double)
+# p[[2]] <- plot_violin0(stats[[batch]][[4]], colour = get_colors()[4], title = "GC %", pch_colour = "gray20", pch_alpha = 0.5)
 # qc0 <- read_tsv(file.path(cwd, batch, "multiqc_fastqc.txt")) %>% column_to_rownames(colnames(.)[1])
-}
+# }
 
 # Duplicates
 qc0 <- read_qc_summary(batch, tool)
@@ -162,7 +164,7 @@ if (batch == 4) {
   rownames(qc) <- str_replace_all(rownames(qc), "1$", "2")
   qc <- rbind(r1, qc)
   # plot_gc(qc)
-  stats[[batch]][[4]] <- apply(qc, 1, median)
+  stats[[batch]][[4]] <- apply(qc, 1, function(x) as.numeric(x) %>% median())
   # print_stats0(stats[[4]], dec = 2)
   # p[[2]] <- plot_violin0(stats[[4]], colour = get_colors()[4], title = "GC %", pch_colour = "gray20", pch_alpha = 0.5)
   # x = "var" ; data.frame(var = stats[[4]]) %>% select(!!sym(x)) %>% arrange(desc(!!sym(x))) %>% tail(10)
@@ -179,27 +181,42 @@ stats[[batch]][[7]] <- pull(qc0, `% duplication`)
 # select(qc0, !!sym(x)) %>% arrange(desc(!!sym(x))) %>% filter(!!sym(x) > 60)
 
 # kallisto
-# get_qc(1, batch, geom = "bar")
-# qc0 <- read_qc_summary(batch, "kallisto")
-# qc0 <- filter(qc0, `% aligned` > 0)
-# stats[[batch]][[6]] <- pull(qc0, `% aligned`)
-# p[[6]] <-  plot_violin0(stats[[batch]][[6]], colour = get_colors()[8], title = "Alignment %", pch_colour = "gray20", pch_alpha = 0.5)
-
+qc1 <- read_tsv(file.path(path, "kallisto", batch, "kallisto.tsv")) %>% mutate(p_pseudoaligned = (n_pseudoaligned / n_processed) * 100)
+stats[[batch]][[6]] <- pull(qc1, p_pseudoaligned)
+# p[[6]] <- plot_violin0(stats[[batch]][[6]], colour = get_colors()[8], title = "Alignment %", pch_colour = "gray20", pch_alpha = 0.5)
 }
+```
+
+
+```{r plot}
+titles <- c("Phred median", "Unknown bases %", "Adaptaters %", paste0("Duplicates % (", c("Before", "After"), ")"), "Aligned %")
+col <- c(3, 2, 1, 5, 4, 8)
+p <- list.map(
+  c(1, 2, 3, 5, 7, 6),
+  f(i, j) ~ {
+    list.map(stats, pluck(., i)) %>%
+      compact() %>%
+      list_cbind() %>% 
+      set_colnames(seq(4)) %>%
+      plot_violin0(
+        colour = colorRampPalette(c("white", get_colors()[col[j]], "black"))(n_batch + 2)[c(2:(n_batch + 1))],
+        color_title = get_colors()[col[j]],
+        title = titles[j],
+        pch_colour = "gray20",
+        pch_alpha = 0.5, 
+        stat = FALSE,
+        wrap = 5,
+        wrap_title = 30
+      )
+  }
+)
+
+p[[2]] <- p[[2]] + scale_y_continuous(labels = label_scientific())
 
 plot_grid(
     plotlist = p,
-    nrow = 1,
-    ncol = 6,
+    nrow = 2,
+    ncol = 3,
     align = "vh"
 )
-
-titles <- c("Adaptaters %", "Unknown bases %", "Phred median", paste0("Duplicates % (", c("Before", "After"), ")"))
-col <- c(1, 2, 3, 5, 4)
-col_name <- c(lapply(seq(3), function(x) seq(4)[-2]), lapply(seq(2), function(x) seq(4)))
-p <- list.map(
-  c(1, 2, 3, 5, 7),
-  f(i, j) ~ list.map(stats, pluck(., i)) %>% compact() %>% list_cbind() %>% set_colnames(col_name[[j]]) %>%  plot_violin0(colour = rep(get_colors()[col[j]], ncol(.)), title = titles[j], pch_colour = "gray20", pch_alpha = 0.5, stat = FALSE, wrap = 10)
-)
 ```
-
