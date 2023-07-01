@@ -101,9 +101,10 @@ get_intersection0 <- function(x) {
 }
 
 #' @export
-get_intersection <- function(x) {
+get_intersection <- function(x, n = 1) {
     intersections <- get_intersection0(x)
-    intersections[grepl(":", names(intersections))]
+    regex <- paste0("^([^:]*:){", n, ",}[^:]*$")
+    intersections[grepl(regex, names(intersections))]
 }
 
 #' @export
