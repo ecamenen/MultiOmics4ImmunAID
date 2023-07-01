@@ -62,7 +62,16 @@ plot_normal <- function(x) {
 get_colors <- function() {
     c(
         brewer.pal(9, "Set1"),
-        brewer.pal(9, "Pastel1")
+        brewer.pal(7, "Set2"),
+        brewer.pal(8, "Pastel1"),
+        brewer.pal(8, "Set2")[-5]
+    )
+}
+
+get_colors1 <- function(x) {
+    list.map(rainbow(x)[-x], f(i) ~ colorRampPalette(c(i, "white"))(round(x* 0.4))[-round(x* 0.4)]) %>% unlist()
+}
+
 get_colors0 <- function(x) {
     colorRampPalette(
         c(brewer.pal(9, "YlOrBr")[c(3, 5, 7)],
