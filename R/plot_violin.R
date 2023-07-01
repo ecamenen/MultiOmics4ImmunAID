@@ -47,7 +47,9 @@ plot_piechart <- function(
         df$legend <- df$f[i]
     } else {
         df$legend <- df$f
-        colour0 <- c(colour[seq(length(levels(df$f)))], "gray")
+        # colour0 <- c(colour[seq(length(levels(df$f)))], "gray")
+        colour <- sort(levels(df$f)) %>% match(.,  levels(df$f)) %>% colour[.] %>% c("gray")
+        colour0 <- colour
     }
     df$legend0 <- paste0(df$legend, ": ", df$n)
     if (!isTRUE(label)) {
@@ -207,7 +209,7 @@ plot_violin0 <- function(
         cex_main = 21 * cex,
         cex_sub = 15 * cex,
         cex_axis = 17 * cex,
-        alpha = 0.1,
+        alpha = 0.3,
         title = NULL,
         wrap_title = 20,
         probs = c(.25, .75),
@@ -218,7 +220,7 @@ plot_violin0 <- function(
         value = 1,
         subtitle = FALSE,
         caption = NULL,
-        color_title = "black",
+        color_title = colour,
         ratio = 5,
         title_center = 0.5,
         lim1 = NULL,
@@ -227,7 +229,9 @@ plot_violin0 <- function(
         ylab = NULL,
         method_adjust = "BH",
         wrap = 20,
-        ratio_y = 7
+        ratio_y = 7,
+        dec = 0,
+        stat = TRUE
 ) {
     set.seed(1)
     if (is.null(title)) {
@@ -235,11 +239,14 @@ plot_violin0 <- function(
     }
     if (isFALSE(subtitle)) {
         if (!(class(x) %in% c("data.frame", "tibble"))) {
-            subtitle <- paste0(print_stats0(x), ", N=", length(na.omit(x)))
+            subtitle <- paste0(print_stats0(x, dec = dec), ", N=", length(na.omit(x)))
         } else {
-            subtitle <- get_melt(x) %>%
-                get(paste0(method, "_test"))(value ~ name) %>%
-                print_mean_test(dec_p = 3)
+            if (stat)
+                subtitle <- get_melt(x) %>%
+                    get(paste0(method, "_test"))(value ~ name) %>%
+                    print_mean_test(dec_p = 3)
+            else 
+                subtitle <- NULL
         }
     }
     color_subtitle <- colour
@@ -312,14 +319,14 @@ plot_violin0 <- function(
         theme_minimal() +
         labs(
             title = str_wrap(title, wrap_title),
-            subtitle = subtitle,
+            subtitle = str_wrap(subtitle, wrap_title),
             caption = caption,
             y = ylab
         ) +
         scale_fill_manual(values = colour_fill) +
         scale_x_discrete(limits = colnames(x), labels = sub_labs) +
         xlab("")
-    if ((class(x) %in% c("data.frame", "tibble")) && ncol(x) > 2) {
+    if ((class(x) %in% c("data.frame", "tibble")) && ncol(x) > 2 && stat) {
         stats <- dunn_test(df, value ~ name, p.adjust.method = method_adjust) %>%
             filter(p.adj.signif <= 0.05) %>%
             mutate(y.position = max(value, na.rm = TRUE) + (as.numeric(rownames(.)) * max(value, na.rm = TRUE) / ratio_y))
@@ -336,7 +343,7 @@ plot_violin0 <- function(
         if (lim2 < max_stats)
             lim2 <- max_stats
     }
-    p <- p + scale_y_continuous(limits = c(lim1, lim2))
+    # p <- p + scale_y_continuous(limits = c(lim1, lim2))
     if (length(na.omit(df$value)) > 3)
         p <- p + geom_sina(size = size, colour = pch_colour, alpha = pch_alpha, seed = 1)
     else
