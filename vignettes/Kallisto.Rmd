@@ -1,0 +1,168 @@
+---
+title: "Kallisto"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Kallisto}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Setup
+```{r setup}
+cwd <- file.path(path, "rna")
+batch <- 4
+
+get_kallisto_files  <- function(batch) {
+  list.files(
+    path = file.path(cwd, "TranscriptCounts", batch),
+    full.names = TRUE,
+    recursive = TRUE,
+    pattern = "_transcript_counts.tsv"
+  )
+}
+```
+
+# Get table transcript to gene
+```{r tx2gene}
+# db_annot <- useEnsembl(
+#   biomart = "genes", 
+#   dataset = "hsapiens_gene_ensembl", 
+#   version = 104
+# )
+# tx2gene <- getBM(
+#   attributes = c("ensembl_transcript_id", "ensembl_gene_id"),
+#   mart = db_annot
+# )
+
+# Save gene name table
+tx2gene_file <- file.path(cwd, "tx2gene.tsv")
+# write_tsv(
+#   tx2gene,
+#   tx2gene_file
+# )
+tx2gene <- read_tsv(tx2gene_file) %>% as.data.frame()
+```
+
+# Create the gene count tables
+```{r setup}
+
+kallisto_files <- get_kallisto_files(batch)
+txi_counts <- tximport(
+  kallisto_files,
+  type = "kallisto", 
+  tx2gene = tx2gene, 
+  ignoreTxVersion = TRUE#,
+  #txOut = TRUE
+)
+
+vars <- names(txi_counts)[-4]
+txi_counts <- lapply(
+  vars, 
+  function(x) set_colnames(
+    txi_counts[[x]], 
+    basename(kallisto_files) %>% str_remove_all("_transcript_counts.tsv")
+  ) %>% as.data.frame()
+) %>% set_names(vars)
+
+# Save the gene count table
+gene_counts <- rownames_to_column(txi_counts$counts, "gene_id")
+write_tsv(
+  gene_counts,
+  file.path(cwd, paste0("gene_counts_batch", batch, ".tsv"))
+)
+
+if (!file.exists(file.path(path, "data", "GeneCounts"))) {
+  dir.create(file.path(path, "data", "GeneCounts"))
+}
+
+# Extract data by samples
+l_gene_counts <- lapply(names(gene_counts)[-1], function(x) select(gene_counts, c(gene_id, x))) %>% 
+  set_names(colnames(gene_counts)[-1])
+
+count_path <- file.path(cwd, "GeneCounts", batch)
+if (!file.exists(count_path)) {
+  dir.create(count_path)
+}
+
+lapply(
+  seq(l_gene_counts),
+  function(x)
+  write_tsv(
+    l_gene_counts[[x]], 
+    file.path(count_path, paste0(names(l_gene_counts)[x], "_gene_counts.tsv")),
+    col_names = FALSE
+  )
+)
+```
+
+# Create metadata
+```{r setup}
+sample_names <- colnames(txi_counts$counts)
+
+metadata <- sample_names %>% 
+  data.frame(Sample_barcode = .)
+samples_annotations <- metadata %>%
+  mutate(
+    Patient_Id = str_extract(Sample_barcode, "\\d{5}"),
+    Visit = str_extract(Sample_barcode, "[AB]"),
+    Sample_type = "PBMC",
+    Date_of_experiment = "21/04/23"
+  )
+write_tsv(samples_annotations, file.path(path, "data",  "Samples_annotations.tsv"))
+
+files_annotations <- bind_rows(
+  mutate(metadata, File_name = paste0(Sample_barcode, "_gene_counts.tsv")),
+  mutate(metadata, File_name = paste0(Sample_barcode, "_transcript_counts.tsv"))
+) %>% mutate(
+  Protocol = "RNA-seq",
+  Equipment = "Computer",
+  Organisation = "INSERM U976",
+  Data_storage = "https://193.49.67.98:5001/",
+  Transfered = "yes"
+) %>% relocate(Sample_barcode, .before = Transfered)
+
+fastq <- read_tsv(file.path(path, "data", "multiqc_fastqc.txt"))
+fastq <- data.frame(File_name = paste0(fastq$Sample, ".fastq.gz")) %>%
+  mutate( 
+    Protocol = "RNA-seq",
+    Equipment = "Novaseq",
+    Organisation = "Institut du Cerveau",
+    Data_storage = "/network/lustre/iss02/pf-gs/z400bkp/Novaseq/2023/04-2023/230419_A00786_1083_AHWK3YDSX5/Da<ta/Intensities/BaseCalls/lane_3_4/",
+    Sample_barcode = str_extract(File_name, "\\d{5}[AB]05PB1"),
+    Transfered = "no"
+  )
+
+files_annotations <- bind_rows(
+  files_annotations,
+  fastq
+)
+
+write_tsv(files_annotations, file.path(path, "data",  "Files_annotations.tsv"))
+```
+
+```{r}
+tr_batches <- lapply(
+  seq(batch),
+  function(x) {
+    get_kallisto_files(x)[1] %>% 
+      read_tsv() %>%
+      pull(1)
+  }
+)
+
+tr_batches_no_version <- lapply(tr_batches, function(x) str_remove_all(x, ".\\d*$"))
+
+setdiff(tr_batches_no_version[[4]], tr_batches_no_version[[1]]) %>% length()
+setdiff(tr_batches_no_version[[2]], tr_batches_no_version[[4]]) %>% length()
+setdiff(tr_batches[[1]], tr_batches[[4]]) %>% length()
+setdiff(tr_batches[[4]], tr_batches[[1]]) %>% length()
+setdiff(tr_batches[[4]], tr_batches[[1]]) %>% head()
+```
+
