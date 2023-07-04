@@ -1442,12 +1442,12 @@ clinic_code[[3]] %>%
         update_columns(
             colnames(.),
             function(i) {
-                (dmy(x$C_2643_3802) - dmy(i)) %>%
+                (dmy(clinic_tot1$C_2643_3802) - dmy(i)) %>%
                     as.numeric()
             }
         ) %>%
     apply(1, function(i) min(abs(i), na.rm = TRUE)) %>%
-        set_names(clinic_tot1$C_2643_3796 %>% as.numeric()) %>% keep(. > 7) %>% sort() %>%
+        set_names(clinic_tot1$C_2643_3796 %>% as.numeric()) %>% keep(. > 7) %>% keep(is.finite(.)) %>% sort() %>%
         plotHistogram(df = ., ratio = 2, cex = 3, title = "Number of days between the date of sampling and the date of inclusion")
 
 get_biol0 <- function(x, y, z = clinic_tot, parse = FALSE) {
@@ -1470,7 +1470,7 @@ get_biol0 <- function(x, y, z = clinic_tot, parse = FALSE) {
         col_names <- str_remove_all(col_names, " \\(Anti-.+\\)")
     }
     if ("Neutrophils" %in% col_names) {
-          col_names[5] <- paste(col_names[5], "%")
+          col_names[6] <- paste(col_names[6], "%")
       }
     lapply(
         ids,
@@ -1515,6 +1515,25 @@ list_biol <- list.map(
     }
 ) %>% c(list_biol, .)
 
+# On flare
+col_dates <- get_min_dates(clinic_tot1, "General")
+tmp <- filter(clinic_code[[3]], str_detect(column_code, "C_2728_4055")) %>%
+                pull(column_code) %>%
+                select(clinic_tot1, .)
+sapply(
+    seq(nrow(tmp)),
+    function(i) ifelse(is.na(col_dates[i]), NA, tmp[i, col_dates[i]])
+) %>% unlist() %>%
+plot_piechart(
+    .,
+    colour = brewer.pal(12, "Paired")[9:10],
+    cex = 40,
+    dec = 1,
+    hsize = 1.5,
+    title = "",
+    label = FALSE
+)
+
 colnames(list_biol[[7]]) %>%
     list.map(
         f(j) ~ list.map(list_biol[c(1, 6:7)], f(i) ~ select(i, j)) %>%
@@ -1529,7 +1548,7 @@ colnames(list_biol[[1]]) <- colnames(list_biol[[1]]) %>%
     str_replace("Conj Bili", "Conjugated bilirubin")
 biol_func <- list(
     Kidney = select(list_biol[[1]], contains(c("Creatinine", "Glomerular Filtration Rate", "Urea"))) %>% colnames(),
-    Blood = select(list_biol[[1]], contains(c("Hemoglobin", "Mean red cell volume", "Platelets", "SAA", "Fibrinogen level", "Erythrocyte sedimentation rate", "Total Bilirubin", "Protidemia", "Albuminemia", "Ferritin", "Schizocytes", "Glycosylated ferritin", "LDH", "Triglycerides"))) %>% colnames(),
+    Blood = select(list_biol[[1]], contains(c("Hemoglobin", "Mean red cell volume", "Platelets", "SAA", "Fibrinogen level", "Erythrocyte sedimentation rate", "Total Bilirubin", "Protidemia", "Albuminemia", "Ferritin", "Schizocytes", "Glycosylated ferritin", "LDH", "Triglycerides", "Serum peak"))) %>% colnames(),
     WC = select(list_biol[[1]], contains(c("Leucocytes", "Lymphocytes", "Neutrophils %", "Neutrophils", "Eosinophils", "CRP", "Max CRP"))) %>% colnames(),
     Liver = select(list_biol[[1]], contains(c("Conjugated bilirubin", "ALAT", "ALAT ULN", "ASAT", "ASAT ULN", "GGT", "GGT ULN", "Alk phosphatases", "Alk phosphatases ULN"))) %>% colnames(),
     Heart = select(list_biol[[1]], contains(c("Sodium", "Potassium"))) %>% colnames()
@@ -1578,7 +1597,16 @@ list_biol0 <- select(list_biol[[1]], unlist(biol_func) %>% unname())
 list.map(
     list_biol0,
     f(i, j, k) ~
-    plot_violin0(i, colour = color_var[j], cex = 1.2, title = k, wrap_title = 19, color_title = color_title[j]) +
+    plot_violin0(
+      i, 
+      colour = color_var[j], 
+      cex = 1.2,
+      pch_alpha = 0.25,
+      pch_colour = "black",
+      title = k, 
+      wrap_title = 19, 
+      color_title = color_title[j]
+    ) +
         theme(panel.grid.minor = element_blank())
 ) %>%
     plot_grid(
@@ -1643,10 +1671,10 @@ list.map(
     f(i, j) ~ list.map(list_biol1[-4], .[[i]]) %>% compact() %>% as.data.frame() %>% set_colnames(paste(c("First", "Third"), "visit")) %>% get_melt() %>% wilcox_test(value ~ name)
 )
 
-t_biol <- lapply(list_biol1[c(1, 4, 5)], function(x) list.cbind(x) %>% as.data.frame() %>% select(contains(unlist(biol_func) %>% unname()))) %>% list_cbind() %>% set_colnames(colnames(.) %>% str_replace_all("General", "V1") %>% str_replace_all("SecondVisit", "V2") %>% str_replace_all("FollowUp", "V3")) %>% set_rownames(as.numeric(clinic_tot1$C_2643_3796))
+t_biol <- lapply(list_biol1[c(1, 6, 7)], function(x) list.cbind(x) %>% as.data.frame() %>% select(contains(unlist(biol_func) %>% unname()))) %>% list_cbind() %>% set_colnames(colnames(.) %>% str_replace_all("General", "V1") %>% str_replace_all("SecondVisit", "V2") %>% str_replace_all("FollowUp", "V3")) %>% set_rownames(as.numeric(clinic_tot1$C_2643_3796))
 use_data(t_biol, overwrite = TRUE)
 
-t_biol0 <- list.cbind(list_biol1[[1]]) %>% as.data.frame() 
+t_biol0 <- list.cbind(list_biol1[[1]]) %>% as.data.frame() %>% set_rownames(clinic_tot1$C_2643_3796)
 
 tiff(
     "cor_biol.tiff",
