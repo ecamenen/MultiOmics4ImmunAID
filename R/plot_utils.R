@@ -46,7 +46,7 @@ plot_corr <- function(
         # Cacher les coefficients de corrélation sur la diagonale
         diag = FALSE,
         na.label = " ",
-        cl.cex = 0.75 * cex,
+        cl.cex = cex,
         cl.col = "gray50"
     )
 }
@@ -551,19 +551,20 @@ plot_cor2 <- function(x, y = NULL, method = "spearman", color = "red", alpha = 0
     }
     cor <- cor.test(pull(df, x), pull(df, y), method = method)
     pval <- ifelse(cor$p.value < 0.001, "< 0.001", paste("=", format(cor$p.value, digits = dec)))
+    n <- na.omit(df) %>% nrow()
     ggplot(df, aes(x = x, y = y)) +
         geom_point(color = color, size = cex * 3, alpha = alpha) +
         geom_smooth(method = "lm", se = FALSE, color = color) +
         labs(
             x = str_wrap(xlab, wrap),
             y = str_wrap(ylab, wrap),
-            subtitle = paste("R² =", round(cor$estimate ^ 2, dec + 1), ", ", "p", pval)
+            subtitle = paste0("R² = ", round(cor$estimate ^ 2, dec + 1) * sign(cor$estimate), ", ", "p ", pval, ", N = ", n)
         ) +
         theme_minimal() +
         theme(
             plot.subtitle = element_text(
                 hjust = 0.5,
-                size = cex * 18,
+                size = cex * 14,
                 color = "gray50",
                 face = "italic"
             ),

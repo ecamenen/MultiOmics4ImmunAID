@@ -231,7 +231,8 @@ plot_violin0 <- function(
         wrap = 20,
         ratio_y = 7,
         dec = 0,
-        stat = TRUE
+        stat = TRUE,
+        wrap_subtitle = 20
 ) {
     set.seed(1)
     if (is.null(title)) {
@@ -324,7 +325,8 @@ plot_violin0 <- function(
             y = ylab
         ) +
         scale_fill_manual(values = colour_fill) +
-        scale_x_discrete(limits = colnames(x), labels = sub_labs) +
+        scale_y_continuous(breaks = pretty_breaks(n = 3), labels = label_number_auto()) +
+        scale_x_discrete(limits = colnames(x), labels = str_wrap(sub_labs, wrap_subtitle)) +
         xlab("")
     if ((class(x) %in% c("data.frame", "tibble")) && ncol(x) > 2 && stat) {
         stats <- dunn_test(df, value ~ name, p.adjust.method = method_adjust) %>%
