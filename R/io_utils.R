@@ -22,13 +22,13 @@ kable0 <- function(x, align = "c", rownames = TRUE, color = "#a9a9a9") {
     }
 }
 
-save_tsv <- function(x, filename = NULL, col_names = TRUE) {
+save_tsv <- function(x, filename = NULL, col_names = TRUE, cwd = golem::get_golem_wd()) {
     if (is.null(filename)) {
         filename <- substitute(x)
     }
     write_tsv(
         as.data.frame(x),
-        file.path(golem::get_golem_wd(), filename),
+        file.path(cwd, filename),
         col_names = col_names
     )
 }
@@ -38,7 +38,7 @@ read_batches <- function(
     k = "Clinical",
     export = "export",
     date = "20230103",
-    n_batch = 3,
+    n_batch = 4,
     clin_path = file.path(
         golem::get_golem_wd(),
         "inst",
