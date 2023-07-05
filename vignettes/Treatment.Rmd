@@ -1,0 +1,581 @@
+---
+title: "Treatment"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Treatment}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Functions
+```{r setup}
+# Convert a data.frame containing treatments into a JSON-like list
+# x: data.frame to parse
+# y: name of the key (default: Date)
+# type: parsing specificity type
+parse_treat <- function(x, y = "Date", type = FALSE) {
+    # The number of column treatments could change from a batche or a datatype to another
+    n <- select(clinic, starts_with("C_2745_4141_")) %>% ncol()
+    # Rename the column to have an ID corresponding to the number of treatment
+    x %>%
+        set_colnames(rep(seq(n), ncol(.) / n)) %>%
+        # Convert in JSON-like list
+        list.parse() %>%
+        list.map(f(i) ~ {
+            # Remove elements with no values
+            purrr::discard(i, is.na) %>%
+                list.map({
+                    # remove the parenthesis and the "(s)"
+                    res <- str_remove_all(., " \\(.+\\)") %>% str_remove_all("\\(s\\)")
+                    if (type > 0) {
+                        res <- str_to_sentence(res)
+                    }
+                    if (type == 2) {
+                        for (i in c("il", "cd", "tnf")) {
+                            res <- str_replace_all(res, paste0("Anti[- ](", i, ") ?(\\d{1,2}|α)$"), paste0("Anti-", toupper(i), "\\2"))
+                        }
+                    } else if (type == 3) {
+                        res <- str_replace_all(res, "Antibiot(ic|ique|herapie)", "Anti-biotic") %>%
+                            str_replace_all("(Antihistamine)s?", "\\1") %>%
+                            str_replace_all("Betebloquant", "Betablocker") %>%
+                            str_replace_all("(Calcium).*", "\\1 antagonist") %>%
+                            str_replace_all(".*[Cc][iy]closporine?$", "Ciclosporine") %>%
+                            str_replace_all("Paracétamol", "Paracetamol") %>%
+                            str_replace_all("Immunosup+res+(ant|eur|or).?$", "Immunosuppressant") %>%
+                            str_replace_all("Vit(amin)? (\\w)( 800 iu)?", "Vitamin \\2") %>%
+                            str_replace_all("Inteferon alpha", "Other") %>%
+                            str_replace_all("(Anti) ", "\\1-") %>%
+                            str_replace_all("(Methotrexate) po", "\\1") %>%
+                            str_replace_all("(Colchicin)e", "\\1") %>%
+                            str_replace_all("Enatercept", "Etanercept") %>%
+                            str_replace_all("Flunarazine|Flunarizina", "Flunarizine") %>%
+                            str_replace_all("((Anti-plate?let)s?( aggregation)?)|(Antiagregent plaquettaire)", "Anti-platelets aggregation")
+                    } else if (type == 4) {
+                        res <- str_replace_all(res, "Month\\(s\\)", "Month")
+                    }
+                    # Create key:value
+                    list(res) %>% set_names(y)
+                })
+        })
+}
+
+# Convert a data.frame containing treatments into a JSON-like list (version without any post-treatment)
+# x: data.frame to parse
+# y: name of the key (default: Date)
+parse_treat0 <- function(x, y = "Date") {
+    # The number of column treatments could change from a batch or a datatype to another
+    n <- select(clinic, starts_with("C_2745_4141_")) %>% ncol()
+    set_colnames(x, seq(n)) %>%
+        list.parse() %>%
+        list.map(f(i) ~ {
+            set_names(i, y) %>% purrr::discard(is.na)
+        })
+}
+```
+
+# Data loading
+```{r setup}
+clinic <- read_immunaid(path = data_path) %>%
+    Reduce(rbind, .) %>%
+    formate_immunaid()
+clinic_code <- read_immunaid(, "codes", path = data_path)
+
+# Parsing the general information about the treatments
+# Fields to parse
+vars <- paste0("IMA_SYSTHERAPY_TREATMENT_", c("BEGIN_DATE", paste0("GROUP", c("", "_OTHER_NEW_VALUE")), "OVER", "RESP", paste0("STOP_", c("DATE", paste0("REASON", c("", "_OTHER_NEW_VALUE", "_SIDE_EFFECTS"))))))
+# Renaming then (key name in the JSON-like object)
+var_names0 <- c("Date of beginning", "Type", "Drug name", "Discontinuation", "Response", "Date of discontinuation", paste0("Reason for discont.", c("", " (other)", " (side effect(s))")))
+# Name of each element of the list (i.e., the ImmunAID's ID of the patients)
+ids <- pull(clinic, C_2643_3796) %>% as.integer()
+list_treat <- list.map(
+    vars,
+    f(i, j) ~ {
+        # Extract all the required metadata codes
+        res <- clinic_code[[1]] %>%
+            filter(str_detect(item_code, paste0("^", i, "$"))) %>%
+            pull(column_code) %>%
+            # use them to make a DBB join with the header of the exports to finally get the values
+            select(clinic, .) %>%
+            set_rownames(ids)
+        # Different parsing actions according to the field to parse
+        if (j == 2) {
+            type <- 0
+        } else if (j == 3) {
+            type <- 3
+        } else {
+            type <- 1
+        }
+        parse_treat(res, var_names0[j], type = type)
+    }
+    # Merge the JSON-like output for all the parsed files
+) %>% Reduce(function(x, y) list.merge(x, y), .)
+
+# Adding to the list specific information for each type of treatment
+treats0 <- c("ASPI", "NSAID", "CORTICO", "COLCH", "BIPHO", "IVIG", "DMARDS", "BIO", "KINASE", "OTHER")
+# Formatting the field names for the type of treatment
+treats <- paste0("IMA_SYSTHERAPY_TREATMENT_", c(paste0(treats0, "_"), ""))
+# Specific field names for each information we want to extract
+vars <- c("((PRECISION)|(TREAT))", "((aINF)|(aPLAT)|(DOSE))", paste0("DOSE_", c("INITIAL", "MAX")), "FREQUENCY", "DURATION")
+var_names1 <- c("Drug name", paste(c("Administrated", "Initial", "Maximal"), "dose"), "Frequency", "Period")
+# Extracting the information for each specific field associated with each type of treatment
+list_treat <- list.map(
+    treats,
+    f(i, j) ~ {
+        list.map(
+            paste0(i, vars),
+            f(k, l) ~ {
+                res <- clinic_code[[1]] %>%
+                    filter(str_detect(item_code, paste0("^", k, "$"))) %>%
+                    pull(column_code) %>%
+                    select(clinic, .) %>%
+                    set_rownames(ids)
+                # The name for the aspirin and biological treatments are subtypes
+                # of treatment, not drug names like in the other treatments
+                if ((j == 1 || j == 8) && l == 1) {
+                    key <- "Subtype"
+                } else {
+                    key <- var_names1[l]
+                }
+                if (l == 1) {
+                    type <- 3
+                } else {
+                    type <- 1
+                }
+                if (ncol(res) > 0) {
+                    parse_treat(res, key, type)
+                }
+            }
+        )
+    }
+) %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+    list.merge(list_treat, .)
+
+# Extracting the "Other" field that are in a different field for two treatments
+# The values will replace the "Other" values in the "drug name" field of the list
+res <- list.map(c("Corticosteroid", "Kinase inhibitors"), f(i) ~ {
+    clinic_code[[1]] %>%
+        filter(str_detect(group_name, paste0("^", i, "$"))) %>%
+        filter(str_detect(item_code, "IMA_OTHER_NEW_VALUE")) %>%
+        pull(column_code) %>%
+        select(clinic, .) %>%
+        set_rownames(ids) %>%
+        parse_treat("Drug name", type = 3) %>%
+        compact()
+}) %>% Reduce(function(x, y) list.merge(x, y), .)
+if (length(res) > 0) {
+    list_treat <- list.merge(list_treat, res)
+}
+
+# For these treatment, they were no drug name field,
+# because it is the same than the type of treatment
+list_treat <- list.map(
+    c("Aspirin", "IVIG", "Colchicin"),
+    f(k) ~ list.map(
+        list_treat,
+        f(i) ~ list.map(
+            i,
+            f(j) ~ if (j$Type == k) {
+                list(j$Type) %>%
+                    set_names("Drug name")
+            }
+        ) %>%
+            compact()
+    ) %>% compact()
+) %>%
+    compact() %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+    list.merge(list_treat, .)
+
+# Extracing the subtypes of the biological treatments
+treats0 <- c("aIFalpha", "aIL1", "aIL6", "aTNFalpha", "aCD20")
+treats <- paste0("IMA_SYSTHERAPY_TREATMENT_BIO", c("", paste0("_TREAT_", treats0)))
+vars <- c("", "_OTHER_NEW_VALUE")
+list_treat <- list.map(
+    treats,
+    f(i, j) ~ {
+        list.map(
+            paste0(i, vars),
+            f(k, l) ~ {
+                res <- clinic_code[[1]] %>%
+                    filter(str_detect(item_code, paste0("^", k, "$"))) %>%
+                    pull(column_code) %>%
+                    select(clinic, .) %>%
+                    set_rownames(ids)
+                if (j == 1 && l == 1) {
+                    key <- "Subtype"
+                    type <- 2
+                } else {
+                    key <- "Drug name"
+                    type <- 3
+                }
+                if (ncol(res) > 0) {
+                    parse_treat(res, key, type)
+                }
+            }
+        )
+    }
+) %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+    list.merge(list_treat, .)
+
+# Check that drugs in the "Other" category
+# Extract the list of all the drug names in the "Other" category
+list_other <- list.map(
+    list_treat,
+    f(i) ~ list.filter(
+        i,
+        f(j) ~ is.list(j) && j$Type == "Other"
+    ) %>%
+        list.map(f(k) ~ k$`Drug name`)
+) %>%
+    compact() %>%
+    unlist() %>%
+    unique()
+
+# For each of these drug, get the name of the category from those that are
+# already duplicated in other treatment categories
+list_other0 <- list.map(
+    list_other,
+    f(x) ~ list.map(
+        list_treat,
+        f(i) ~ list.filter(
+            i,
+            f(j) ~ is.list(j) && j$`Drug name` == x
+        ) %>%
+            list.map(f(k) ~ k$Type)
+    ) %>%
+        compact() %>%
+        unlist() %>%
+        unique()
+) %>%
+    keep(function(x) length(x) > 1) %>%
+    list.map(f(i) ~ i[i != "Other"])
+
+list.map(
+    list_other0,
+    f(x, y, z) ~ list.map(
+        list_treat,
+        f(i) ~ list.filter(i, f(j) ~ j$`Drug name` == z && j$Type == "Other")
+    ) %>%
+        compact()
+)
+
+# $Cellcept
+# [1] "Biologic"
+#
+# $Methotrexate
+# [1] "DMARDs" "Corticosteroid" "Biologic"
+# It's a DMARD
+#
+# $Colchicin
+# [1] "Colchicin"
+#
+# $Methylprednisolone
+# [1] "Corticosteroid"
+#
+# $Solumedrol
+# [1] "Corticosteroid"
+#
+# $Anakinra
+# [1] "Biologic"
+#
+# $Ciclosporine
+# [1] "DMARDs"
+
+# Because of the complexity of each case, it is necessary to inspect manually
+# and to replace by hand
+# Methotrexate
+if (!is.null(list_treat[["4041"]])) {
+    list_treat[["4041"]][["8"]]$Type <- "DMARDs"
+}
+
+if (!is.null(list_treat[["7006"]])) {
+    list_treat[["7006"]][["2"]]$Type <- "DMARDs"
+}
+
+if (!is.null(list_treat[["10004"]])) {
+    list_treat[["10004"]][["1"]]$Type <- "DMARDs"
+}
+
+if (!is.null(list_treat[["10005"]])) {
+    list_treat[["10005"]][["5"]]$Type <- "DMARDs"
+    list_treat[["10005"]][["13"]]$Type <- "DMARDs"
+}
+
+# Cellcept
+if (!is.null(list_treat[["4024"]])) {
+    list_treat[["4024"]][["3"]]$Type <- "Biologic"
+    list_treat[["4024"]][["3"]]$Subtype <- "Other"
+}
+
+# Colchicin
+if (!is.null(list_treat[["5006"]])) {
+    list_treat[["5006"]][["3"]]$Type <- "Colchicin"
+    list_treat[["5006"]][["4"]]$Type <- "Colchicin"
+}
+
+# Methylprednisolone # Solumedrol
+if (!is.null(list_treat[["6039"]])) {
+    list_treat[["6039"]][["1"]]$Type <- "Corticosteroid"
+    list_treat[["6039"]][["3"]]$Type <- "Corticosteroid"
+}
+
+# Anakinra
+if (!is.null(list_treat[["6050"]])) {
+    list_treat[["6050"]][["3"]]$Type <- "Biologic"
+    list_treat[["6050"]][["3"]]$Subtype <- "Anti-IL1"
+}
+
+# Tocilizumab
+if (!is.null(list_treat[["7004"]])) {
+    list_treat[["7004"]][["1"]]$Type <- "Biologic"
+    list_treat[["7004"]][["1"]]$Subtype <- "Anti-IL6"
+}
+
+# Ciclosporine
+if (!is.null(list_treat[["17005"]])) {
+    list_treat[["17005"]][["3"]]$Type <- "Other"
+}
+
+# Replace the type of these elements by the right one
+# list_treat <- list.map(
+#     list_other0,
+#     f(x, y, z) ~ list.map(
+#         list_treat,
+#         f(i) ~ list.filter(i, f(j) ~ j$`Drug name` == z && j$Type == "Other")
+#         ) %>%
+#     compact() %>%
+#     list.map(f(j) ~ list.map(j, f(k) ~ list(Type = x)))
+# ) %>%
+#     list.merge(list_treat, .)
+
+# Same thing for the subtypes
+list_bio_other <- list.map(
+    list_treat,
+    f(i) ~ list.filter(
+        i,
+        f(j) ~ is.list(j) && j$Subtype == "Other"
+    ) %>%
+        list.map(f(k) ~ k$`Drug name`)
+) %>%
+    compact() %>%
+    unlist() %>%
+    unique()
+
+list_bio_other0 <- list.map(
+    list_bio_other,
+    f(x) ~ list.map(
+        list_treat,
+        f(i) ~ list.filter(i, f(j) ~ is.list(j) && j$`Drug name` == x) %>%
+            list.map(f(k) ~ k$Subtype)
+    ) %>%
+        compact() %>%
+        unlist() %>%
+        unique()
+) %>%
+    keep(function(x) length(x) > 1) %>%
+    list.map(f(i) ~ i[i != "Other"])
+
+# Replace the subtype of these elements by the right one
+list_treat1 <- list.map(
+    list_bio_other0,
+    f(x, y, z) ~ list.map(
+        list_treat,
+        f(i) ~ list.filter(
+            i,
+            f(j) ~ is.list(j) & j$Subtype == "Other" & j$`Drug name` == z
+        )
+    ) %>%
+        compact() %>%
+        list.map(f(j) ~ list.map(j, f(k) ~ list(Subtype = x)))
+) %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+    list.merge(list_treat, .)
+
+# Sorting the treatment by the date of beginning
+list_treat <- list.map(list_treat, f(i) ~ {
+    list.sort(i, dmy(`Date of beginning`) %>% as.character())
+})
+
+reformat_dose <- function(x) {
+    # If it contains nothing or "0", then NA
+    if (is.null(x$`Administrated dose`) || str_detect(x$`Administrated dose`, "^0$")) {
+        NA
+        # If the frequency is more than one for the IVIG
+    } else if (!is.null(x$Frequency) && as.numeric(x$Frequency) != 1 && x$Type == "IVIG") {
+        # If the period is null, let's put 'day' else parse the period
+        if (is.null(x$Period)) {
+            str_glue("{x$`Administrated dose`}g/kg every {x$Frequency} days")
+        } else {
+            str_glue("{x$`Administrated dose`}g/kg every {x$Frequency} {tolower(x$Period)}s")
+        }
+    } else if (x$Type == "Aspirin") {
+        x$`Administrated dose`
+    } else if (x$Type %in% c("Colchicin", "NSAIDs")) {
+        str_glue("{x$`Administrated dose`}mg/day")
+    } else if (is.null(x$Frequency)) {
+        str_glue("{x$`Administrated dose`}mg")
+    } else if (as.numeric(x$Frequency) != 1) {
+        str_glue("{x$`Administrated dose`}mg every {x$Frequency} {tolower(x$Period)}s")
+    } else {
+        str_glue("{x$`Administrated dose`}mg/{tolower(x$Period)}")
+    }
+}
+
+# Set all the missing dose as 'Missing'
+list_treat <- list.map(
+    list_treat,
+    f(i) ~ list.map(
+        i,
+        f(j) ~ ifelse(!is.null(j$`Administrated dose`), reformat_dose(j), "Missing") %>%
+            list() %>%
+            set_names("Administrated dose")
+    )
+) %>%
+    list.merge(list_treat, .)
+
+# Extracting the general field for each patient
+vars <- c("C_2643_3796", "C_2643_3802", "C_2733_4210", "C_2742_4210", "C_2643_3798", "C_2643_3799")
+visits <- paste("Date of the", c(paste0(c("1st", "2nd"), " visit"), "follow-up"))
+var_names <- c("ID", visits, "Disease", "Eligible for a 2nd visit")
+list_date <- list.map(
+    vars,
+    f(i, j) ~ {
+        res <- clinic_code[[1]] %>%
+            filter(str_detect(column_code, paste0("^", i, "$"))) %>%
+            pull(column_code) %>%
+            select(clinic, .) %>%
+            set_rownames(ids) %>%
+            parse_treat0(var_names[j])
+    }
+) %>% Reduce(function(x, y) list.merge(x, y), .)
+
+list_treat <- list.merge(list_treat, list_date)
+
+# Set all the missing dose as 'NA'
+list_treat <- list.map(
+    c("Date of the 2nd visit", "Date of the follow-up", "Eligible for a 2nd visit"), f(i) ~ {
+        list.map(
+            list_treat, f(j) ~ {
+                if (is.null(j[[i]])) {
+                    list("NA") %>% set_names(i)
+                }
+            }
+        ) %>% compact()
+    }
+) %>%
+    Reduce(function(x, y) list.merge(x, y), .) %>%
+    list.merge(list_treat, .)
+
+# For each patient's ID, creating four new categories:
+# (i) 'Patient' with information from 'list_date'
+# Assign each treatment, to one category (or sometimes, two, for iii and iv)
+# (ii) 'Pre-inclusion' if the 'Date of discontinuation' of the treatment is before the 'Date of beginning'
+# (iii) and (iv) see the Word file of the algorithm for special cases
+# (v) 'Post V2' if the 'Date of beginning' is after the 'Date of the 2nd visit'
+list_treat <- list.map(list_treat, f(i) ~ list.class(i, f(j) ~ if (is.list(j)) {
+    if (is.null(j[["Date of discontinuation"]])) {
+        if (i[["Date of the 1st visit"]] != "NA" && j[["Date of beginning"]] != "NA") {
+            if (dmy(j[["Date of beginning"]]) >= dmy(i[["Date of the 1st visit"]])) {
+                if (i[["Date of the 2nd visit"]] != "NA" && !is.null(j[["Date of beginning"]]) && dmy(j[["Date of beginning"]]) >= dmy(i[["Date of the 2nd visit"]])) {
+                    return("Post V2")
+                } else {
+                    return("Ongoing at V2")
+                }
+            } else {
+                return(c("Ongoing at V1", "Ongoing at V2"))
+            }
+        } else {
+            print(j)
+            warning("No date of the beginning or 1rst visit")
+        }
+    } else if (dmy(j[["Date of discontinuation"]]) < dmy(i[["Date of the 1st visit"]])) {
+        return("Pre-inclusion")
+    } else if (i[["Date of the 2nd visit"]] != "NA") {
+        if (!is.null(j[["Date of beginning"]]) && dmy(j[["Date of beginning"]]) >= dmy(i[["Date of the 2nd visit"]])) {
+            return("Post V2")
+        } else {
+            if (!is.null(i[["Date of the 1st visit"]]) && dmy(j[["Date of beginning"]]) >= dmy(i[["Date of the 1st visit"]])) {
+                return("Ongoing at V2")
+            } else {
+                return(c("Ongoing at V1", "Ongoing at V2"))
+            }
+        }
+    } else if (!is.null(i[["Date of the 1st visit"]]) && dmy(j[["Date of beginning"]]) < dmy(i[["Date of the 1st visit"]])) {
+        return("Ongoing at V1")
+    } else {
+        return("Ongoing at V2")
+    }
+} else {
+    return("Patient")
+}))
+
+# Calculating the number of unique drug name for the 'Pre-inclusion' category
+# (if there's one) of each patient ID
+list_treat <- list.map(list_treat, f(i) ~ {
+    if (!is.null(i$`Pre-inclusion`)) {
+        list.map(i$`Pre-inclusion`, f(j) ~ j$`Drug name`) %>%
+            unlist() %>%
+            unique() %>%
+            length() %>%
+            list() %>%
+            set_names("N previous treatment") %>%
+            list(Patient = .)
+    } else {
+        list(Patient = list(`N previous treatment` = 0))
+    }
+}) %>%
+    compact() %>%
+    list.merge(list_treat, .)
+
+# Add a prefix before some the column of some variables to manage them
+var_names2 <- c("Date of beginning", "Type", "Subtype", "Drug name", paste(c("Initial", "Maximal", "Administrated"), "dose"), "Response", "Discontinuation", "Date of discontinuation", rep("Reason for discont.", 3))
+l_var_names <- list.map(
+    c("Pre-inclusion", paste("Ongoing at", c("V1", "V2")), "Post V2"),
+    f(i) ~ rep(i, length(var_names2)) %>% paste(var_names2, sep = ".")
+)
+
+# Convert each patient in the list into a data.frame
+list_treat1 <- list.map(
+    list_treat,
+    f(i) ~ list.map(i, f(j) ~ list.map(j, f(k) ~ unlist(k)) %>% bind_rows()) %>%
+        list_cbind() %>%
+        # For the bioinformaticians, add a second column containing for each cell, the ID of each patient
+        # Because when binding lists, there will be a column with collapsed cell that's prettier for the clinician
+        mutate(ID2 = i$Patient$ID)
+) %>% Reduce(bind_rows, .) %>%
+    as_tibble() %>%
+    select(., contains(c(var_names[c(1, 5)], l_var_names[[1]], "N previous treatment", var_names[2], l_var_names[[2]], var_names[c(3, 6)], l_var_names[[3]], var_names[4], l_var_names[[4]])))
+
+# If they exists, reorder some column
+if (!is.null(list_treat1[["Pre-inclusion.Reason for discont. (side effect(s))"]])) {
+    list_treat1 <- relocate(list_treat1, "Pre-inclusion.Reason for discont. (side effect(s))", .before = "Patient.N previous treatment")
+}
+if (!is.null(list_treat1[["Ongoing at V1.Reason for discont. (side effect(s))"]])) {
+    list_treat1 <- relocate(list_treat1, "Ongoing at V1.Reason for discont. (side effect(s))", .before = "Patient.Date of the 2nd visit")
+}
+if (!is.null(list_treat1[["Post V2.Reason for discont. (side effect(s))"]])) {
+    list_treat1 <- relocate(list_treat1, "Post V2.Reason for discont. (side effect(s))", .after = last_col())
+}
+
+# Save the final table not in a bioinformatic format but in a clinician one
+# Remove the column with ID for each cells (keeping only the one wich is collapsed)
+# Remove the prefix from the colnames
+list_treat2 <- select(list_treat1, -ID2) %>%
+    set_colnames(
+        colnames(.) %>%
+            str_remove_all("((Patient)|(Ongoing at ((V1)|(V2)))|(Pre-inclusion)|(Post V2)).")
+    )
+# Change the path here
+write.xlsx(list_treat2, file = file.path(data_path, "still_treatments.xlsx"))
+```
