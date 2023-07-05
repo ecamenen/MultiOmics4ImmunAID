@@ -33,13 +33,20 @@ save_tsv <- function(x, filename = NULL, col_names = TRUE, cwd = golem::get_gole
     )
 }
 
+#' Read the clinical files
+#' 
+#' Read the clinical files
+#' @param data type of ImmunAID data (default: Clinical)
+#' @param type export or code data type (default: export)
+#' @param n_batch number of batch to parse (default: 4)
+#' @param path directory root for the clinical data (required)
 #' @export
-read_batches <- function(
-    k = "Clinical",
-    export = "export",
+read_immunaid <- function(
+    data = "Clinical",
+    type = "export",
     date = "20230103",
     n_batch = 4,
-    clin_path = file.path(
+    path = file.path(
         golem::get_golem_wd(),
         "inst",
         "extdata",
@@ -51,16 +58,16 @@ read_batches <- function(
         seq(n_batch),
         function(i) {
             read_tsv(file.path(
-                clin_path,
+                path,
                 paste0(
                     "ImmunAID_",
-                    k,
+                    data,
                     "_",
                     date,
                     "_batch",
                     i,
                     "_eCRF_",
-                    export,
+                    type,
                     ".csv"
                 )
             ))

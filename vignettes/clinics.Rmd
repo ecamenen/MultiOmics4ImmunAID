@@ -32,11 +32,11 @@ files <- str_split(files_export, "_")
 
 ## Clinical
 ```{r clinical}
-clinic <- read_batches()
+clinic <- read_immunaid()
 sapply(clinic, dim)
 clinic_tot <- Reduce(rbind, clinic)
 clinic_tot <- clean_data(clinic_tot, FALSE)
-clinic_code <- read_batches(, "codes")
+clinic_code <- read_immunaid(, "codes")
 
 # plot_bar_mcat(clinic_tot$C_2643_3798, cex = 7, wrap = 50, colors = rev(c(rep("gray", 2), "red", rep("gray", 3), "red", rep("gray", 9))))
 # Descriptive plots
@@ -1098,7 +1098,7 @@ clinic0[clinic0 == "Not performed"] <- NA
 
 ## Extraction for Geneve lab
 ```{r}
-clinic <- read_batches()
+clinic <- read_immunaid()
 clinic_tot <- Reduce(rbind, clinic)
 codes <- clinic_code[[3]] %>% select(!(starts_with("repeat")))
 l_codes <- c()
@@ -1256,7 +1256,7 @@ saveWorkbook(wb, file = file_path, overwrite = TRUE)
 
 ## Descriptive stats for filtered disease
 ```{r}
-clinic0 <- read_batches()
+clinic0 <- read_immunaid()
 clinic_tot0 <- Reduce(rbind, clinic0)
 clinic_tot1 <- clinic_tot0 %>%
     filter(str_detect(
@@ -1266,7 +1266,7 @@ clinic_tot1 <- clinic_tot0 %>%
             collapse = "|"
         ))
     )) %>%
-    formate_immu()
+    formate_immunaid()
 
 data(clinic)
 attributes(clinic)$codes
@@ -1975,8 +1975,8 @@ list.map(
 
 # Parsing manifestation data
 ```{r}
-clinic_tot1 <- clinic_tot0 %>% formate_immu()
-clinic_osteo <- filter(clinic_tot0, str_detect(C_2643_3798, "osteitis")) %>% formate_immu()
+clinic_tot1 <- clinic_tot0 %>% formate_immunaid()
+clinic_tot1 <- filter(clinic_tot0, str_detect(C_2643_3798, "osteitis")) %>% formate_immunaid()
 vars0 <- clinic_code[[3]] %>%
     filter(str_detect(group_code, "IMA_ImpactedOrganOrSysTab"))
 vars1 <- vars0 %>%
@@ -3355,9 +3355,9 @@ print_excel <- function(x, file = osteitis_file) {
     data.frame(c("", x)) %>% write_excel(FALSE, file = file)
 }
 
-clinic0 <- read_batches()
-clinic_tot0 <- Reduce(rbind, clinic0) %>% formate_immu()
-clinic_osteo <- filter(clinic_tot0, str_detect(C_2643_3798, "osteitis")) %>% formate_immu()
+clinic0 <- read_immunaid()
+clinic_tot0 <- Reduce(rbind, clinic0) %>% formate_immunaid()
+clinic_osteo <- filter(clinic_tot0, str_detect(C_2643_3798, "osteitis")) %>% formate_immunaid()
 clinic_osteo <- mutate(clinic_osteo, adult = ifelse(clinic_osteo$C_2643_3803 > 18, "Adult", "Children"))
 
 # Missing data

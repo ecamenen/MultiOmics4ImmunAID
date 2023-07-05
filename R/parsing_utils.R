@@ -347,7 +347,7 @@ finalise_data <- function(x, col_name = NULL, clean_name = TRUE, row_name = 1) {
 }
 
 #' @export
-formate_immu <- function(x) {
+formate_immunaid <- function(x) {
     clean_data(x, FALSE, FALSE, TRUE, FALSE) %>%
         mutate(ID = as.numeric(C_2643_3796)) %>%
         arrange(ID) %>%
@@ -479,6 +479,7 @@ separate_semicolon0 <- function(x, sep = " ; ", collapse = TRUE) {
 }
 
 #' @export
+# Cbind lists of different dimension
 list_cbind <- function(x) {
     x <- list.map(x, f(i) ~ as.data.frame(i))
     tmp <- sapply(x, nrow)
