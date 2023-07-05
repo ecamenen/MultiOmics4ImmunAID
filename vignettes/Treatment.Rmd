@@ -39,7 +39,7 @@ parse_treat <- function(x, y = "Date", type = FALSE) {
                     }
                     if (type == 2) {
                         for (i in c("il", "cd", "tnf")) {
-                            res <- str_replace_all(res, paste0("Anti[- ](", i, ") ?(\\d{1,2}|α)$"), paste0("Anti-", toupper(i), "\\2"))
+                            res <- str_replace_all(res, paste0("Anti[- ](", i, ")\\s?(\\d{1,2}|α)$"), paste0("Anti-", toupper(i), "\\2"))
                         }
                     } else if (type == 3) {
                         res <- str_replace_all(res, "Antibiot(ic|ique|herapie)", "Anti-biotic") %>%
@@ -52,7 +52,9 @@ parse_treat <- function(x, y = "Date", type = FALSE) {
                             str_replace_all("Vit(amin)? (\\w)( 800 iu)?", "Vitamin \\2") %>%
                             str_replace_all("Inteferon alpha", "Other") %>%
                             str_replace_all("(Anti) ", "\\1-") %>%
-                            str_replace_all("(Methotrexate) po", "\\1") %>%
+                            str_replace_all("Hydroxycho?loro?quin", "Hydroxychloroquin") %>%
+                            str_replace_all("Amoxicill?ine", "Amoxicillin") %>%
+                            str_replace_all("Methotr[ea]xate( po)?", "Methotrexate") %>%
                             str_replace_all("(Colchicin)e", "\\1") %>%
                             str_replace_all("Enatercept", "Etanercept") %>%
                             str_replace_all("Flunarazine|Flunarizina", "Flunarizine") %>%
@@ -82,10 +84,10 @@ parse_treat0 <- function(x, y = "Date") {
 
 # Data loading
 ```{r setup}
-clinic <- read_immunaid(path = data_path) %>%
+clinic <- read_immunaid() %>%
     Reduce(rbind, .) %>%
     formate_immunaid()
-clinic_code <- read_immunaid(, "codes", path = data_path)
+clinic_code <- read_immunaid(, "codes")
 
 # Parsing the general information about the treatments
 # Fields to parse
@@ -576,6 +578,221 @@ list_treat2 <- select(list_treat1, -ID2) %>%
         colnames(.) %>%
             str_remove_all("((Patient)|(Ongoing at ((V1)|(V2)))|(Pre-inclusion)|(Post V2)).")
     )
-# Change the path here
-write.xlsx(list_treat2, file = file.path(data_path, "still_treatments.xlsx"))
+
+write.xlsx(list_treat2, file = file.path(path_tsv, "still_treatments.xlsx"))
+```
+
+# Check value uniqueness
+```{r}
+for (x in c("Drug name", "Type", "Discontinuation", "Response", "Reason for discont.", "Reason for discont. (other)", "Subtype")) {
+    cat("\n***\n")
+    list.map(list_treat, f(i) ~ list.map(i, f(j) ~ list.map(j, f(k) ~ k[names(k) == x])) %>% compact()) %>%
+        compact() %>%
+        unlist() %>%
+        unname() %>%
+        sort() %>%
+        unique() %>%
+        print()
+}
+```
+
+# Plot
+```{r}
+# 0 doses !
+# list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ if (is.list(j) && !is.null(j$`Administrated dose`) && str_detect(j$`Administrated dose`, "^0$")) TRUE) %>% compact()) %>% compact()
+
+treat_types <- list.map(list_treat, f(i) ~ list.map(i, f(j) ~ j[names(j) == "Type"])) %>%
+    unlist() %>%
+    sort() %>%
+    unique()
+t_treat_types <- list.map(treat_types, f(i) ~ list.mapv(list_treat0, f(j) ~ i %in% j$`Ongoing at V1.Type`) %>% as.numeric()) %>% list.cbind()
+apply(t_treat_types, 2, sum)
+
+treat_subtypes <- list.map(list_treat, f(i) ~ list.map(i, f(j) ~ j[names(j) == "Subtype"])) %>%
+    unlist() %>%
+    sort() %>%
+    unique()
+t_treat_subtypes <- list.map(treat_subtypes, f(i) ~ list.mapv(list_treat0, f(j) ~ i %in% j$`Ongoing at V1.Subtype`) %>% as.numeric()) %>% list.cbind()
+apply(t_treat_subtypes, 2, sum)
+
+list.map(treat_types, f(i) ~ list.map(list_treat0, f(j) ~ {
+    if (all(c("Ongoing at V1.Type", "Ongoing at V1.Drug name") %in% colnames(j))) {
+        filter(j, `Ongoing at V1.Type` == i) %>%
+            pull(`Ongoing at V1.Drug name`) %>%
+            unique()
+    } else {
+        NULL
+    }
+}) %>%
+    unlist() %>%
+    factor() %>%
+    fct_count())
+
+l_drugs <- list.map(list_treat0, f(j) ~ if (all(c("Ongoing at V1.Drug name") %in% colnames(j))) pull(j, `Ongoing at V1.Drug name`)) %>%
+    unlist() %>%
+    unique() %>%
+    na.omit()
+t_drugs <- list.map(
+    list_treat0, f(j) ~ {
+        list.mapv(l_drugs, f(k) ~ (all(c("Ongoing at V1.Drug name") %in% colnames(j))) && (k %in% (pull(j, `Ongoing at V1.Drug name`))))
+    } %>% as.numeric()
+) %>%
+    list.rbind() %>%
+    set_colnames(l_drugs)
+
+list.search(list_treat0, "Anakinra" %in% .) %>%
+    list.match("Ongoing at V1") %>%
+    length()
+l_per_treat <- list.map(treat_types, f(i) ~ {
+    l_drugs <- list.map(list_treat0, f(j) ~ if (all(c("Ongoing at V1.Type", "Ongoing at V1.Drug name") %in% colnames(j))) filter(j, `Ongoing at V1.Type` == i) %>% pull(`Ongoing at V1.Drug name`)) %>%
+        unlist() %>%
+        unique()
+    list.map(
+        list_treat0, f(j) ~ {
+            list.mapv(l_drugs, f(k) ~ (all(c("Ongoing at V1.Type", "Ongoing at V1.Drug name") %in% colnames(j))) && (k %in% (filter(j, `Ongoing at V1.Type` == i) %>% pull(`Ongoing at V1.Drug name`))))
+        } %>% as.numeric()
+    ) %>%
+        list.rbind() %>%
+        set_colnames(l_drugs)
+}) %>% compact()
+list.map(l_per_treat, f(i) ~ apply(i, 2, sum))
+
+l_per_bio_treat <- list.map(treat_subtypes, f(i) ~ {
+    l_drugs <- list.map(list_treat0, f(j) ~ if (all(c("Ongoing at V1.Subtype", "Ongoing at V1.Drug name") %in% colnames(j))) filter(j, `Ongoing at V1.Subtype` == i) %>% pull(`Ongoing at V1.Drug name`)) %>%
+        unlist() %>%
+        unique()
+    list.map(list_treat0, f(j) ~ {
+        list.mapv(l_drugs, f(k) ~ (all(c("Ongoing at V1.Subtype", "Ongoing at V1.Drug name") %in% colnames(j))) && (k %in% (filter(j, `Ongoing at V1.Subtype` == i) %>% pull(`Ongoing at V1.Drug name`))))
+    } %>% as.numeric()) %>%
+        list.rbind() %>%
+        set_colnames(l_drugs)
+}) %>% compact()
+# l_per_bio_treat[[2]]["20010", 2] <- 1
+# l_per_bio_treat[[3]] <- l_per_bio_treat[[3]][, 1, drop = FALSE]
+list.map(l_per_bio_treat, f(i) ~ apply(i, 2, sum))
+
+still_treatment_post <- Reduce(cbind, c(list(t_treat_types), list(t_treat_subtypes), l_per_treat))
+# use_data(still_treatment_post, overwrite = TRUE)
+
+list.map(list_other, f(x) ~ list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ is.list(j) && j$`Drug name` == x) %>% list.map(f(k) ~ k$Type)) %>%
+    compact() %>%
+    unlist() %>%
+    unique())
+
+list.map(treat_types, f(k) ~ list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ is.list(j) && j$Type == k) %>% list.map(f(k) ~ k$`Drug name`)) %>%
+    compact() %>%
+    unlist() %>%
+    unique()) %>% compact() -> tmp
+if (length(tmp) == 10) {
+    tmp[seq(5)] %>% get_intersection() # `Biologic:Corticosteroid` "Tocilizumab"
+    tmp[-seq(5)] %>% get_intersection() # `DMARDs:Other` "Ciclosporine"
+    tmp[c(seq(3), 9:10)] %>% get_intersection() # `Biologic:Other` "Cellcept"
+    tmp[-c(seq(3), 9:10)] %>% get_intersection()
+    tmp[c(3:5, 9:10)] %>% get_intersection()
+    tmp[-c(3:5, 9:10)] %>% get_intersection()
+}
+if (length(tmp) < 8) {
+    tmp[-seq(2)] %>% get_intersection()
+    tmp[-c(3:4)] %>% get_intersection()
+    tmp[-c(6:7)] %>% get_intersection()
+}
+# DMARDs:Other` "Methotrexate" "Ciclosporine"
+
+list.map(list_treat, f(i) ~ list.map(i, f(j) ~ if (is.list(j) && !is.null(j$Subtype) && !(j$Subtype %in% c("Anti-CD20", "Anti-IL1", "Anti-IL17", "Anti-IL5", "Anti-IL6", "Anti-TNFα"))) j$Subtype %>% set_names(j$`Date of beginning`)) %>% compact()) %>%
+    compact() %>%
+    unlist()
+
+list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ if (is.list(j) && j$Type == "Other" && j$`Drug name` %in% c("Anti-platelets aggregation", "Methotrexate", "Ciclosporine")) TRUE) %>%
+    compact()) %>% compact()
+list.map(list_treat, f(i) ~ list.map(i, f(j) ~ if (is.list(j) && j$Type == "Other" && j$`Drug name` %in% c("Anti-platelets aggregation", "Methotrexate", "Ciclosporine")) j$`Drug name` %>% set_names(j$`Date of beginning`)) %>% compact()) %>%
+    compact() %>%
+    unlist()
+
+titles <- c("Treatment response", "Reason for discontinuation")
+list.map(c("Response", "Reason for discont."), f(k, l) ~ list.map(treat_types, f(i) ~ list.map(list_treat0, f(j) ~ {
+    if (all(c("Ongoing at V1.Type", paste0("Ongoing at V1.", k)) %in% colnames(j))) {
+        filter(j, `Ongoing at V1.Type` == i) %>%
+            pull(paste0("Ongoing at V1.", k)) %>%
+            unique()
+    } else {
+        character(0)
+    }
+}) %>%
+    list.map(f(i) ~ if (length(i) == 0) NA else i) %>%
+    unlist() %>%
+    tibble() %>%
+    descriptive_mcat_immun(var = paste0(titles[l], " (", tolower(i), ")"), n = 38, wrap = 1000)) %>% list.rbind()) %>% list.rbind()
+
+list.map(list_treat, f(i) ~ list.map(i, f(j) ~ if (is.list(j) && !is.null(j$`Type`) && is.null(j$`Drug name`)) TRUE) %>% compact()) %>%
+    compact() %>%
+    unlist() %>%
+    names()
+
+greens <- brewer_pal(, "YlGn")(9)[c(4, 5, 7, 9)]
+cols <- c(1, get_colors()[c(4, 8, 7, 5, 9, 1)], greens[4], rev(greens))
+tmp <- colnames(l_per_treat$Biphosphonate)
+if (!is.null(tmp)) {
+    l_per_treat$Biphosphonate <- l_per_treat$Biphosphonate[, which(!is.na(tmp))]
+}
+c(list(`Type of treatment` = t_treat_types), l_per_treat %>% purrr:::discard(str_detect(names(.), "Biologic|Other")), l_per_bio_treat[2], list(Biologic = t_treat_subtypes)) %>%
+    list.map(
+        f(i, j, k) ~ {
+            if (j == length(.)) {
+                cols0 <- greens
+            } else if (j == 7) {
+                cols0 <- brewer_pal(, "Reds")(9)[c(3, 5, 7, 9)]
+            } else if (j == 8) {
+                cols0 <- greens[4]
+            } else {
+                cols0 <- cols[j]
+            }
+            if (j %in% c(3:5)) {
+                colors <- cols0
+            } else if (j == 1) {
+                colors <- rev(get_colors()[c(1, 3, 4, 2, 5, 7:9)])
+            } else {
+                colors <- c("gray", cols0)
+            }
+            as.data.frame(i) %>%
+                mutate(temp = 0) %>%
+                plot_bar_mcat(
+                    title = k,
+                    cex = 8,
+                    ratio = 2,
+                    collapse = TRUE,
+                    wrap = 30,
+                    colors = colors,
+                    color_title = cols[j]
+                )
+        }
+    ) -> p
+# c(.[c(1, 7, 9, 2, 8)], list(NULL), .[c(3:5)]) %>%
+
+plot_bar_mcat(
+    l_per_treat$Other,
+    title = "Others",
+    cex = 8,
+    ratio = 3,
+    collapse = TRUE,
+    wrap = 30,
+    colors =  c("gray", brewer_pal(, "Blues")(9)[c(3, 5, 7, 9)]),
+    color_title = get_colors()[2]
+) -> p2
+
+plot_bar_mcat(
+    t_drugs,
+    title = "All drugs",
+    cex = 8,
+    ratio = 3,
+    collapse = TRUE,
+    wrap = 30,
+    colors =  c(colorRampPalette(c("white", "black"))(11)[c(3, 5, 7, 9, 11)], rev(get_colors()[c(4, 1, 3, 5, 3, 7)]))
+)
+plot_grid(
+    plotlist = c(p[1], list(p2), p[c(7, 9, 2, 8, 3:5)]),
+    nrow = 3,
+    ncol = 3,
+    align = "v",
+    rel_heights = c(1.5, 1.2, 0.8)
+)
 ```
