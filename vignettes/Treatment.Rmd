@@ -732,8 +732,8 @@ cols2 <- sapply(names(l_per_treat0), function(x) filter(tmp, ID == x) %>% pull(r
 cols3 <- cols4[which(names(cols4) == "Aspirin")] %>% get_colors1()[.]
 l_per_bio_treat0 <- l_per_bio_treat %>% purrr:::discard(str_detect(names(.), "inflammatory|aggregation"))
 greens <- colorRampPalette(c("white", get_colors()[3], "black"))(length(l_per_bio_treat0) + 4)[-c(1:2, length(l_per_bio_treat0) + 3:5)]
-cols <- c(1, get_colors1()[cols2], greens, get_colors()[3], cols3)
-p_treat <- c(list(`Type of treatment` = t_treat_types), l_per_treat0, l_per_bio_treat0, list(Biologic = select(as.data.frame(t_treat_subtypes), -contains(c("inflammatory", "aggregation"))), Aspirin = select(as.data.frame(t_treat_subtypes), contains(c("inflammatory", "aggregation")))))
+cols <- c(get_colors1()[cols2], greens, get_colors()[3], cols3)
+p_treat <- c(l_per_treat0, l_per_bio_treat0, list(Biologic = select(as.data.frame(t_treat_subtypes), -contains(c("inflammatory", "aggregation"))), Aspirin = select(as.data.frame(t_treat_subtypes), contains(c("inflammatory", "aggregation")))))
 
 p <- list.map(
   p_treat,
@@ -743,11 +743,6 @@ p <- list.map(
         } else {
             cols0 <- cols[j]
         }
-        if (j == 1) {
-            colors <- cols1
-        } else {
-            colors <- colorRampPalette(c("gray", cols0))(ncol(i))
-        }
         as.data.frame(i) %>%
             mutate(temp = 0) %>%
             plot_bar_mcat(
@@ -755,10 +750,10 @@ p <- list.map(
                 cex = 8,
                 ratio = 3,
                 collapse = TRUE,
-                wrap = 17,
+                wrap = 30,
                 wrap_title = 30,
-                colors = colors,
-                hjust_title = 1,
+                colors = colorRampPalette(c("gray", cols0))(ncol(i)),
+                hjust_title = 0,
                 color_title = cols[j]
             )
     }
@@ -771,8 +766,8 @@ plot_bar_mcat(
     cex = 8,
     ratio = 3,
     collapse = TRUE,
-    wrap = 15,
-    hjust_title = 1,
+    wrap = 30,
+    hjust_title = 0,
     colors =  c("gray", tmp),
     color_title = tmp
 ) -> p2
@@ -783,16 +778,26 @@ names(tmp)[tmp0] <- 1
 names(tmp[which(!duplicated(tmp))]) %>% list.map(f(x) ~ keep(l_per_treat, function(i) x %in% colnames(i)) %>% names()) %>% as.character() -> cou
 col_all <- sapply(cou, function(x) cols4[str_which(names(cols4), x)]) %>% as.numeric() %>% get_colors1()[.] %>% rev() %>% sapply(function(x) ifelse(is.na(x), 1, x))
 
-plot_bar_mcat(
-    t_drugs,
-    title = "All drugs",
+col_all[7] <- get_colors()[3]
+cols <- list(cols1, col_all)
+list(`Type of treatment` = t_treat_types, `Top10 drugs` = t_drugs) %>%
+list.map(
+  f(i, j, k)
+  ~ plot_bar_mcat(
+    i,
+    title = k,
     cex = 8,
     ratio = 3,
     collapse = TRUE,
     wrap = 30,
-    hjust_title = 1,
-    n = 12,
-    colors = col_all
+    hjust_title = 0,
+    n = 10,
+    colors = cols[[j]]
+)
+) %>%
+plot_grid(
+    plotlist = .,
+    ncol = 2
 )
 
 plot_grid(
@@ -802,4 +807,11 @@ plot_grid(
     # align = "v",
     rel_heights = c(1.5, 1.2, 0.8)
 )
+plot_grid(
+  plotlist = keep(p, str_detect(names(p), "Anti-|Other")),
+  nrow = 4,
+  align = "v",
+  rel_heights = c(rep(1.25, 3), 1)
+)
+
 ```
