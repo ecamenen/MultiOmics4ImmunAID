@@ -822,4 +822,70 @@ plot_grid(
   rel_heights = c(rep(1.25, 3), 1)
 )
 
+n_clin <- pull(clinic, C_2643_3798) %>% fct_count() %>% arrange(desc(n)) %>% rename(n2 = n)
+
+list.map(
+  treat_types,
+   f(x) ~ filter(list_treat1, `Ongoing at V1.Type` == x) %>% 
+    filter(!pull(., `Patient.ID`) %>% duplicated()) %>%
+    pull("Patient.Disease") %>%
+    fct_count() %>% 
+    left_join(n_clin) %>%
+    mutate(n2 = round(n / n2 * 100)) %>%
+    arrange(desc(n2))
+)
+
+list.map(
+    treat_subtypes,
+    f(x) ~ filter(list_treat1, `Ongoing at V1.Subtype` == x) %>% 
+        filter(!pull(., `Patient.ID`) %>% duplicated()) %>%
+        pull("Patient.Disease") %>%
+        fct_count() %>% 
+        left_join(n_clin) %>%
+        mutate(n2 = round(n / n2 * 100)) %>%
+        arrange(desc(n2))
+)
+
+list.map(
+    apply(t_drugs, 2, sum) %>% .[. > 1] %>% names() %>% sort(),
+    f(x) ~ filter(list_treat1, `Ongoing at V1.Drug name` == x) %>% 
+        filter(!pull(., `Patient.ID`) %>% duplicated()) %>%
+        pull("Patient.Disease") %>%
+        fct_count() %>% 
+        left_join(n_clin) %>%
+        mutate(n2 = round(n / n2 * 100)) %>%
+        arrange(desc(n2))
+)
+
+list.map(
+  pull(list_treat1, `Patient.Disease`) %>% unique(),
+   f(x) ~ {
+     tmp <- filter(list_treat1, `Patient.Disease` == x)
+     list.map(
+        pull(tmp, `Patient.ID`) %>% unique(),
+            f(i) ~ filter(tmp, `Patient.ID` == i) %>% filter(!pull(., `Ongoing at V1.Type`) %>% duplicated())
+    ) %>%
+        list.rbind() %>% 
+       pull("Ongoing at V1.Type") %>%
+       fct_count() %>% 
+       mutate(n2 = round(n / (filter(n_clin, f == x) %>% pull(n2)) * 100)) %>%
+       arrange(desc(n2))
+   }
+)
+
+list.map(
+  pull(list_treat1, `Patient.Disease`) %>% unique(),
+   f(x) ~ {
+     tmp <- filter(list_treat1, `Patient.Disease` == x)
+     list.map(
+        pull(tmp, `Patient.ID`) %>% unique(),
+            f(i) ~ filter(tmp, `Patient.ID` == i) %>% filter(!pull(., `Ongoing at V1.Drug name`) %>% duplicated())
+    ) %>%
+        list.rbind() %>% 
+       pull("Ongoing at V1.Drug name") %>%
+       fct_count() %>% 
+       mutate(n2 = round(n / (filter(n_clin, f == x) %>% pull(n2)) * 100)) %>%
+       arrange(desc(n2))
+   }
+)
 ```
