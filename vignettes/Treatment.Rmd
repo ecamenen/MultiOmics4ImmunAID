@@ -389,7 +389,7 @@ list_bio_other0 <- list.map(
     list.map(f(i) ~ i[i != "Other"])
 
 # Replace the subtype of these elements by the right one
-list_treat1 <- list.map(
+list_treat <- list.map(
     list_bio_other0,
     f(x, y, z) ~ list.map(
         list_treat,
@@ -554,7 +554,15 @@ list_treat1 <- list.map(
         list_cbind() %>%
         # For the bioinformaticians, add a second column containing for each cell, the ID of each patient
         # Because when binding lists, there will be a column with collapsed cell that's prettier for the clinician
-        mutate(ID2 = i$Patient$ID)
+        mutate(
+          `Patient.ID` = i$Patient$ID,
+          `Patient.Disease` = i$Patient$Disease,
+          `Patient.N previous treatment`  = i$Patient$`N previous treatment`,
+          `Patient.Date of the 1st visit` = i$Patient$`Date of the 1st visit`,
+          `Patient.Date of the 2nd visit` = i$Patient$`Date of the 2nd visit`,
+          `Patient.Eligible for a 2nd visit` = i$Patient$`Eligible for a 2nd visit`,
+          `Patient.Date of the follow-up` = i$Patient$`Date of the follow-up`
+        )
 ) %>% Reduce(bind_rows, .) %>%
     as_tibble() %>%
     select(., contains(c(var_names[c(1, 5)], l_var_names[[1]], "N previous treatment", var_names[2], l_var_names[[2]], var_names[c(3, 6)], l_var_names[[3]], var_names[4], l_var_names[[4]])))
@@ -573,8 +581,8 @@ if (!is.null(list_treat1[["Post V2.Reason for discont. (side effect(s))"]])) {
 # Save the final table not in a bioinformatic format but in a clinician one
 # Remove the column with ID for each cells (keeping only the one wich is collapsed)
 # Remove the prefix from the colnames
-list_treat2 <- select(list_treat1, -ID2) %>%
-    set_colnames(
+list_treat2 <- set_colnames(
+      list_treat1,
         colnames(.) %>%
             str_remove_all("((Patient)|(Ongoing at ((V1)|(V2)))|(Pre-inclusion)|(Post V2)).")
     )
@@ -605,14 +613,14 @@ treat_types <- list.map(list_treat, f(i) ~ list.map(i, f(j) ~ list.map(j, f(k) ~
     unlist() %>%
     sort() %>%
     unique()
-t_treat_types <- list.map(treat_types, f(i) ~ list.mapv(unique(list_treat1$ID2), f(j) ~ i %in%  (filter(list_treat1, ID2 == j) %>% pull("Ongoing at V1.Type"))) %>% as.numeric()) %>% list.cbind()
+t_treat_types <- list.map(treat_types, f(i) ~ list.mapv(unique(list_treat1$`Patient.ID`), f(j) ~ i %in%  (filter(list_treat1, `Patient.ID` == j) %>% pull("Ongoing at V1.Type"))) %>% as.numeric()) %>% list.cbind()
 apply(t_treat_types, 2, sum)
 
 treat_subtypes <- list.map(list_treat, f(i) ~ list.map(i, f(j) ~ list.map(j, f(k) ~ k[names(k) == "Subtype"]))) %>%
     unlist() %>%
     sort() %>%
     unique()
-t_treat_subtypes <- list.map(treat_subtypes, f(i) ~ list.mapv(unique(list_treat1$ID2), f(j) ~ i %in% (filter(list_treat1, ID2 == j) %>% pull("Ongoing at V1.Subtype"))) %>% as.numeric()) %>% list.cbind()
+t_treat_subtypes <- list.map(treat_subtypes, f(i) ~ list.mapv(unique(list_treat1$`Patient.ID`), f(j) ~ i %in% (filter(list_treat1, `Patient.ID` == j) %>% pull("Ongoing at V1.Subtype"))) %>% as.numeric()) %>% list.cbind()
 apply(t_treat_subtypes, 2, sum)
 
 l_drugs <- list_treat1$`Ongoing at V1.Drug name` %>%
@@ -620,8 +628,8 @@ l_drugs <- list_treat1$`Ongoing at V1.Drug name` %>%
     unique() %>%
     na.omit()
 t_drugs <- list.map(
-    unique(list_treat1$ID2), f(j) ~ {
-        list.mapv(l_drugs, f(k) ~ (k %in% (filter(list_treat1, ID2 == j) %>% pull("Ongoing at V1.Drug name"))))
+    unique(list_treat1$`Patient.ID`), f(j) ~ {
+        list.mapv(l_drugs, f(k) ~ (k %in% (filter(list_treat1, `Patient.ID` == j) %>% pull("Ongoing at V1.Drug name"))))
     } %>% as.numeric()
 ) %>%
     list.rbind() %>%
@@ -633,8 +641,8 @@ l_per_treat <- list.map(treat_types, f(i) ~ {
         unique() %>%
         na.omit()
     list.map(
-        unique(list_treat1$ID2), f(j) ~ {
-            list.mapv(l_drugs, f(k) ~ (k %in% (filter(list_treat1, ID2 == j) %>% filter(`Ongoing at V1.Type` == i) %>% pull(`Ongoing at V1.Drug name`))))
+        unique(list_treat1$`Patient.ID`), f(j) ~ {
+            list.mapv(l_drugs, f(k) ~ (k %in% (filter(list_treat1, `Patient.ID` == j) %>% filter(`Ongoing at V1.Type` == i) %>% pull(`Ongoing at V1.Drug name`))))
         } %>% as.numeric()
     ) %>%
         list.rbind() %>%
@@ -647,8 +655,8 @@ l_per_bio_treat <- list.map(treat_subtypes, f(i) ~ {
         unlist() %>%
         unique() %>% 
         na.omit()
-    list.map(unique(list_treat1$ID2), f(j) ~ {
-        list.mapv(l_drugs, f(k) ~ (k %in% (filter(list_treat1, ID2 == j) %>% filter(`Ongoing at V1.Subtype` == i) %>% pull(`Ongoing at V1.Drug name`))))
+    list.map(unique(list_treat1$`Patient.ID`), f(j) ~ {
+        list.mapv(l_drugs, f(k) ~ (k %in% (filter(list_treat1, `Patient.ID` == j) %>% filter(`Ongoing at V1.Subtype` == i) %>% pull(`Ongoing at V1.Drug name`))))
     } %>% as.numeric()) %>%
         list.rbind() %>%
         set_colnames(l_drugs)
