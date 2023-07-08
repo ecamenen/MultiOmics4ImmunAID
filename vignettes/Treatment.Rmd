@@ -15,7 +15,7 @@ knitr::opts_chunk$set(
 ```
 
 # Functions
-```{r setup}
+```{r func}
 # Convert a data.frame containing treatments into a JSON-like list
 # x: data.frame to parse
 # y: name of the key (default: Date)
@@ -720,14 +720,19 @@ list.map(list_treat_ok, f(i) ~ list.map(i, f(j) ~ if (is.list(j) && !is.null(j$`
 # }
 l_per_treat0 <- l_per_treat %>% purrr:::discard(str_detect(names(.), "Biologic|Other|Aspirin|Colchicin|IVIG"))
 tmp <- apply(t_treat_types, 2, sum) %>% sort(TRUE) %>% data.frame(ID = names(.), val = ., rank = seq_along(.))
+cols0 <- get_colors1()
 cols4 <- sapply(colnames(t_treat_types), function(x) filter(tmp, ID == x) %>% pull(rank)) %>% rev()
-cols1 <- get_colors1()[seq(ncol(t_treat_types))] %>% rev()
+tmp0 <- cols0[cols4[which(names(cols4) == "Biologic")]]
+cols0[cols4[which(names(cols4) == "Biologic")]] <- cols0[3]
+cols0[3] <- tmp0
+cols1 <- cols0[seq(ncol(t_treat_types))] %>% rev()
+cols4[cols4 == 3] <- cols4[which(names(cols4) == "Biologic")]
+cols4[which(names(cols4) == "Biologic")] <- 3
 cols2 <- sapply(names(l_per_treat0), function(x) filter(tmp, ID == x) %>% pull(rank))
 cols3 <- cols4[which(names(cols4) == "Aspirin")] %>% get_colors1()[.]
-tmp <- cols4[which(names(cols4) == "Biologic")] %>% get_colors1()[.]
 l_per_bio_treat0 <- l_per_bio_treat %>% purrr:::discard(str_detect(names(.), "inflammatory|aggregation"))
-greens <- colorRampPalette(c("white", tmp, "black"))(length(l_per_bio_treat0) + 4)[-c(1:2, length(l_per_bio_treat0) + 3:5)]
-cols <- c(1, get_colors1()[cols2], greens, tmp, cols3)
+greens <- colorRampPalette(c("white", get_colors()[3], "black"))(length(l_per_bio_treat0) + 4)[-c(1:2, length(l_per_bio_treat0) + 3:5)]
+cols <- c(1, get_colors1()[cols2], greens, get_colors()[3], cols3)
 p_treat <- c(list(`Type of treatment` = t_treat_types), l_per_treat0, l_per_bio_treat0, list(Biologic = select(as.data.frame(t_treat_subtypes), -contains(c("inflammatory", "aggregation"))), Aspirin = select(as.data.frame(t_treat_subtypes), contains(c("inflammatory", "aggregation")))))
 
 p <- list.map(
@@ -772,6 +777,12 @@ plot_bar_mcat(
     color_title = tmp
 ) -> p2
 
+tmp <- apply(t_drugs, 2, sum) %>% .[which(. > 1)] %>% sort(TRUE)
+tmp0 <- which(duplicated(tmp) | duplicated(tmp, fromLast = TRUE))
+names(tmp)[tmp0] <- 1
+names(tmp[which(!duplicated(tmp))]) %>% list.map(f(x) ~ keep(l_per_treat, function(i) x %in% colnames(i)) %>% names()) %>% as.character() -> cou
+col_all <- sapply(cou, function(x) cols4[str_which(names(cols4), x)]) %>% as.numeric() %>% get_colors1()[.] %>% rev() %>% sapply(function(x) ifelse(is.na(x), 1, x))
+
 plot_bar_mcat(
     t_drugs,
     title = "All drugs",
@@ -779,13 +790,16 @@ plot_bar_mcat(
     ratio = 3,
     collapse = TRUE,
     wrap = 30,
-    colors =  c(colorRampPalette(c("white", "black"))(11)[c(3, 5, 7, 9, 11)], rev(get_colors()[c(4, 1, 3, 5, 3, 7)]))
+    hjust_title = 1,
+    n = 12,
+    colors = col_all
 )
+
 plot_grid(
     plotlist = list.sort(c(p, list(p2)), nrow(.$data)) %>% rev(), #c(p[1], list(p2), p[c(7, 9, 2, 8, 3:5)]),
     nrow = 3,
     ncol = 4,
     # align = "v",
     rel_heights = c(1.5, 1.2, 0.8)
-)  
+)
 ```
