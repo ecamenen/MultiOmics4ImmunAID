@@ -666,6 +666,8 @@ list_treat3 <- filter(
     )
   )
 
+ids <- unique(list_treat3$Patient.ID)
+
 # 0 doses !
 # list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ if (is.list(j) && !is.null(j$`Administrated dose`) && str_detect(j$`Administrated dose`, "^0$")) TRUE) %>% compact()) %>% compact()
 
@@ -673,14 +675,16 @@ treat_types <- list_treat3$`Ongoing at V1.Type` %>%
     unlist() %>%
     sort() %>%
     unique()
-t_treat_types <- list.map(treat_types, f(i) ~ list.mapv(unique(list_treat3$`Patient.ID`), f(j) ~ i %in%  (filter(list_treat3, `Patient.ID` == j) %>% pull("Ongoing at V1.Type"))) %>% as.numeric()) %>% list.cbind()
+t_treat_types <- list.map(treat_types, f(i) ~ list.mapv(unique(list_treat3$`Patient.ID`), f(j) ~ i %in%  (filter(list_treat3, `Patient.ID` == j) %>% pull("Ongoing at V1.Type"))) %>% as.numeric()) %>% list.cbind() %>%
+  set_rownames(ids)
 apply(t_treat_types, 2, sum)
 
 treat_subtypes <- list_treat3$`Ongoing at V1.Subtype` %>%
     unlist() %>%
     sort() %>%
     unique()
-t_treat_subtypes <- list.map(treat_subtypes, f(i) ~ list.mapv(unique(list_treat3$`Patient.ID`), f(j) ~ i %in% (filter(list_treat3, `Patient.ID` == j) %>% pull("Ongoing at V1.Subtype"))) %>% as.numeric()) %>% list.cbind()
+t_treat_subtypes <- list.map(treat_subtypes, f(i) ~ list.mapv(unique(list_treat3$`Patient.ID`), f(j) ~ i %in% (filter(list_treat3, `Patient.ID` == j) %>% pull("Ongoing at V1.Subtype"))) %>% as.numeric()) %>% list.cbind() %>%
+  set_rownames(ids)
 apply(t_treat_subtypes, 2, sum)
 
 l_drugs <- list_treat3$`Ongoing at V1.Drug name` %>%
@@ -883,18 +887,87 @@ drug_per_disease("Subtype")
 
 # Drug per patient
 ```{r}
+
+parse_response <- function(x, y) {
+  if (str_detect(na.omit(x), y) %>% any()) {
+    x[x == y] %>% na.omit()
+  } else {
+    x
+  }
+}
+
+list_treat3 <- list.filter(
+  list_treat,
+  f(i) ~ str_detect(
+    i$Patient$Disease, 
+    replace_parenthesis(
+      paste(
+        c("SOJIA", "AOSD"),
+        collapse = "|"
+        )
+      )
+    ))
+
+table_drug_response <- function(var = "Type") {
+  if (var == "Type") {
+    t_var <- treat_types
+  } else {
+    t_var <- treat_subtypes
+  }
+  list.map(
+      t_var,
+      f(x) ~ {
+          tmp <- list.map(
+              list_treat3, 
+              f(i) ~ {
+                  if (!is.null(i$`Ongoing at V1`)){
+                      temp <- list.map(
+                          i$`Ongoing at V1`,
+                          f(j) ~ {
+                              if(!is.null(j[[var]]) && j[[var]] == x) {
+                                  ifelse(!is.null(j$Response), j$Response, NA)
+                              }
+                          }
+                      ) %>%
+                          unlist() %>% unique()
+                      parse_response(temp, "Complete response") %>% 
+                        parse_response("Partial response") %>%
+                        parse_response("Primary failure")
+                  }
+              }
+          ) 
+          tmp[sapply(tmp, is.null)] <- NA
+          list.rbind(tmp)
+      }
+  ) %>% list.cbind() %>%
+    set_colnames(t_var)
+}
+
+t_treat_response <- table_drug_response("Type") %>% 
+  cbind(table_drug_response("Subtype"))  %>%
+    set_colnames(colnames(.) %>% str_replace_all("(Anti).", "\\1-") %>% str_replace_all("\\.", " ")) %>%
+    mutate(ID = paste0(as.numeric(ID))) %>% 
+    pivot_longer(cols = -ID, names_to = "Treatment", values_to = "Response")
+
 t_treat_types0 <- t_treat_types %>%
     as.data.frame() %>%
-    select(-Biologic)
+    select(-Biologic) %>%
+    mutate(ID = paste0(as.numeric(ID))) %>% 
+    pivot_longer(cols = -ID, names_to = "Treatment", values_to = "Values")
 
 cols <- sort(colnames(t_treat_types0)) %>% data.frame(ID = .) %>% left_join(data.frame(ID = names(cols4), val = cols4)) %>% pull(val)
 
-t_treat_types0 %>%
-    cbind(select(as.data.frame(t_treat_subtypes), contains(c("Anti-", "Other")))) %>%
-    mutate(ID = rownames(.)) %>%
-    pivot_longer(cols = -ID, names_to = "Treatment", values_to = "Values") %>%
-    ggplot(aes(x = ID, y = Values, fill = Treatment)) +
-    geom_bar(stat = "identity", position = "stack") +
+left_join(t_treat_types0, t_treat_response, c("ID", "Treatment")) %>%
+    mutate(Response = str_replace_na(Response) %>% fct_relevel(c("Complete response", "Partial response", "Loss of efficacy", "Primary failure", "NA"))) %>%
+    ggplot(aes(x = ID, y = Values, fill = Treatment, pattern_spacing = Response, pattern = Response, pattern_density = Response, pattern_angle = Response)) +
+    geom_bar_pattern(
+        stat = "identity", 
+        position = "stack",
+        pattern_colour = "black",
+        pattern_fill = "black",
+        pattern_alpha = 0.5,
+        pattern_aspect_ratio = 0.5
+    ) +
     labs(x = "Patient", y = "") +
     theme_minimal() +
     coord_flip() +
@@ -906,5 +979,9 @@ t_treat_types0 %>%
         panel.grid.major.x = element_blank(),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank()
-    )
+    ) + 
+    scale_pattern_spacing_manual(values = seq(0.01, 0.07, length.out = 5)) +
+    scale_pattern_manual(values = c("crosshatch", rep("stripe", 2), "circle", "none") %>% rev()) + 
+    scale_pattern_density_manual(values = seq(0.05, 0.3, length.out = 5)) +
+    scale_pattern_angle_manual(values = c(0, 45, 45, 135, 45))
 ```
