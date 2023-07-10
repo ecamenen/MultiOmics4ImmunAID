@@ -880,3 +880,31 @@ drug_per_disease <- function(var = "Type", l = list_treat3) {
 
 drug_per_disease("Subtype")
 ```
+
+# Drug per patient
+```{r}
+t_treat_types0 <- t_treat_types %>%
+    as.data.frame() %>%
+    select(-Biologic)
+
+cols <- sort(colnames(t_treat_types0)) %>% data.frame(ID = .) %>% left_join(data.frame(ID = names(cols4), val = cols4)) %>% pull(val)
+
+t_treat_types0 %>%
+    cbind(select(as.data.frame(t_treat_subtypes), contains(c("Anti-", "Other")))) %>%
+    mutate(ID = rownames(.)) %>%
+    pivot_longer(cols = -ID, names_to = "Treatment", values_to = "Values") %>%
+    ggplot(aes(x = ID, y = Values, fill = Treatment)) +
+    geom_bar(stat = "identity", position = "stack") +
+    labs(x = "Patient", y = "") +
+    theme_minimal() +
+    coord_flip() +
+    scale_fill_manual(values = c(greens[cols5], get_colors1()[cols])) +
+    theme_perso(cex_axis = 15) +
+    theme(
+        legend.title = element_text(face = "bold.italic", size = 15),
+        legend.text = element_text(size = 12),
+        panel.grid.major.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank()
+    )
+```
