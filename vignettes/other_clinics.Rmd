@@ -45,7 +45,7 @@ years <- unique(sapply(peds_files, function(i) i[3]))
 
 # Load data
 pql_blocks <- paste0(block, ql, "_", years, "years")
-pql <- lapply(pql_blocks, read_batches)
+pql <- lapply(pql_blocks, read_immunaid)
 # pql <- lapply(pql, function(i) lapply(i, function(j) clean_data(j, FALSE, FALSE)))
 names(pql) <- pql_blocks
 lapply(pql, function(i) sapply(i, dim))
@@ -56,7 +56,7 @@ lapply(pql, function(i) get_intersection(lapply(i, function(i) as.data.frame(i[,
 plot_venn(lapply(pql, function(i) colnames(i[[1]])))
 
 # Metada
-pql_codes <- lapply(pql_blocks, function(i) read_batches(i, "codes"))
+pql_codes <- lapply(pql_blocks, function(i) read_immunaid(i, "codes"))
 colnames(pql_codes[[1]][[3]])
 pql_names <- lapply(pql_codes, function(i) i[[3]]$item_name)
 plot_venn(pql_names)
@@ -119,10 +119,10 @@ use_data(pedsql, overwrite = TRUE)
 ## SF36
 ```{r}
 block <- blocks[10]
-sf36 <- read_batches(block)
+sf36 <- read_immunaid(block)
 sapply(sf36, dim)
 sf36_tot <- Reduce(rbind, sf36)
-sf36_code <- read_batches(block, "codes")
+sf36_code <- read_immunaid(block, "codes")
 sf36_tot[sf36_tot == "None of the Time"] <- "None of the time"
 
 # Levels
@@ -152,10 +152,10 @@ use_data(sf36, overwrite = TRUE)
 ## HAQ
 ```{r}
 block <- blocks[5]
-haq <- read_batches(block)
+haq <- read_immunaid(block)
 sapply(haq, dim)
 haq_tot <- Reduce(rbind, haq)
-haq_code <- read_batches(block, "codes")
+haq_code <- read_immunaid(block, "codes")
 
 # Pre-replacement
 keys <- c("Bathtub seat", "Bathtub bar", "Devices used for Dressing (button hook, zipper pull, etc.)", "dressing and grooming")
@@ -192,10 +192,10 @@ use_data(haq, overwrite = TRUE)
 ## CHAQ
 ```{r}
 block <- blocks[2]
-chaq <- read_batches(block)
+chaq <- read_immunaid(block)
 sapply(chaq, dim)
 chaq_tot <- Reduce(rbind, chaq)
-chaq_code <- read_batches(block, "codes")
+chaq_code <- read_immunaid(block, "codes")
 
 # Replace
 na_vars <- c("Not applicable", "pas adapter à l'age", "NONE")
@@ -242,10 +242,10 @@ use_data(chaq, overwrite = TRUE)
 ## BEHCET
 ```{r}
 block <- blocks[1]
-behcet <- read_batches(block)
+behcet <- read_immunaid(block)
 sapply(behcet, dim)
 behcet_tot <- Reduce(rbind, behcet)
-behcet_code <- read_batches(block, "codes")
+behcet_code <- read_immunaid(block, "codes")
 
 # Pre-replacement
 keys <- c("(no)|(not at all present)$", "(yes)|(for up to 4 weeks)$")
@@ -275,10 +275,10 @@ use_data(behcet, overwrite = TRUE)
 ## DIET
 ```{r}
 block <- blocks[4]
-diet <- read_batches(block)
+diet <- read_immunaid(block)
 sapply(diet, dim)
 diet_tot <- Reduce(rbind, diet)
-diet_code <- read_batches(block, "codes")
+diet_code <- read_immunaid(block, "codes")
 
 # Pre-replacement
 keys <- c("n/a", "N[AD]", "DM", "o", "xxx", "unknown", "[-\\/?]", "not done", "no[nt] applicable", "not specified", "Missing answer", "ne sais plus", "don't know", "not answered", "not checked by the patient", "not done")
