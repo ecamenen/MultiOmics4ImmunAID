@@ -738,18 +738,20 @@ cols4[cols4 == 3] <- cols4[which(names(cols4) == "Biologic")]
 cols4[which(names(cols4) == "Biologic")] <- 3
 cols2 <- sapply(names(l_per_treat0), function(x) filter(tmp, ID == x) %>% pull(rank))
 cols3 <- cols4[which(names(cols4) == "Aspirin")] %>% get_colors1()[.]
-l_per_bio_treat0 <- l_per_bio_treat %>% purrr:::discard(str_detect(names(.), "inflammatory|aggregation"))
-greens <- colorRampPalette(c("white", get_colors()[3], "black"))(length(l_per_bio_treat0) + 4)[-c(1:2, length(l_per_bio_treat0) + 3:5)]
-cols <- c(get_colors1()[cols2], greens, get_colors()[3], cols3)
-p_treat <- c(l_per_treat0, l_per_bio_treat0, list(Biologic = select(as.data.frame(t_treat_subtypes), -contains(c("inflammatory", "aggregation"))), Aspirin = select(as.data.frame(t_treat_subtypes), contains(c("inflammatory", "aggregation")))))
+l_biol <- select(as.data.frame(t_treat_subtypes), -contains(c("inflammatory", "aggregation"))) %>% remove_constant()
+tmp <- apply(l_biol, 2, sum) %>% sort(TRUE) %>% data.frame(ID = names(.), val = ., rank = seq_along(.))
+cols5 <- sapply(colnames(l_biol), function(x) filter(tmp, ID == x) %>% pull(rank)) %>% rev()
+greens <- colorRampPalette(c("white", get_colors()[3], "black"))(ncol(l_biol) + 4)[-c(1:2, ncol(l_biol) + 3:5)]
+cols <- c(get_colors1()[cols2], greens[cols5], get_colors()[3], cols3)
+p_treat <- c(l_per_treat0, l_per_bio_treat %>% purrr:::discard(str_detect(names(.), "inflammatory|aggregation")), list(Biologic = l_biol, Aspirin = select(as.data.frame(t_treat_subtypes), contains(c("inflammatory", "aggregation")))))
 
-p <- list.map(
-  p_treat,
+p <- p_treat %>%
+  list.map(
     f(i, j, k) ~ {
         if (j == (length(.) - 1)) {
-            cols0 <- greens
+            colors <- greens
         } else {
-            cols0 <- cols[j]
+            colors <- colorRampPalette(c("gray", cols[j]))(ncol(i))
         }
         as.data.frame(i) %>%
             mutate(temp = 0) %>%
@@ -760,7 +762,7 @@ p <- list.map(
                 collapse = TRUE,
                 wrap = 30,
                 wrap_title = 30,
-                colors = colorRampPalette(c("gray", cols0))(ncol(i)),
+                colors = colors,
                 hjust_title = 0,
                 color_title = cols[j]
             )
