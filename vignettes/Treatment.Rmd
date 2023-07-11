@@ -696,61 +696,60 @@ ids <- unique(list_treat3$Patient.ID)
 
 # 0 doses !
 # list.map(list_treat, f(i) ~ list.filter(i, f(j) ~ if (is.list(j) && !is.null(j$`Administrated dose`) && str_detect(j$`Administrated dose`, "^0$")) TRUE) %>% compact()) %>% compact()
+visit <- "V1"
 
-treat_types <- list_treat3$`Ongoing at V1.Type` %>%
+treat_types <-  pull(list_treat3, paste0("Ongoing at ", visit,".Type")) %>%
     unlist() %>%
     sort() %>%
     unique()
-t_treat_types <- list.map(treat_types, f(i) ~ list.mapv(unique(list_treat3$`Patient.ID`), f(j) ~ i %in%  (filter(list_treat3, `Patient.ID` == j) %>% pull("Ongoing at V1.Type"))) %>% as.numeric()) %>% list.cbind() %>%
+t_treat_types <- list.map(treat_types, f(i) ~ list.mapv(unique(list_treat3$`Patient.ID`), f(j) ~ i %in%  (filter(list_treat3, `Patient.ID` == j) %>% pull(paste0("Ongoing at ", visit,".Type")))) %>% as.numeric()) %>% list.cbind() %>%
   set_rownames(ids)
 apply(t_treat_types, 2, sum)
 
-treat_subtypes <- list_treat3$`Ongoing at V1.Subtype` %>%
+treat_subtypes <- pull(list_treat3, paste0("Ongoing at ", visit,".Subtype")) %>%
     unlist() %>%
     sort() %>%
     unique()
-t_treat_subtypes <- list.map(treat_subtypes, f(i) ~ list.mapv(unique(list_treat3$`Patient.ID`), f(j) ~ i %in% (filter(list_treat3, `Patient.ID` == j) %>% pull("Ongoing at V1.Subtype"))) %>% as.numeric()) %>% list.cbind() %>%
+t_treat_subtypes <- list.map(treat_subtypes, f(i) ~ list.mapv(unique(list_treat3$`Patient.ID`), f(j) ~ i %in% (filter(list_treat3, `Patient.ID` == j) %>% pull(paste0("Ongoing at ", visit,".Subtype")))) %>% as.numeric()) %>% list.cbind() %>%
   set_rownames(ids)
 apply(t_treat_subtypes, 2, sum)
 
-l_drugs <- list_treat3$`Ongoing at V1.Drug name` %>%
+l_drugs <- pull(list_treat3, paste0("Ongoing at ", visit,".Drug name")) %>%
     unlist() %>%
     unique() %>%
     na.omit()
 t_drugs <- list.map(
     unique(list_treat3$`Patient.ID`), f(j) ~ {
-        list.mapv(l_drugs, f(k) ~ (k %in% (filter(list_treat3, `Patient.ID` == j) %>% pull("Ongoing at V1.Drug name"))))
+        list.mapv(l_drugs, f(k) ~ (k %in% (filter(list_treat3, `Patient.ID` == j) %>% pull(paste0("Ongoing at ", visit,".Drug name")))))
     } %>% as.numeric()
 ) %>%
     list.rbind() %>%
     set_colnames(l_drugs)
 
-l_per_treat <- list.map(treat_types, f(i) ~ {
-    l_drugs <- filter(list_treat3, `Ongoing at V1.Type` == i) %>% pull(`Ongoing at V1.Drug name`) %>%
-        unlist() %>%
-        unique() %>%
-        na.omit()
-    list.map(
-        unique(list_treat3$`Patient.ID`), f(j) ~ {
-            list.mapv(l_drugs, f(k) ~ (k %in% (filter(list_treat3, `Patient.ID` == j) %>% filter(`Ongoing at V1.Type` == i) %>% pull(`Ongoing at V1.Drug name`))))
-        } %>% as.numeric()
-    ) %>%
-        list.rbind() %>%
-        set_colnames(l_drugs)
-}) %>% compact()
+get_per_treat <- function(var = "Type", time = V1, l = list_treat3) {
+    if (var == "Type") {
+      l0 <- treat_types
+    } else {
+      l0 <- treat_subtypes
+    }
+    list.map(l0, f(i) ~ {
+      l_drugs <- filter(l, !!sym(paste0("Ongoing at ", visit,".", var)) == i) %>% pull(paste0("Ongoing at ", visit,".Drug name")) %>%
+          unlist() %>%
+          unique() %>%
+          na.omit()
+      list.map(
+          unique(l$`Patient.ID`), f(j) ~ {
+              list.mapv(l_drugs, f(k) ~ (k %in% (filter(l, `Patient.ID` == j) %>% filter(!!sym(paste0("Ongoing at ", visit,".", var)) == i) %>% pull(paste0("Ongoing at ", visit,".Drug name")))))
+          } %>% as.numeric()
+      ) %>%
+          list.rbind() %>%
+          set_colnames(l_drugs)
+  }) %>% compact()
+}
+l_per_treat <- get_per_treat("Type", visit)
 list.map(l_per_treat, f(i) ~ apply(i, 2, sum))
 
-l_per_bio_treat <- list.map(treat_subtypes, f(i) ~ {
-    l_drugs <- filter(list_treat3, `Ongoing at V1.Subtype` == i) %>% pull(`Ongoing at V1.Drug name`) %>%
-        unlist() %>%
-        unique() %>% 
-        na.omit()
-    list.map(unique(list_treat3$`Patient.ID`), f(j) ~ {
-        list.mapv(l_drugs, f(k) ~ (k %in% (filter(list_treat3, `Patient.ID` == j) %>% filter(`Ongoing at V1.Subtype` == i) %>% pull(`Ongoing at V1.Drug name`))))
-    } %>% as.numeric()) %>%
-        list.rbind() %>%
-        set_colnames(l_drugs)
-}) %>% compact()
+l_per_bio_treat <- get_per_treat("Subtype", visit)
 # l_per_bio_treat[[2]]["20010", 2] <- 1
 # l_per_bio_treat[[3]] <- l_per_bio_treat[[3]][, 1, drop = FALSE]
 list.map(l_per_bio_treat, f(i) ~ apply(i, 2, sum))
@@ -868,7 +867,7 @@ n_clin <- pull(clinic, C_2643_3798) %>%
   rename(n2 = n)
 
 disease_per_drug <- function(x, var = "Type", l = list_treat3) {
-  var0 <- paste("Ongoing at V1", var, sep = ".")
+  var0 <- paste0("Ongoing at ", visit, ".", var)
   list.map(
       x,
       f(x) ~ filter(l, !!sym(var0) == x) %>% 
@@ -890,7 +889,7 @@ apply(t_drugs, 2, sum) %>%
   disease_per_drug("Drug name")
 
 drug_per_disease <- function(var = "Type", l = list_treat3) {
-  var0 <- paste("Ongoing at V1", var, sep = ".")
+  var0 <- paste0("Ongoing at ", visit, ".", var)
   list.map(
     pull(l, `Patient.Disease`) %>% unique(),
      f(x) ~ {
@@ -921,7 +920,7 @@ parse_response <- function(x, y) {
   }
 }
 
-list_treat3 <- list.filter(
+list_treat4 <- list.filter(
   list_treat,
   f(i) ~ str_detect(
     i$Patient$Disease, 
@@ -943,11 +942,11 @@ table_drug_response <- function(var = "Type") {
       t_var,
       f(x) ~ {
           tmp <- list.map(
-              list_treat3, 
+              list_treat4, 
               f(i) ~ {
-                  if (!is.null(i$`Ongoing at V1`)){
+                  if (!is.null(i[[paste0("Ongoing at ", visit)]])){
                       temp <- list.map(
-                          i$`Ongoing at V1`,
+                          i[[paste0("Ongoing at ", visit)]],
                           f(j) ~ {
                               if(!is.null(j[[var]]) && j[[var]] == x) {
                                   ifelse(!is.null(j$Response), j$Response, NA)
@@ -974,6 +973,7 @@ t_treat_response <- table_drug_response("Type") %>%
   as.data.frame() %>%
     mutate(ID = paste0(as.numeric(row.names(.)))) %>% 
     pivot_longer(cols = -ID, names_to = "Treatment", values_to = "Response")
+# write_tsv(t_treat_response, file = "table_drug_response.tsv")
 
 t_treat_types1 <- t_treat_types %>%
     as.data.frame() %>%
@@ -982,6 +982,7 @@ t_treat_types0 <- t_treat_types1 %>%
     cbind(t_treat_subtypes) %>%
     mutate(ID = paste0(as.numeric(row.names(.)))) %>% 
     pivot_longer(cols = -ID, names_to = "Treatment", values_to = "Values")
+# write_tsv(t_treat_types0, file = "table_drug.tsv")
 
 cols <- sort(colnames(t_treat_types1)) %>% data.frame(ID = .) %>% left_join(data.frame(ID = names(cols4), val = cols4)) %>% pull(val)
 
