@@ -485,42 +485,68 @@ list_treat <- list.map(
 # (ii) 'Pre-inclusion' if the 'Date of discontinuation' of the treatment is before the 'Date of beginning'
 # (iii) and (iv) see the Word file of the algorithm for special cases
 # (v) 'Post V2' if the 'Date of beginning' is after the 'Date of the 2nd visit'
-list_treat <- list.map(list_treat, f(i) ~ list.class(i, f(j) ~ if (is.list(j)) {
-    if (is.null(j[["Date of discontinuation"]])) {
-        if (i[["Date of the 1st visit"]] != "NA" && j[["Date of beginning"]] != "NA") {
-            if (dmy(j[["Date of beginning"]]) >= dmy(i[["Date of the 1st visit"]])) {
-                if (i[["Date of the 2nd visit"]] != "NA" && !is.null(j[["Date of beginning"]]) && dmy(j[["Date of beginning"]]) >= dmy(i[["Date of the 2nd visit"]])) {
-                    return("Post V2")
-                } else {
-                    return("Ongoing at V2")
-                }
-            } else {
-                return(c("Ongoing at V1", "Ongoing at V2"))
-            }
-        } else {
-            print(j)
-            warning("No date of the beginning or 1rst visit")
+list_treat <- list.map(list_treat, f(i) ~ { list.class(i, f(j) ~ {
+  status <- NULL
+
+  if (is.list(j)) {
+
+    if (j[["Discontinuation"]] == "Yes" && !is.null(j[["Date of discontinuation"]])) {
+        if (dmy(j[["Date of discontinuation"]]) < dmy(i[["Date of the 1st visit"]])) {
+            status <- c(status, "Pre-inclusion")
         }
-    } else if (dmy(j[["Date of discontinuation"]]) < dmy(i[["Date of the 1st visit"]])) {
-        return("Pre-inclusion")
-    } else if (i[["Date of the 2nd visit"]] != "NA") {
-        if (!is.null(j[["Date of beginning"]]) && dmy(j[["Date of beginning"]]) >= dmy(i[["Date of the 2nd visit"]])) {
-            return("Post V2")
-        } else {
-            if (!is.null(i[["Date of the 1st visit"]]) && dmy(j[["Date of beginning"]]) >= dmy(i[["Date of the 1st visit"]])) {
-                return("Ongoing at V2")
-            } else {
-                return(c("Ongoing at V1", "Ongoing at V2"))
-            }
-        }
-    } else if (!is.null(i[["Date of the 1st visit"]]) && dmy(j[["Date of beginning"]]) < dmy(i[["Date of the 1st visit"]])) {
-        return("Ongoing at V1")
-    } else {
-        return("Ongoing at V2")
     }
+
+    if (dmy(j[["Date of beginning"]]) < dmy(i[["Date of the 1st visit"]])) {
+        if (j[["Discontinuation"]] == "No" || is.null(j[["Date of discontinuation"]])) {
+            status <- c(status, "Ongoing at V1")
+        } else {
+            if (dmy(j[["Date of discontinuation"]]) >= dmy(i[["Date of the 1st visit"]])) {
+                status <- c(status, "Ongoing at V1")
+            }
+        }
+    }
+
+    if (i[["Eligible for a 2nd visit"]] == "Yes") {
+      if (i[["Date of the 2nd visit"]] != "NA") {
+          if (dmy(j[["Date of beginning"]]) < dmy(i[["Date of the 2nd visit"]])) {
+              if (j[["Discontinuation"]] == "No" || is.null(j[["Date of discontinuation"]])) {
+                  status <- c(status, "Ongoing at V2")
+              } else {
+                  if (dmy(j[["Date of discontinuation"]]) >= dmy(i[["Date of the 2nd visit"]])) {
+                      status <- c(status, "Ongoing at V2")
+                  } else {
+                    # TODO: treatment begins after the first visit and ends before the second.
+                    status <- c(status, "Post V2")
+                  }
+              }
+          } else {
+              status <- c(status, "Post V2")
+          }
+      } else {
+          if (dmy(j[["Date of beginning"]]) >= dmy(i[["Date of the 1st visit"]])) {
+              status <- c(status, "Post V2")
+          }
+      }
+    } else {
+        if (dmy(j[["Date of beginning"]]) >= dmy(i[["Date of the 1st visit"]])) {
+            status <- c(status, "Post V2")
+        }
+    }
+
 } else {
-    return("Patient")
-}))
+    status <- c(status, "Patient")
+}
+        if (length(status) > 1) {
+      print(c(">1", i$ID, i[["Eligible for a 2nd visit"]], i[["Date of the 1st visit"]], i[["Date of the 2nd visit"]], j))
+        }
+  
+    # Check if any cases are forgotten
+    if (is.null(status)) {
+      print(c("NULL", i$ID, i[["Eligible for a 2nd visit"]], i[["Date of the 1st visit"]], i[["Date of the 2nd visit"]], j))
+    }
+
+    return(status)
+})})
 
 # Calculating the number of unique drug name for the 'Pre-inclusion' category
 # (if there's one) of each patient ID
