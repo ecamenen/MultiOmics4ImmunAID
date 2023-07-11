@@ -887,7 +887,6 @@ drug_per_disease("Subtype")
 
 # Drug per patient
 ```{r}
-
 parse_response <- function(x, y) {
   if (str_detect(na.omit(x), y) %>% any()) {
     x[x == y] %>% na.omit()
@@ -946,19 +945,23 @@ table_drug_response <- function(var = "Type") {
 t_treat_response <- table_drug_response("Type") %>% 
   cbind(table_drug_response("Subtype"))  %>%
     set_colnames(colnames(.) %>% str_replace_all("(Anti).", "\\1-") %>% str_replace_all("\\.", " ")) %>%
-    mutate(ID = paste0(as.numeric(ID))) %>% 
+  as.data.frame() %>%
+    mutate(ID = paste0(as.numeric(row.names(.)))) %>% 
     pivot_longer(cols = -ID, names_to = "Treatment", values_to = "Response")
 
-t_treat_types0 <- t_treat_types %>%
+t_treat_types1 <- t_treat_types %>%
     as.data.frame() %>%
-    select(-Biologic) %>%
-    mutate(ID = paste0(as.numeric(ID))) %>% 
+    select(-Biologic)
+t_treat_types0 <- t_treat_types1 %>%
+    cbind(t_treat_subtypes) %>%
+    mutate(ID = paste0(as.numeric(row.names(.)))) %>% 
     pivot_longer(cols = -ID, names_to = "Treatment", values_to = "Values")
 
-cols <- sort(colnames(t_treat_types0)) %>% data.frame(ID = .) %>% left_join(data.frame(ID = names(cols4), val = cols4)) %>% pull(val)
+cols <- sort(colnames(t_treat_types1)) %>% data.frame(ID = .) %>% left_join(data.frame(ID = names(cols4), val = cols4)) %>% pull(val)
 
 left_join(t_treat_types0, t_treat_response, c("ID", "Treatment")) %>%
     mutate(Response = str_replace_na(Response) %>% fct_relevel(c("Complete response", "Partial response", "Loss of efficacy", "Primary failure", "NA"))) %>%
+    mutate(ID = as.character(ID) %>% str_replace_all("^(\\d{4})$", "0\\1")) %>%
     ggplot(aes(x = ID, y = Values, fill = Treatment, pattern_spacing = Response, pattern = Response, pattern_density = Response, pattern_angle = Response)) +
     geom_bar_pattern(
         stat = "identity", 
