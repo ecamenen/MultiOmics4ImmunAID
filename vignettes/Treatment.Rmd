@@ -827,17 +827,24 @@ cols <- list(cols1, c(1, col_all))
 list(`Type of treatment` = t_treat_types, `Top10 drugs` = t_drugs) %>%
 list.map(
   f(i, j, k)
-  ~ plot_bar_mcat(
-    i,
-    title = k,
-    cex = 8,
-    ratio = 3,
-    collapse = TRUE,
-    wrap = 30,
-    hjust_title = 0,
-    n = 10,
-    colors = cols[[j]]
-)
+  ~ {
+    if (j == 1) {
+      collapse = FALSE
+    } else {
+      collapse = TRUE
+    }
+    plot_bar_mcat(
+      i,
+      title = k,
+      cex = 8,
+      ratio = 3,
+      collapse = collapse,
+      wrap = 30,
+      hjust_title = 0,
+      n = 10,
+      colors = cols[[j]]
+    )
+  }
 ) %>%
 plot_grid(
     plotlist = .,
@@ -907,7 +914,35 @@ drug_per_disease <- function(var = "Type", l = list_treat3) {
   )
 }
 
+drug_per_disease0 <- function(var = "Type", var2 = "n2", l = list_treat3) {
+  drug_per_disease(var, l) %>%
+    list.map(
+      f(i, j, k) ~ {
+        filter(i, !is.na(f)  & f != "Biologic") %>% 
+          mutate(n = !!sym(var2)) %>%
+          select(f, n) %>%
+          set_colnames(c("f", k))
+      }
+    ) %>% Reduce(function(x, y) full_join(x, y), .) %>% 
+    t() %>% row_to_names(1) %>% as.data.frame()
+}
+drug_per_disease("Type")
 drug_per_disease("Subtype")
+
+drug_per_disease0("Type") %>% 
+  rownames_to_column() %>% 
+  left_join(drug_per_disease0("Subtype") %>% rownames_to_column()) %>% 
+  column_to_rownames() %>% 
+  mutate(`Anti-IL6` = 0) %>%
+  select(colnames(.) %>% rev()) %>%
+  plot_radar(FALSE, col_alpha = 0.25)
+
+drug_per_disease0("Type", "n") %>% 
+    rownames_to_column() %>% 
+    left_join(drug_per_disease0("Subtype", "n") %>% rownames_to_column()) %>% 
+    column_to_rownames() %>% 
+    select(colnames(.) %>% rev()) %>%
+    plot_radar(FALSE, FALSE, 0, 3)
 ```
 
 # Drug per patient
