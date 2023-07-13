@@ -442,7 +442,7 @@ count_cat <- function(x, parse = FALSE, wrap = 20, collapse = FALSE, label = NUL
         fct_relabel(~ str_replace_all(.x, "\\s*\\([^\\)]+\\)", "")) %>%
         fct_relabel(~ str_replace_all(.x, "\\$\\$[^\\)]+", "")) %>%
         fct_relabel(~ str_replace_all(.x, "^0$", "No")) %>%
-        fct_relabel(~ str_replace_all(.x, "^1$", colnames(x0)[1])) %>%
+        fct_relabel(~ str_replace_all(.x, "^1$", ifelse(colnames(x0)[1] == "x", "Yes", colnames(x0)[1]))) %>%
         str_wrap(wrap) %>%
         fct_infreq() %>%
         fct_rev() %>%
@@ -474,28 +474,30 @@ plot_bar_mcat <- function(
     parse = FALSE,
     collapse = FALSE,
     label = NULL,
-    n = 5,
+    n = Inf,
+    n_collapse = 5,
     dec = 0,
     color_title = "black",
     df0 = NULL,
-    wrap_title = wrap
+    wrap_title = wrap,
+    hjust_title = -0.5
     ) {
     if (is.null(title)) {
         title <- deparse(substitute(x))
     }
     x0 <- as.data.frame(x)
-    df <- count_cat(x0, parse = parse, wrap = wrap, collapse = collapse, label = label) %>% data.frame(., order = as.numeric(rownames(.)))
+    df <- count_cat(x0, parse = parse, wrap = wrap, collapse = collapse, label = label) %>% data.frame(., order = as.numeric(rownames(.))) %>% tail(n)
     if (!is.null(df0)) {
         x0 <- df0
     }
-    colors <- colorRampPalette(colors)(nrow(df))
+    colors <- colorRampPalette(tail(colors, n))(nrow(df))
     x_lab <- (round(df$n, 2) / nrow(x0) * 100) %>%
         round(dec) %>%
-        paste("%")
+        paste0("%")
     df$x_lab <- x_lab # paste0(df$n, "\n   (", x_lab, ")")
     df$y_lab <- df$n / 2
     y_lab0 <- as.character(df$f)
-    y_lab0[(str_count(y_lab0, "\\,") + 1) > n] <- "..."
+    y_lab0[(str_count(y_lab0, "\\,") + 1) > n_collapse] <- "..."
     # i <- df$y_lab < threshold
     # df$x_lab[i] <- ""
     (ggplot(df, aes(f, n, fill = order, label = n)) +
@@ -511,12 +513,13 @@ plot_bar_mcat <- function(
         geom_text(aes(label = x_lab, color = colors), data = df, hjust = hjust, vjust = vjust, size = cex) +
         ggtitle(str_wrap(title, wrap_title)) +
         theme(
-            plot.title = element_text(hjust = 0, vjust = 0, size = cex * 4, face = "bold", color = color_title),
+            plot.title = element_text(hjust = hjust_title, vjust = 0, size = cex * 4, face = "bold", color = color_title),
             axis.text.y = element_text(colour = colors, size = cex * 3),
             axis.text.x = element_text(size = cex * 2.2),
             plot.margin = unit(c(-0, 0, 0, 0.5), "cm"),
             panel.grid.major.y = element_blank()
-        )
+        )  + 
+        scale_y_continuous(breaks = breaks_pretty(2), labels = label_number_auto())
 }
 
 #' @export
@@ -537,7 +540,7 @@ theme_perso_bar <- function(p, y = NULL, colors = c(brewer.pal(n = 9, name = "Se
 }
 
 
-plot_cor2 <- function(x, y = NULL, method = "spearman", color = "red", alpha = 0.5, cex = 1, xlab = NULL, ylab = NULL, dec = 1, wrap = 20) {
+plot_cor2 <- function(x, y = NULL, method = "spearman", color = "red", alpha = 0.5, cex = 1, xlab = NULL, ylab = NULL, dec = 1, wrap = 20, model = "lm") {
     if (!any(class(x) %in% c("data.frame", "tibble", "tbl"))) {
         df <- data.frame(x = x, y = y)
     } else {
@@ -554,7 +557,8 @@ plot_cor2 <- function(x, y = NULL, method = "spearman", color = "red", alpha = 0
     n <- na.omit(df) %>% nrow()
     ggplot(df, aes(x = x, y = y)) +
         geom_point(color = color, size = cex * 3, alpha = alpha) +
-        geom_smooth(method = "lm", se = FALSE, color = color) +
+        # geom_spline(color = color) +
+        geom_smooth(method = model, se = FALSE, color = color) +
         labs(
             x = str_wrap(xlab, wrap),
             y = str_wrap(ylab, wrap),
