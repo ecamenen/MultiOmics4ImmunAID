@@ -58,6 +58,7 @@ parse_treat <- function(x, y = "Date", type = FALSE) {
                             str_replace_all("Enatercept", "Etanercept") %>%
                             str_replace_all("Flunarazine|Flunarizina", "Flunarizine") %>%
                             str_replace_all("((Anti-plate?let)s?( aggregation)?)|(Antiagregent plaquettaire)", "Anti-platelets aggregation") %>%
+                            str_replace_all("Kineret", "Anakinra") %>%
                             str_replace_all("\\-?\\s*d$", " D")
                     } else if (type == 4) {
                         res <- str_replace_all(res, "Month\\(s\\)", "Month")
@@ -349,6 +350,19 @@ if (!is.null(list_treat[["17005"]])) {
     list_treat[["17005"]][["3"]]$Type <- "Other"
 }
 
+# Kineret
+if (!is.null(list_treat[["9005"]])) {
+    list_treat[["9005"]][["5"]]$Type <- "Biologic"
+    list_treat[["9005"]][["5"]]$Subtype <- "Anti-IL1"
+}
+
+if (!is.null(list_treat[["7006"]])) {
+    list_treat[["7006"]][["3"]]$Type <- "Biologic"
+    list_treat[["7006"]][["3"]]$Subtype <- "Anti-IL1"
+    # Xeljanz
+    list_treat[["7006"]][["4"]]$Type <- "Kinase inhibitors"
+}
+
 # Replace the type of these elements by the right one
 # list_treat <- list.map(
 #     list_other0,
@@ -607,9 +621,7 @@ if (!is.null(list_treat1[["Post V2.Reason for discont. (side effect(s))"]])) {
 # Save the final table not in a bioinformatic format but in a clinician one
 # Remove the column with ID for each cells (keeping only the one wich is collapsed)
 # Remove the prefix from the colnames
-list_treat2 <- set_colnames(
-      list_treat1,
-        colnames(.) %>%
+list_treat2 <- list_treat1 %>% set_colnames(colnames(.) %>%
             str_remove_all("((Patient)|(Ongoing at ((V1)|(V2)))|(Pre-inclusion)|(Post V2)).")
     )
 
