@@ -529,8 +529,7 @@ list_treat <- list.map(list_treat, f(i) ~ { list.class(i, f(j) ~ {
                   if (dmy(j[["Date of discontinuation"]]) >= dmy(i[["Date of the 2nd visit"]])) {
                       status <- c(status, "Ongoing at V2")
                   } else {
-                    # TODO: treatment begins after the first visit and ends before the second.
-                    status <- c(status, "Post V2")
+                    status <- c(status, "After V1 and before V2")
                   }
               }
           } else {
@@ -581,9 +580,9 @@ list_treat <- list.map(list_treat, f(i) ~ {
     list.merge(list_treat, .)
 
 # Add a prefix before some the column of some variables to manage them
-var_names2 <- c("Date of beginning", "Type", "Subtype", "Drug name", paste(c("Initial", "Maximal", "Administrated"), "dose"), "Response", "Discontinuation", "Date of discontinuation", rep("Reason for discont.", 3))
+var_names2 <- c("Date of beginning", "Type", "Subtype", "Drug name", paste(c("Initial", "Maximal", "Administrated"), "dose"), "Response", "Discontinuation", "Date of discontinuation", rep("Reason for discont.", 4))
 l_var_names <- list.map(
-    c("Pre-inclusion", paste("Ongoing at", c("V1", "V2")), "Post V2"),
+    c("Pre-inclusion", paste("Ongoing at", c("V1", "V2")), "Post V2", "After V1 and before V2"),
     f(i) ~ rep(i, length(var_names2)) %>% paste(var_names2, sep = ".")
 )
 
@@ -605,7 +604,7 @@ list_treat1 <- list.map(
         )
 ) %>% Reduce(bind_rows, .) %>%
     as_tibble() %>%
-    select(., contains(c(var_names[c(1, 5)], l_var_names[[1]], "N previous treatment", var_names[2], l_var_names[[2]], var_names[c(3, 6)], l_var_names[[3]], var_names[4], l_var_names[[4]])))
+    select(., contains(c(var_names[c(1, 5)], l_var_names[[1]], "N previous treatment", var_names[2], l_var_names[[2]], var_names[c(3, 6)], l_var_names[[3]], var_names[4], l_var_names[[4]], l_var_names[[5]])))
 
 # If they exists, reorder some column
 if (!is.null(list_treat1[["Pre-inclusion.Reason for discont. (side effect(s))"]])) {
@@ -615,14 +614,18 @@ if (!is.null(list_treat1[["Ongoing at V1.Reason for discont. (side effect(s))"]]
     list_treat1 <- relocate(list_treat1, "Ongoing at V1.Reason for discont. (side effect(s))", .before = "Patient.Date of the 2nd visit")
 }
 if (!is.null(list_treat1[["Post V2.Reason for discont. (side effect(s))"]])) {
-    list_treat1 <- relocate(list_treat1, "Post V2.Reason for discont. (side effect(s))", .after = last_col())
+    list_treat1 <- relocate(list_treat1, "Post V2.Reason for discont. (side effect(s))", .after = "After V1 and before V2.Date of beginning")
+}
+
+if (!is.null(list_treat1[["After V1 and before V2.Reason for discont. (side effect(s))"]])) {
+    list_treat1 <- relocate(list_treat1, "After V1 and before V2.Reason for discont. (side effect(s))", .after = last_col())
 }
 
 # Save the final table not in a bioinformatic format but in a clinician one
 # Remove the column with ID for each cells (keeping only the one wich is collapsed)
 # Remove the prefix from the colnames
 list_treat2 <- list_treat1 %>% set_colnames(colnames(.) %>%
-            str_remove_all("((Patient)|(Ongoing at ((V1)|(V2)))|(Pre-inclusion)|(Post V2)).")
+            str_remove_all("((Patient)|(Ongoing at ((V1)|(V2)))|(Pre-inclusion)|(Post V2)|(After V1 and before V2)).")
     )
 
 write.xlsx(list_treat2, file = file.path(path_tsv, "treatments.xlsx"))
