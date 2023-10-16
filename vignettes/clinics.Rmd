@@ -1735,8 +1735,8 @@ color_var <- colorRampPalette(colors)(ncol(aid_scores[[i]]))
 list.map(
     aid_scores[[i]],
     f(i, j, k) ~
-    plot_violin0(i, colour = color_var[j], cex = 1.2, title = k, wrap_title = 15, color_title = color_var[j]) +
-        theme(panel.grid.minor = element_blank())
+    plot_violin0(i, colour = color_var[j], cex = 1.5, title = k, wrap_title = 15, color_title = color_var[j], pch_alpha = 0.25, pch_colour = "gray40", cex_main = 21 * 1.2) +
+        theme(panel.grid.minor = element_blank(), axis.text.y = element_text(size = 1.5*13, color = "gray40"))
 ) %>%
     plot_grid(
         plotlist = .,
@@ -1745,36 +1745,40 @@ list.map(
         ncol = 9
     )
 
-# list.map(aid_scores0, f(x, y, z) ~ is.na(x) %>% which() %>% length() %>% rep(z, .)) %>% unlist %>% plot_bar_mcat(cex = 6, wrap = 50, df0 = aid_scores[[i]])
-list.mapv(aid_scores[[i]], f(x) ~ which(x > 0) %>% length()) %>% plotHistogram(df = ., cex = 2, rows = nrow(aid_scores[[i]]))
+# list.map(aid_scores0[[i]], f(x, y, z) ~ is.na(x) %>% which() %>% length() %>% rep(z, .)) %>% unlist %>% plot_bar_mcat(cex = 6, wrap = 50, df0 = aid_scores[[i]])
+list.mapv(aid_scores[[i]], f(x) ~ which(x > 0) %>% length()) %>% plotHistogram(df = ., cex = 2, rows = nrow(aid_scores[[i]]), ratio = 2)
+
+
 color_var <- colorRampPalette(colors)(ncol(aid_scores0[[i]]))
-as.list(aid_scores0[[i]]) %>%
-    purrr::discard(function(x) all(is.na(x))) %>%
-    list.map(
+aid_scores1 <- as.list(aid_scores0[[i]]) %>%
+    purrr::discard(function(x) all(is.na(x))) 
+list.map(
+    aid_scores1,
         f(i, j, k) ~
-        plot_violin0(i, colour = color_var[j], cex = 1.5, size = 3.5, title = k, wrap_title = 15, color_title = color_var[j], pch_colour = "black", pch_alpha = 0.5, lim1 = 0, lim2 = 30) +
-            theme(panel.grid.minor = element_blank())
+        plot_violin0(i, colour = color_var[j], cex = 1.5, size = 3.5, title = k, wrap_title = 15, color_title = color_var[j], pch_alpha = 0.25, pch_colour = "gray40", lim1 = 0, lim2 = 30, cex_main = 21 * 1.2) +
+            theme(panel.grid.minor = element_blank(), axis.text.y = element_text(size = 1.5*13, color = "gray40"))
     ) %>%
     plot_grid(
         plotlist = .,
         align = "hv",
         nrow = 2,
-        ncol = 7
+        ncol = length(.)/2
     )
 
 t_aidai <- aid_scores[[1]] %>% as.data.frame() %>% set_rownames(as.numeric(clinic_tot1$C_2643_3796))
-use_data(t_aidai, overwrite = TRUE)
+# use_data(t_aidai, overwrite = TRUE)
 
-color_var0 <- color_var[c(9, 12)]
+# color_var0 <- color_var[c(9, 12)]
 list.map(
-    names(aid_scores0[[1]])[c(9, 13)], 
-    f(i, j) ~ list.map(aid_scores0, .[[i]]) %>% data.frame() %>% set_colnames(paste(c("First", "Second"), "visit")) %>% plot_violin0(colour = c(color_var0[j], alpha(color_var0[j],  alpha = 0.5)), pch_colour = "black", pch_alpha = 0.25, size  = 3, title = i, cex = 1.5, method = "wilcox", lim1 = 0, lim2 = 30)
+    names(aid_scores1), 
+    f(i, j) ~ list.map(aid_scores0, .[[i]]) %>% data.frame() %>% set_colnames(paste(c("First", "Second"), "visit")) %>% plot_violin0(color_title = color_var[j], colour = c(color_var[j], alpha(color_var[j],  alpha = 0.5)), pch_colour = "gray40", pch_alpha = 0.25, size  = 3, title = i, cex = 1.5, method = "wilcox", lim1 = 0, lim2 = 30) +
+            theme(panel.grid.minor = element_blank(), axis.text.y = element_text(size = 1.5*13, color = "gray40"))
 ) %>% 
     plot_grid(
         plotlist = .,
         align = "hv",
-        nrow = 1,
-        ncol = 2
+        nrow = 2,
+        ncol = length(.)/2
     )
 
 tiff(
@@ -1787,10 +1791,19 @@ tiff(
 aid_scores0[[1]] %>% plot_corr0(method = "spearman")
 dev.off()
 
+plot_corr_network(aid_scores0[[1]])
+
 res <- aid_scores0[[1]] %>% get_corr1()
 i <- res$C %>% `>`(0) %>% which(arr.ind = TRUE) %>% as.data.frame()
 tmp <- mapply(function(x, y) c(rownames(res$C)[x], colnames(res$C)[y]) %>% sort(), i$row, i$col, SIMPLIFY = FALSE) %>% unique()
-plot_cor2(select(aid_scores0[[1]], c(tmp[[1]][1], tmp[[1]][2])), color = "red", cex = 1.5)
+color_var <- colorRampPalette(colors)(length(tmp))
+list.map(tmp, f(i, j) ~ plot_cor2(select(aid_scores0[[1]], c(i[1], i[2])), color = color_var[j], cex = 1.5, wrap = 15)) -> p
+  plot_grid(
+        plotlist = p,
+        align = "hv",
+        nrow = 3,
+        ncol = 4
+    )
 ```
 
 # General activity
@@ -1825,7 +1838,7 @@ plot_piechart(
     title = "",
     label = FALSE
 )
-list.map(c(2, 3), f(i, j) ~ pull(df, i) %>% plot_violin0(title = "", colour = brewer.pal(12, "Paired")[9 - j], pch_colour = "black", pch_alpha = 0.25, size  = 3)) %>% 
+list.map(c(2, 3), f(i, j) ~ pull(df, i) %>% plot_violin0(title = "", colour = brewer.pal(12, "Paired")[9 - j], pch_alpha = 0.25, size  = 3, cex = 2)) %>% 
     plot_grid(
         plotlist = .,
         # align = "hv",
@@ -1834,14 +1847,14 @@ list.map(c(2, 3), f(i, j) ~ pull(df, i) %>% plot_violin0(title = "", colour = br
     )
 
 plot_cor2(select(df, c(2, 3)), color = "orange", cex = 1.3)
-t_general <- df[, c(2, 3)]
+t_general <- df #[, c(2, 3)]
 
 # Weigth loss
 metadata <- clinic_code[[1]] %>% filter(str_detect(group_code, paste0("^IMA", i, "_General_weightLoss")))
 df <- select(clinic_tot1, metadata$column_code) %>% set_colnames(metadata$item_name)
 df0 <- df
 df0[df0 == 0] <- NA
-list.map(df0, f(i, j) ~ plot_violin0(i, title = "", colour = brewer.pal(11, "Paired")[12 - j], pch_colour = "black", pch_alpha = 0.25, size  = 3, lim1 = 0)) %>% 
+list.map(df0, f(i, j) ~ plot_violin0(i, title = "", colour = brewer.pal(11, "Paired")[11 - j], pch_alpha = 0.25, size  = 4, lim1 = 0, cex = 1.7, pch_colour = "gray40", cex_sub = 12 * 1.7)) %>% 
     plot_grid(
         plotlist = .,
         # align = "hv",
@@ -1884,13 +1897,13 @@ df$`Evolution of the disease` <- df$`Evolution of the disease` %>% str_remove_al
 df0 <- select(df, -c(1, get_name_num(df)))
 df0[[col]] <- df0[[col]] %>% str_replace_all("^[Nn][Oo] ?.*", "No") %>% str_replace_all("l(mphoma)", "Ly\\1")
 
-list.map(df0, f(i, j, k) ~ {
-  if (j == 1) {
-    colours <- get_colors()[c(5, 1)]
+list.map(select(df0, -contains("unknown")), f(i, j, k) ~ {
+  if (k == "Diagnosed new disease") {
+    colours <- get_colors()[c(1, rep(2, 10))]
     legend_name <- NULL
-  } else if (j == 2) {
-    colours <- c(brewer.pal(9, "Greens")[c(9, 6, 4)], "red")
-    legend_name <- df$`Evolution of the disease` %>% unique() %>% .[c(4:5, 1, 3)]
+  } else if (k == "Evolution of the disease") {
+    colours <- c(brewer.pal(9, "Greens")[c(9, 6, 4)], "red")[c(3, 4, 1, 2)]
+    legend_name <- NULL# df$`Evolution of the disease` %>% unique() %>% .[c(4:5, 1, 3)] %>% na.omit()
   } else {
     colours <- get_colors()[c(1, 3)]
     legend_name <- NULL
@@ -1898,14 +1911,16 @@ list.map(df0, f(i, j, k) ~ {
     plot_piechart(
         i,
         colour = colours,
-        cex = 30,
+        cex = 25,
         dec = 1,
         hsize = 1.5,
         title = k,
         label = FALSE,
+        cex_main = 25,
         wrap = 20,
         wrap_title = 25,
-        legend_name = legend_name
+        legend_name = legend_name,
+        legend = FALSE
     )
 }) %>% plot_grid(
     plotlist = .,
@@ -1947,7 +1962,7 @@ clinic_tot1 %>% filter(C_2643_3796 == "05005") %>% select(C_2643_3803, C_2649_38
 
 list.map(
     names(activity[[1]]), 
-    f(i, j) ~ list.map(activity1, .[[i]]) %>% data.frame() %>% set_colnames(paste(c("First", "Second"), "visit")) %>% plot_violin0(colour = brewer.pal(12, "Paired")[2:1 + j*2 -2], pch_colour = "black", pch_alpha = 0.25, size  = 3, title = i, cex = 1.5, method = "wilcox", lim2 = 10.5)
+    f(i, j) ~ list.map(activity1, .[[i]]) %>% data.frame() %>% set_colnames(paste(c("First", "Second"), "visit")) %>% plot_violin0(colour = brewer.pal(12, "Paired")[2:1 + j*2 -2], pch_colour = "gray40", pch_alpha = 0.25, size  = 3, title = i, cex = 1.5, method = "wilcox", lim2 = 10.5, cex_sub = 12 * 1.5)
 ) %>% 
     plot_grid(
         plotlist = .,
