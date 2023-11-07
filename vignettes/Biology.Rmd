@@ -1,0 +1,303 @@
+---
+title: "Biology"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Biology}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(MultiOmics4ImmunAID)
+```
+
+# Parsing biological data
+```{r}
+get_min_dates <- function(x, y) {
+    clin_dates <- clinic_code[[3]] %>%
+        filter(str_detect(group_code, paste0("IMA_BiologicalValues", y, "Bloc"))) %>%
+        filter(str_detect(item_code, "IMA_BIOVAL_DATE")) %>%
+        pull(column_code) %>%
+        select(x, .) %>%
+        update_columns(
+            colnames(.),
+            function(i) {
+                (dmy(x$C_2643_3802) - dmy(i)) %>%
+                    as.numeric() %>%
+                    ifelse(. > 7, NA, .)
+            }
+        )
+    apply(clin_dates, 1, function(i) which.min(abs(i))) %>% as.numeric()
+}
+
+clinic_code[[3]] %>%
+        filter(str_detect(group_code, "IMA_BiologicalValuesGeneralBloc")) %>%
+        filter(str_detect(item_code, "IMA_BIOVAL_DATE")) %>%
+        pull(column_code) %>%
+        select(clinic_tot1, .) %>%
+        update_columns(
+            colnames(.),
+            function(i) {
+                (dmy(clinic_tot1$C_2643_3802) - dmy(i)) %>%
+                    as.numeric()
+            }
+        ) %>%
+    apply(1, function(i) min(abs(i), na.rm = TRUE)) %>%
+        set_names(clinic_tot1$C_2643_3796 %>% as.numeric()) %>% keep(. > 7) %>% keep(is.finite(.)) %>% sort() %>%
+        plotHistogram(df = ., ratio = 2, cex = 3, title = "Number of days between the date of sampling and the date of inclusion")
+
+get_biol0 <- function(x, y, z = clinic_tot, parse = FALSE) {
+    if (length(y) == 0) {
+        y <- rep(1, nrow(z))
+    }
+    ids <- x %>%
+        pull(column_code) %>%
+        str_remove_all("_\\d$") %>%
+        unique()
+    # select for each line, the value from the column of get_min_dates
+    col_names <- filter(x, repeat_inds == 1 | is.na(repeat_inds)) %>%
+        pull(item_name) %>%
+        str_remove_all("( value due to the disease)|(GFR \\- )|(Cytological signs of )|(Cristals: \\d\\) )") %>%
+        str_squish() %>%
+        to_title()
+    if (!parse) {
+        col_names <- str_remove_all(col_names, " \\(.+\\)")
+    } else {
+        col_names <- str_remove_all(col_names, " \\(Anti-.+\\)")
+    }
+    if ("Neutrophils" %in% col_names) {
+          col_names[6] <- paste(col_names[6], "%")
+      }
+    lapply(
+        ids,
+        function(i) {
+            filter(x, str_detect(column_code, i)) %>%
+                pull(column_code) %>%
+                select(z, .) -> tmp0
+            sapply(
+                seq(nrow(tmp0)),
+                function(i) ifelse(is.na(y[i]), NA, tmp0[i, y[i]])
+            ) %>%
+                as.numeric() %>%
+                suppressWarnings()
+        }
+    ) %>%
+        Reduce(cbind, .) %>%
+        set_colnames(col_names) %>%
+        as.data.frame() %>%
+        select(!apply(., 2, function(x) is.na(x) %>% all()) %>% which()) %>%
+        set_rownames(pull(z, C_2643_3796) %>% as.numeric())
+}
+
+get_biol <- function(x, y = clinic_tot1, parse = FALSE) {
+    clin_biol <- clinic_code[[3]] %>%
+        filter(str_detect(group_code, paste0("IMA_BiologicalValues", x, "Bloc"))) %>%
+        filter(!str_detect(item_code, "(_DATE)|(_TYPE)"))
+    col_dates <- get_min_dates(y, x)
+    get_biol0(clin_biol, col_dates, y, parse)
+}
+
+list_biol <- list.map(
+    c("General", "Immuno", "Urine", "CerebrospinalFluid", "SynovialFluid"),
+    f(x, y) ~ get_biol(x, clinic_tot1, parse = (y == 2))
+)
+
+list_biol <- list.map(
+    c("SecondVisit", "FollowUp"),
+    f(i) ~ {
+        clinic_code[[3]] %>%
+            filter(str_detect(group_code, paste0("IMA_", i, "_BiologicalValues"))) %>%
+            get_biol0(NULL, clinic_tot1)
+    }
+) %>% c(list_biol, .)
+
+# On flare
+col_dates <- get_min_dates(clinic_tot1, "General")
+tmp <- filter(clinic_code[[3]], str_detect(column_code, "C_2728_4055")) %>%
+                pull(column_code) %>%
+                select(clinic_tot1, .)
+sapply(
+    seq(nrow(tmp)),
+    function(i) ifelse(is.na(col_dates[i]), NA, tmp[i, col_dates[i]])
+) %>% unlist() %>%
+plot_piechart(
+    .,
+    colour = brewer.pal(12, "Paired")[9:10],
+    cex = 40,
+    dec = 1,
+    hsize = 1.5,
+    title = "",
+    label = FALSE
+)
+
+colnames(list_biol[[7]]) %>%
+    list.map(
+        f(j) ~ list.map(list_biol[c(1, 6:7)], f(i) ~ select(i, j)) %>%
+            Reduce(cbind, .) %>%
+            set_colnames(c("1rst visit", "Second visit", "Follow-up")) %>%
+            select(1, 3) %>%
+            na.omit()
+    )
+
+colnames(list_biol[[1]]) <- colnames(list_biol[[1]]) %>%
+    str_replace("Hb", "Hemoglobin") %>%
+    str_replace("Conj Bili", "Conjugated bilirubin")
+biol_func <- list(
+    Kidney = select(list_biol[[1]], contains(c("Creatinine", "Glomerular Filtration Rate", "Urea"))) %>% colnames(),
+    Blood = select(list_biol[[1]], contains(c("Hemoglobin", "Mean red cell volume", "Platelets", "SAA", "Fibrinogen level", "Erythrocyte sedimentation rate", "Total Bilirubin", "Protidemia", "Albuminemia", "Ferritin", "Schizocytes", "Glycosylated ferritin", "LDH", "Triglycerides", "Serum peak"))) %>% colnames(),
+    WC = select(list_biol[[1]], contains(c("Leucocytes", "Lymphocytes", "Neutrophils %", "Neutrophils", "Eosinophils", "CRP", "Max CRP"))) %>% colnames(),
+    Liver = select(list_biol[[1]], contains(c("Conjugated bilirubin", "ALAT", "ALAT ULN", "ASAT", "ASAT ULN", "GGT", "GGT ULN", "Alk phosphatases", "Alk phosphatases ULN"))) %>% colnames(),
+    Heart = select(list_biol[[1]], contains(c("Sodium", "Potassium"))) %>% colnames()
+)
+n_func <- sapply(biol_func, length)
+
+it <- 0
+res <- res0 <- colnames(list_biol[[1]]) %>%
+    sort() %>%
+    rev() %>%
+    list.map(f(x) ~ pull(list_biol[[1]], x) %>%
+        is.na() %>%
+        which() %>%
+        length()) %>%
+    unlist() %>%
+    sort() %>%
+    names()
+for (i in biol_func) {
+    it <- it + 1
+    for (j in res0) {
+        res[res %in% i] <- names(biol_func)[it]
+    }
+}
+color_cols <- factor(res, labels = c(get_colors()[1], "gray40", get_colors()[c(3, 5, 2)])) %>% as.character()
+
+# sapply(list_biol[[1]], function(x) is.na(x) %>% which() %>% length()) %>% plotHistogram(df = ., cex = 1.5, rows = 38)
+list.map(list_biol[[1]], f(x, y, z) ~ is.na(x) %>%
+    which() %>%
+    length() %>%
+    rep(z, .)) %>%
+    unlist() %>%
+    plot_bar_mcat(colors = color_cols, cex = 6, wrap = 50, df0 = list_biol[[1]])
+
+color_title <- mapply(function(x, y) rep(y, length(x)), biol_func, c(get_colors()[c(5, 1, 2, 3)], "black")) %>% unlist()
+
+color_var <- c(get_colors0()(cumsum(n_func[-5])[4]), c("black", "gray"))
+color_var <- c(
+  color_var[1:n_func[1]], 
+  colorRampPalette(color_var[n_func[1] + 1:n_func[2]])(n_func[2]),
+  colorRampPalette(color_var[n_func[2] + 1:n_func[3]])(n_func[3]),
+  colorRampPalette(color_var[n_func[3] + 1:n_func[4]])(n_func[4]), 
+  c("black", "gray")
+)
+
+list_biol0 <- select(list_biol[[1]], unlist(biol_func) %>% unname())
+list.map(
+    list_biol0,
+    f(i, j, k) ~
+    plot_violin0(
+      i, 
+      colour = color_var[j], 
+      cex = 1.2,
+      pch_alpha = 0.25,
+      pch_colour = "black",
+      title = k, 
+      wrap_title = 19, 
+      color_title = color_title[j]
+    ) +
+        theme(panel.grid.minor = element_blank())
+) %>%
+    plot_grid(
+        plotlist = .,
+        # align = "hv",
+        nrow = 5,
+        ncol = 8
+    )
+
+list_biol00 <- list.map(list_biol0, get_outliers(., method = "iqr", probs = c(0.01, 0.99), c = 8)) %>% list_cbind() %>% set_colnames(colnames(list_biol0))
+list.map(list_biol0, get_outliers(., method = "iqr", c = 8, probs = c(0.01, 0.99), replace = FALSE) %>% names() %>% as.numeric() %>% slice(clinic_tot1, .) %>% pull(C_2643_3796)) %>% compact()
+
+list_biol1 <- list.map(
+  list_biol, 
+  f(i) ~ list.map(i, get_outliers(., method = "iqr", c = 8, probs = c(0.01, 0.99))) %>% compact()
+)
+
+outs <- list.map(
+  list_biol, 
+  f(i) ~ list.map(i, get_outliers(., method = "iqr", c = 8, probs = c(0.01, 0.99), replace = FALSE)) %>% compact() %>% lapply(names) %>% unlist() %>% as.numeric() %>% unique() %>% slice(clinic_tot1, .) %>% pull(C_2643_3796)
+) %>% unlist(.) %>% paste0("^", ., "$", collapse = "|")
+
+metadata <- clinic_code[[3]] %>% filter(str_detect(column_code, paste0("^", c("C_2643_3796", "C_2643_3803", "C_2649_3888", "C_2649_3895", "C_2649_3891", "C_2643_3797"), "$", collapse = "|")))
+filter(clinic_tot1, str_detect(C_2643_3796, outs)) %>% mutate(C_2643_3797 = str_remove_all(C_2643_3797, "\\d{2} - ")) %>% select(metadata$column_code) %>% set_colnames(str_remove_all(metadata$item_name, "\\(.+\\)")) %>% select(2:6, 1) %>% kable0()
+
+col <- c("Blues", "Greens", "Reds")
+list.map(
+  names(list_biol$FollowUp),
+  f(i, j) ~ list.map(list_biol1, .[[i]]) %>% compact() %>% as.data.frame() %>% set_colnames(paste(c("First", "Second", "Third"), "visit")) %>% plot_violin0(colour = brewer.pal(9, col[j])[c(7, 5, 3)], pch_colour = "black", pch_alpha = 0.25, size  = 3, title = i, cex = 1.5, method = "kruskal", wrap_subtitle = 15)
+) %>% 
+    plot_grid(
+        plotlist = .,
+        # align = "hv",
+        nrow = 1,
+        ncol = 3
+    )
+
+# list.map(
+#     names(list_biol$FollowUp),
+#     f(i, j) ~ list.map(list_biol1[-4], .[[i]]) %>% compact() %>% as.data.frame() %>% set_colnames(paste(c("First", "Third"), "visit")) %>% plot_violin0(colour = brewer.pal(9, col[j])[c(7, 3)], pch_colour = "black", pch_alpha = 0.25, size  = 3, title = i, cex = 1.5, method = "wilcox")
+# ) %>% 
+#     plot_grid(
+#         plotlist = .,
+#         # align = "hv",
+#         nrow = 1,
+#         ncol = 3
+#     )
+
+# res.kruskal <- df2 %>% get_melt() %>% kruskal_test(value ~ name)
+# df2 %>% get_melt() %>% kruskal_effsize(value ~ name)
+# pwc <- df2 %>% get_melt() %>% dunn_test(value ~ name, p.adjust.method = "BH") %>% add_xy_position(x = "name")
+# plot_violin0(df2, colour = brewer.pal(9, "Reds")[c(7, 5, 3)], pch_colour = "black", pch_alpha = 0.25, size  = 3, lim2 = 138)  +
+#     stat_pvalue_manual(pwc, hide.ns = TRUE) +
+#     labs(
+#         subtitle = get_test_label(res.kruskal, detailed = TRUE),
+#         caption = get_pwc_label(pwc)
+#     )
+# dunn_test(weight ~ group, p.adjust.method = "bonferroni")
+
+# list.map(
+#     names(list_biol$FollowUp),
+#     f(i, j) ~ list.map(list_biol1[-4], .[[i]]) %>% compact() %>% as.data.frame() %>% set_colnames(paste(c("First", "Third"), "visit")) %>% get_melt() %>% wilcox_test(value ~ name)
+# )
+
+t_biol <- lapply(list_biol1[c(1, 6, 7)], function(x) list.cbind(x) %>% as.data.frame() %>% select(contains(unlist(biol_func) %>% unname()))) %>% list_cbind() %>% set_colnames(colnames(.) %>% str_replace_all("General", "V1") %>% str_replace_all("SecondVisit", "V2") %>% str_replace_all("FollowUp", "V3")) %>% set_rownames(as.numeric(clinic_tot1$C_2643_3796))
+use_data(t_biol, overwrite = TRUE)
+
+t_biol0 <- list.cbind(list_biol1[[1]]) %>% as.data.frame() %>% set_rownames(clinic_tot1$C_2643_3796)
+
+tiff(
+    "cor_biol.tiff",
+    units = "px",
+    width = 4000,
+    height = 4000,
+    res = 300
+)
+plot_corr0(t_biol0, method = "spearman")
+dev.off()
+
+plot_corr_network(t_biol0, method_adjust = "none", cutoff = 0.5)
+
+res <- t_biol0 %>% get_corr1(cutoff = 0.7)
+i <- abs(res$C) %>% `>`(0) %>% which(arr.ind = TRUE) %>% as.data.frame()
+cols <- get_colors()[c(2, 2, 1, 1, 5)]
+mapply(function(x, y) c(rownames(res$C)[x], colnames(res$C)[y]) %>% sort(), i$row, i$col, SIMPLIFY = FALSE) %>% unique() %>% list.map(f(i, j) ~ plot_cor2(select(t_biol0, c(i[1], i[2])), color = cols[j], cex = 1.5)) %>%
+    plot_grid(
+        plotlist = .,
+        nrow = 2,
+        ncol = 3
+    )
+```
