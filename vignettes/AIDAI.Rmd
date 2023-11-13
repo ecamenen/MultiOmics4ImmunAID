@@ -9,8 +9,8 @@ vignette: >
 
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
+    collapse = TRUE,
+    comment = "#>"
 )
 ```
 
@@ -18,15 +18,28 @@ knitr::opts_chunk$set(
 library(MultiOmics4ImmunAID)
 ```
 
-# AIDAI scores
+# Data
+```{r data}
+clinic <- read_batches() %>%
+    Reduce(rbind, .) %>%
+    formate_immunaid()
+clinic_code <- read_batches(, "codes")
+
+var_na <- c("Not applicable", "Unknown", "Not performed")
+for (i in var_na) {
+    clinic[clinic == i] <- NA
+}
+```
+
+# Distribution
 ```{r}
-aid_scores <- list.map(
+aidai_scores0 <- list.map(
     c("", "SecondVisit_"),
     f(i) ~ {
         clin_codes <- clinic_code[[3]] %>%
             filter(str_detect(group_code, paste0("IMA_", i, "General_clinManifScore")))
         pull(clin_codes, column_code) %>%
-            select(clinic_tot1, .) %>%
+            select(clinic, .) %>%
             set_colnames(
                 str_remove_all(clin_codes$item_name, "\\s*\\([^\\)]+\\)") %>%
                     str_remove_all("( / )?Other (SAID )?") %>%
@@ -43,63 +56,112 @@ colors <- c(
     "#276419"
 )
 
-aid_scores0 <- list()
-for (i in seq_along(aid_scores)) {
-  aid_scores0[[i]] <- aid_scores[[i]]
-  aid_scores0[[i]][aid_scores0[[i]] == 0] <- NA
+aidai_scores <- list()
+for (i in seq_along(aidai_scores0)) {
+    aidai_scores[[i]] <- aidai_scores0[[i]]
+    aidai_scores[[i]][aidai_scores0[[i]] == 0] <- NA
 }
 
-i <- 2
-color_var <- colorRampPalette(colors)(ncol(aid_scores[[i]]))
+i <- 1
+n <- ncol(aidai_scores[[2]])
+color_var <- colorRampPalette(colors)(n)
 list.map(
-    aid_scores[[i]],
-    f(i, j, k) ~
-    plot_violin0(i, colour = color_var[j], cex = 1.5, title = k, wrap_title = 15, color_title = color_var[j], pch_alpha = 0.25, pch_colour = "gray40", cex_main = 21 * 1.2) +
-        theme(panel.grid.minor = element_blank(), axis.text.y = element_text(size = 1.5*13, color = "gray40"))
+    aidai_scores[[i]],
+    f(i, j, k) ~ {
+        if (!all(is.na(i))) {
+            plot_violin(
+                i,
+                colour = color_var[j],
+                cex = 1,
+                title = k,
+                width_title = 15,
+                pch_alpha = 0.25,
+                pch_colour = "black",
+                pch_size = 3,
+                cex_main = 30,
+                cex_sub = 21,
+                lwd = 1.5
+            ) +
+                theme(
+                    panel.grid.minor = element_blank(),
+                    axis.text.y = element_text(size = 1.5 * 13, color = "gray40")
+                ) + ylim(c(0, 30))
+        }
+    }
 ) %>%
+    compact() %>%
     plot_grid(
         plotlist = .,
         # align = "hv",
         nrow = 2,
-        ncol = 9
+        ncol = ceiling(length(.) / 2)
     )
 
-# list.map(aid_scores0[[i]], f(x, y, z) ~ is.na(x) %>% which() %>% length() %>% rep(z, .)) %>% unlist %>% plot_bar_mcat(cex = 6, wrap = 50, df0 = aid_scores[[i]])
-list.mapv(aid_scores[[i]], f(x) ~ which(x > 0) %>% length()) %>% plotHistogram(df = ., cex = 2, rows = nrow(aid_scores[[i]]), ratio = 2)
+# list.map(
+#     aidai_scores[[i]],
+#     f(x, y, z) ~ is.na(x) %>% which() %>% length() %>% rep(z, .)
+# ) %>%
+#     unlist() %>%
+#     plot_bar_mcat(cex = 6, width_text = 50, df0 = aidai_scores[[i]])
 
-
-color_var <- colorRampPalette(colors)(ncol(aid_scores0[[i]]))
-aid_scores1 <- as.list(aid_scores0[[i]]) %>%
-    purrr::discard(function(x) all(is.na(x))) 
 list.map(
-    aid_scores1,
-        f(i, j, k) ~
-        plot_violin0(i, colour = color_var[j], cex = 1.5, size = 3.5, title = k, wrap_title = 15, color_title = color_var[j], pch_alpha = 0.25, pch_colour = "gray40", lim1 = 0, lim2 = 30, cex_main = 21 * 1.2) +
-            theme(panel.grid.minor = element_blank(), axis.text.y = element_text(size = 1.5*13, color = "gray40"))
-    ) %>%
+    seq(2),
+    f(i) ~ {
+        list.mapv(aidai_scores[[i]], f(x) ~ which(x > 0) %>% length()) %>%
+            plot_bar(
+                threshold = 1,
+                sample_size = nrow(aidai_scores[[i]]),
+                colour = c("#99000d", "gray")
+            )
+    }
+) %>%
     plot_grid(
         plotlist = .,
         align = "hv",
-        nrow = 2,
-        ncol = length(.)/2
+        ncol = 2
     )
 
-t_aidai <- aid_scores[[1]] %>% as.data.frame() %>% set_rownames(as.numeric(clinic_tot1$C_2643_3796))
+t_aidai <- aidai_scores0[[1]] %>%
+    as.data.frame() %>%
+    set_rownames(as.numeric(clinic$C_2643_3796))
 # use_data(t_aidai, overwrite = TRUE)
 
 # color_var0 <- color_var[c(9, 12)]
 list.map(
-    names(aid_scores1), 
-    f(i, j) ~ list.map(aid_scores0, .[[i]]) %>% data.frame() %>% set_colnames(paste(c("First", "Second"), "visit")) %>% plot_violin0(color_title = color_var[j], colour = c(color_var[j], alpha(color_var[j],  alpha = 0.5)), pch_colour = "gray40", pch_alpha = 0.25, size  = 3, title = i, cex = 1.5, method = "wilcox", lim1 = 0, lim2 = 30) +
-            theme(panel.grid.minor = element_blank(), axis.text.y = element_text(size = 1.5*13, color = "gray40"))
-) %>% 
+    names(aidai_scores[[1]]),
+    f(i, j) ~ {
+        tmp <- list.map(aidai_scores, .[[i]])
+        if (!list.any(tmp, f(x) ~ all(is.na(x)))) {
+            data.frame(tmp) %>%
+                set_colnames(paste(c("First", "Second"), "visit")) %>%
+                plot_violin(
+                    color_title = color_var[j],
+                    colour = c(color_var[j], alpha(color_var[j], alpha = 0.5)),
+                    pch_colour = "gray40",
+                    pch_alpha = 0.25,
+                    pch_size = 3,
+                    title = i,
+                    cex = 1.2,
+                    method = "wilcox"
+                ) +
+                theme(
+                    panel.grid.minor = element_blank(),
+                    axis.text.y = element_text(size = 1.5 * 13, color = "gray40")
+                ) + ylim(c(0, 30))
+        }
+    }
+) %>%
+    compact() %>%
     plot_grid(
         plotlist = .,
         align = "hv",
         nrow = 2,
-        ncol = length(.)/2
+        ncol = ceiling(length(.) / 2)
     )
+```
 
+# Correlation
+```{r}
 tiff(
     "cor_biol.tiff",
     units = "px",
@@ -107,20 +169,36 @@ tiff(
     height = 2500,
     res = 300
 )
-aid_scores0[[1]] %>% plot_corr0(method = "spearman")
+aidai_scores[[1]] %>% plot_mcor(method = "spearman")
 dev.off()
 
-plot_corr_network(aid_scores0[[1]])
+plot_cor_network(aidai_scores[[1]], ratio_node = 24)
 
-res <- aid_scores0[[1]] %>% get_corr1()
-i <- res$C %>% `>`(0) %>% which(arr.ind = TRUE) %>% as.data.frame()
-tmp <- mapply(function(x, y) c(rownames(res$C)[x], colnames(res$C)[y]) %>% sort(), i$row, i$col, SIMPLIFY = FALSE) %>% unique()
-color_var <- colorRampPalette(colors)(length(tmp))
-list.map(tmp, f(i, j) ~ plot_cor2(select(aid_scores0[[1]], c(i[1], i[2])), color = color_var[j], cex = 1.5, wrap = 15)) -> p
-  plot_grid(
-        plotlist = p,
-        align = "hv",
-        nrow = 3,
-        ncol = 4
+res <- aidai_scores[[1]] %>% correlate()
+i <- res$r %>%
+    `>`(0) %>%
+    which(arr.ind = TRUE) %>%
+    as.data.frame()
+tmp <- mapply(
+    function(x, y) c(rownames(res$r)[x], colnames(res$r)[y]) %>% sort(),
+    i$row,
+    i$col,
+    SIMPLIFY = FALSE
+) %>% unique()
+color_var <- GimmeMyPlot:::palette_discrete()
+list.map(
+    tmp,
+    f(i, j) ~ plot_cor2(
+        select(aidai_scores[[1]], c(i[1], i[2])),
+        color = color_var[j],
+        cex = 1.7,
+        wrap = 15
     )
+) -> p
+plot_grid(
+    plotlist = p,
+    align = "hv",
+    nrow = 3,
+    ncol = 4
+)
 ```
