@@ -26,9 +26,10 @@ clinic <- read_batches() %>%
 clinic_code <- read_batches(, "codes")
 
 var_na <- c(
-    "null",
     "none",
+    "None",
     "none actually",
+    "no sequelae",
     "No sequelae",
     "No sequellea",
     "NO"
@@ -43,21 +44,39 @@ var_na <- c(
 )
 for (i in var_na) {
     clinic[clinic == i] <- NA
+}
 ```
 
+# Metadata
 ```{r}
 metadata <- clinic_code[[1]] %>%
     filter(str_detect(group_code, "IMA_ImpactedOrganOrSysTab"))
-titles <- pull(metadata, item_name) %>%
+df0 <- select(clinic, metadata$column_code)
+vars <- gather(df0, "manifestation", "impacted") %>%
+    table() %>%
+    as.data.frame() %>%
+    filter(impacted == "Yes") %>%
+    arrange(desc(Freq)) %>%
+    pull(manifestation) %>%
+    as.character()
+
+titles <- list.mapv(
+    vars, ~ {
+        filter(clinic_code[[1]], column_code == .) %>%
+            pull(item_name)
+    }
+) %>%
     str_replace("(\\d{1,2}. )", "") %>%
-    str_replace("\\s*\\([^\\)]+\\)", "")
+    str_replace("\\s*\\([^\\)]+\\)", "") %>%
+    str_replace_all("Ear.*", "ENT") %>%
+    str_replace("and", "/")
 
 list.map(
-    select(clinic, metadata$column_code), 
+    select(clinic, vars),
     f(i, j, k) ~ {
         plot_pie(
             i,
-            colour = get_colors()[c(1, 3)],
+            colour = c(get_colors()[c(1, 3)], "gray"),
             cex = 22,
             digits = 1,
             hsize = 1.5,
@@ -65,7 +84,8 @@ list.map(
             sort = FALSE,
             t = -1
         )
-    }) %>% 
+    }
+) %>%
     plot_grid(
         plotlist = .,
         align = "hv",
@@ -73,7 +93,7 @@ list.map(
         ncol = 4
     )
 
-df_manifs0 <- select(clinic, metadata$column_code) %>%
+df_manifs0 <- select(clinic, vars) %>%
     list.map(f(i) ~ as.factor(i) %>%
         fct_recode(`0` = "No", `1` = "Yes", `NA` = "Unknown") %>%
         as.character() %>%
@@ -85,7 +105,156 @@ df_manifs0 <- select(clinic, metadata$column_code) %>%
 apply(df_manifs0, 2, function(x) sum(x, na.rm = TRUE)) %>%
     as.data.frame() %>%
     set_colnames(c("N")) %>%
+    arrange(desc(N)) %>%
     kable0()
+
+# Bar plot
+select(df0, vars) %>%
+    set_colnames(titles) %>%
+    gather("manifestation", "impacted") %>%
+    relocate("impacted", .before = 1) %>%
+    GimmeMyPlot:::plot_bar_2cat(
+        stats = FALSE,
+        colour1 = get_colors()[c(3, 1)],
+        colour3 = "black",
+        legend = c("Yes", "No")
+    )
+
+# Per disease
+clinic0 <- mutate(
+    clinic,
+    C_2643_3798 = str_remove_all(C_2643_3798, " \\(.*") %>%
+        str_replace_all("Adult.*", "AOSD") %>%
+        str_replace_all("Systemic.*", "SOJIA") %>%
+        str_replace_all("Chronic.*", "CRO") %>%
+        str_replace_all("Inflammation.*", "IUO")
+) %>% filter(!str_detect(C_2643_3798, "control"))
+
+n <- pull(clinic0, C_2643_3798) %>%
+    fct_count() %>%
+    rename(n_tot = n)
+
+# Bar plot
+per_manif <- list.map(
+    seq(vars),
+    f(i) ~ {
+        df <- select(clinic0, c(vars[i], C_2643_3798)) %>%
+            set_colnames(c(titles[i], "Disease"))
+        # p <- GimmeMyPlot:::plot_bar_2cat(
+        #     df,
+        #     cex = 0.8,
+        #     stats = FALSE,
+        #     width_title = 30,
+        #     colour1 = get_colors()[c(3, 1)],
+        #     colour3 = "black",
+        #     title = titles[i],
+        #     threshold = 1,
+        #     legend = c("Yes", "No"),
+        #     sort = TRUE
+        # ) + theme(
+        #     axis.title.y = element_blank(),
+        #     legend.position = "none")
+        df1 <- filter(df, !!sym(titles[i]) == "Yes") %>%
+            pull(Disease) %>%
+            fct_infreq() %>%
+            fct_rev() %>%
+            fct_count() %>%
+            left_join(n)
+        res <- mutate(df1, perc = n / n_tot * 100) %>%
+            arrange(desc(perc))
+        p <- filter(df, !!sym(titles[i]) == "Yes") %>%
+            pull(Disease) %>%
+            plot_bar_mcat(
+                sample_size = pull(df1, "n_tot"),
+                inverse = TRUE,
+                title = titles[i],
+                cex = 6,
+                width_text = 30,
+                colour = c("gray", "#99000d"),
+                colour2 = "white"
+            )
+        # res$perc %>%
+        #     set_names(res$f) %>%
+        #     GimmeMyPlot:::post_hoc_chi2(count = TRUE) %>%
+        #     filter(FDR <= 0.05) %>%
+        #     arrange(desc(FDR))
+        list(p = p, res = res)
+    }
+)
+
+list.map(per_manif, .$res) %>% set_names(titles)
+list.map(per_manif, .$p) %>%
+    plot_grid(
+        plotlist = .,
+        ncol = 4,
+        nrow = 3,
+        align = "hv"
+    )
+
+# Spider plots
+diseases <- pull(clinic0, C_2643_3798) %>%
+    fct_count() %>%
+    arrange(desc(n)) %>%
+    filter(n >= 15) %>%
+    pull(f) %>%
+    as.character()
+diseases0 <- pull(clinic0, C_2643_3798) %>%
+    fct_infreq() %>%
+    levels()
+per_disease0 <- list.map(
+    diseases0,
+    f(x) ~ {
+        df <- filter(clinic0, C_2643_3798 == x) %>%
+            select(vars) %>%
+            set_colnames(titles)
+        list.mapv(
+            sort(titles),
+            f(y) ~ {
+                res <- select(df, y) %>%
+                    filter(!!sym(y) == "Yes")
+                ifelse(nrow(res) > 0, nrow(res), 0)
+            }
+        )
+    }
+) %>% set_names(diseases0)
+
+per_disease <- list.cbind(per_disease0)
+sample_size <- colnames(per_disease) %>%
+    data.frame(f = .) %>%
+    left_join(., n) %>%
+    pull(n_tot)
+per_disease_perc <- mapply(function(x, y) x * 100 / y, per_disease0, sample_size)
+
+# path <- file.path(golem::get_golem_wd(), "inst", "results", "img")
+# tiff(
+#     file.path(path, "manif", ".manif.tiff"),
+#     units = "px",
+#     width = 3500 * cex,
+#     height = 1500 * cex,
+#     res = 300
+# )
+sample_size0 <- left_join(data.frame(f = diseases), n) %>% pull(n_tot)
+par(mfrow = c(2, 4))
+for (x in seq_along(diseases)) {
+    per_disease_perc[, diseases[x]] %>%
+        set_names(
+            names(.) %>%
+                str_replace_all("(Musculo)(skeletal)", "\\1- \\2")
+        ) %>%
+        plot_radar(
+            add_percent = TRUE,
+            alpha = 0.25,
+            n_max = 100,
+            n_interval = 4,
+            cex_main = 1.7,
+            cex_axis = 1.5,
+            cex_sub = 1,
+            width_text = 5,
+            colour = GimmeMyPlot:::palette_discrete()[x],
+            title = paste0(diseases[x], ", N = ", sample_size0[x])
+        )
+}
+# dev.off()
 ```
 
 # Functions
@@ -106,9 +275,7 @@ parse_manif0 <- function(x, y, z, a, b = NULL, type = 0, parse = FALSE) {
                         nb_lesions <- NULL
                         j <- j %>%
                             str_remove_all(" \\(.+\\)") %>%
-                            str_replace_all("CLINICAL EXAMINATION", "Clinical examination") %>%
-                            str_replace_all("blood exams", "blood test") %>%
-                            str_replace_all("physcial examination", "Clinically") %>%
+                            str_replace_all("(CLINICAL EXAMINATION)|(Clinically)|(physcial examination)|((Clinical ?)?[Ee]xamination)", "Clinical examination") %>%
                             str_replace_all("UVEITE ANTERIEURE", "Anterior uveitis") %>%
                             str_replace_all("MYALGI[AE]", "Myalgia") %>%
                             str_replace_all("rthralgie", "rthralgia") %>%
@@ -135,14 +302,23 @@ parse_manif0 <- function(x, y, z, a, b = NULL, type = 0, parse = FALSE) {
                             str_replace_all("thrombophlébite cérébrale", "Cerebral thrombophlebitis") %>%
                             str_replace_all("l’épiphyse distale du tibia gauche", "Distal epiphysis of the left tibia") %>%
                             str_replace_all("(knee)s", "\\1") %>%
-                            str_remove_all("rigth-6")  %>%
-                            str_replace_all("Mal de gorge", "Sore throat") %>%
-                            str_replace_all("P(haryngitis)", "p\\1")  %>%
+                            str_remove_all("-6") %>%
+                            str_replace_all("mal de gorge", "Sore throat") %>%
+                            str_replace_all("P(haryngitis)", "p\\1") %>%
                             str_replace_all("Conjonctivite", "Conjunctivitis") %>%
-                            str_replace_all("(ECHOGRAPHIE)|(Echographie)", "Ultrasound")  %>%
-                            str_replace_all("(Blood sample)|(Bilan sanguin)", "Blood test") %>%
+                            str_replace_all("(ECG), Cardiac US, (Chest pain)", "\\1; Ultrasound; \\2") %>%
+                            str_replace_all("(ECHOGRAPHIE)|(echographie)|(^US$)", "Ultrasound") %>%
+                            str_replace_all("([Bb]lood ((sample)|(exams)))|(bilan sanguin)|(BILAN BIOLOGIQUE)", "Blood test") %>%
                             str_replace_all("Conjonctivite", "Conjunctivitis") %>%
                             str_replace_all("Adénopathies cervicales bilatérales non nécrotiques", "Bilateral non-necrotic cervical adenopathy") %>%
+                            str_replace_all("diarrhée", "Diarrhea") %>%
+                            str_replace_all("des bras", "of the arms") %>%
+                            str_replace_all("difficultés alimentaires", "Eating disorders") %>%
+                            str_replace_all(".*panchement articulaire gauche", "Left joint effusion") %>%
+                            str_replace_all("jenoux inflammatoire", "Inflammatory knees") %>%
+                            str_replace_all("nausée", "Inflammatory knees") %>%
+                            str_replace_all(" des genoux", " of the knees") %>%
+                            str_replace_all("s(yndrome) de (Budd-Chiari)", "\\2 s\\1") %>%
                             str_squish() %>%
                             to_title()
                         if (type == 1) {
@@ -495,41 +671,35 @@ l_names <- list.map(list_manif, f(x) ~ list.map(x, f(i, ii) ~ if (ii > 1) list.m
 
 list.map(l_names, f(xx) ~ list.map(list_manif, f(x) ~ list.map(x, f(i, ii) ~ if (ii > 1) list.map(i, f(j) ~ list.map(j, f(k) ~ if (!is.null(k[[xx]])) k[[xx]])))) %>% unlist() %>% unique() %>% sort())
 
- cou$localisation_body_parts %>% 
-     str_replace_all("Axillary", "Lower limbs") %>%
-    str_replace_all("((Digits.*)|(Palms.*))", "Extremities") %>%
-    str_replace_all("((Buttocks)|(Inguinal))", "Seat") %>%
-    str_replace_all("((Neck)|(Scalp)|(Face))", "Head") %>% unique() %>% sort()
-
 
 # cou$localisation_disease_specific %>% str_replace_all(".*[Ee]rythema.*", "Erythema") %>% unique()
 
 # list.search(list_manif, .[grepl(".*[Hh][ée]mipar[ée]si[es] .*", .)], classes = "character", unlist = TRUE)
-l_names0 <- list.map(list_manif, f(x) ~ list.map(x, f(i, ii) ~ if (ii > 1) list.map(i, f(j) ~ list.map(j, f(k) ~ list.map(k, f(l) ~names (l)))))) %>%
+l_names0 <- list.map(list_manif, f(x) ~ list.map(x, f(i, ii) ~ if (ii > 1) list.map(i, f(j) ~ list.map(j, f(k) ~ list.map(k, f(l) ~ names(l)))))) %>%
     unlist() %>%
     unique() %>%
     sort() %>%
     discard(function(x) x %in% seq(10))
 
 # list.map(
-#     l_names0, 
+#     l_names0,
 #     f(i) ~ {
 #          list.map(
-#              list_manif, 
+#              list_manif,
 #              f(x) ~ {
 #                  list.map(
-#                      x, 
+#                      x,
 #                      f(i, ii) ~ {
 #                              if (ii > 1) {
 #                                  list.map(
 #                                      i,
-#                                      f(j) ~ { 
+#                                      f(j) ~ {
 #                                          list.map(
-#                                              j, 
+#                                              j,
 #                                              f(k) ~ {
 #                                                  if (!is.null(k)) {
 #                                                  list.map(
-#                                                      k, 
+#                                                      k,
 #                                                      f(l) ~ if(is.list(l) && !is.null(l[[i]])) l[[i]])
 #                                                  }
 #                                              }
@@ -551,18 +721,17 @@ l_names0 <- list.map(list_manif, f(x) ~ list.map(x, f(i, ii) ~ if (ii > 1) list.
 list.map(
     c(vars, "MUCO"),
     f(x) ~ list.map(
-        list_manif, 
+        list_manif,
         f(i) ~ list.map(
             i[[x]]$manif,
             f(j) ~ list.map(j, f(k) ~ k) %>% compact()
-            ) %>%
-            compact()
         ) %>%
-    compact() %>%
-    unlist() %>%
-    unique() %>% sort()) %>% compact()
-
-# list.map(c(vars, "MUCO"), f(x) ~ list.map(list_manif, f(i) ~ names(i[[x]])) %>% compact()) %>% compact() %>% unlist() %>% unique()
+            compact()
+    ) %>%
+        compact() %>%
+        unlist() %>%
+        unique() %>% sort()
+) %>% compact()
 
 ids <- list.map(
     c(vars, "MUCO"),
@@ -573,10 +742,13 @@ ids <- list.map(
                 list.map(
                     i[[x]]$manif,
                     f(j) ~ list.map(j, f(k) ~ names(k)) %>%
-                        compact()) %>%
+                        compact()
+                ) %>%
                     compact()
-            }) %>% compact()
-    }) %>%
+            }
+        ) %>% compact()
+    }
+) %>%
     compact() %>%
     unlist() %>%
     unique()
@@ -614,19 +786,20 @@ get_manif0 <- function(x, y, z = "manif", pattern = ".*", l = list_manif) {
 }
 
 get_occ_list <- function(x, fx = function(x) x) {
-    vars <- unlist(x) %>% 
-        fx() %>% 
+    vars <- unlist(x) %>%
+        fx() %>%
         unique() %>%
-        sort() %>% 
+        sort() %>%
         discard(function(x) str_detect(x, "^\\d*$")) %>%
         discard(function(x) str_detect(x, "^Other$"))
     list.map(vars, f(i) ~ {
-        list.mapv(x, f(j) ~ { 
+        list.mapv(x, f(j) ~ {
             i <- str_remove_all(i, "\\s*\\([^\\)]+\\)")
             j <- unlist(j) %>% fx()
-            if(length(j) < 1) FALSE else any(str_detect(j, i))
+            if (length(j) < 1) FALSE else any(str_detect(j, i))
         }) %>% as.numeric()
-    }) %>% list_cbind0() %>% 
+    }) %>%
+        list_cbind0() %>%
         set_rownames(names(x))
 }
 ```
@@ -640,37 +813,38 @@ get_occ_list <- function(x, fx = function(x) x) {
 (vars1 <- list.map(
     c(vars, "MUCO"),
     f(x) ~ list.map(
-        list_manif, 
+        list_manif,
         f(i) ~ list.map(
             i[[x]]$manif,
             f(j) ~ list.map(j, f(k) ~ names(k)) %>% compact()
-            ) %>%
-            compact()
         ) %>%
-    compact() %>%
-    unlist() %>%
-    unique()) %>% compact())
+            compact()
+    ) %>%
+        compact() %>%
+        unlist() %>%
+        unique()
+) %>% compact())
 # $NEURO
-# [1] "diagnosis"  "laterality" "type"      
-# 
+# [1] "diagnosis"  "laterality" "type"
+#
 # $MUSCU
 # [1] "diagnosis"        "diag_description"
-# 
+#
 # $CARDIO
-# [1] "diagnosis"    "localisation" "laterality"  
-# 
+# [1] "diagnosis"    "localisation" "laterality"
+#
 # $PULMO
 # [1] "diagnosis"
-# 
+#
 # $GASTRO
 # [1] "diagnosis"
-# 
+#
 # $ENT
 # [1] "diagnosis"
-# 
+#
 # $OPHTALMO
 # [1] "diagnosis"
-# 
+#
 # $HAEMATO
 # [1] "diagnosis"    "pain"         "localisation"
 ```
@@ -680,17 +854,19 @@ get_occ_list <- function(x, fx = function(x) x) {
 list.map(
     unlist(vars0) %>% unique(),
     f(i) ~ {
-    list.map(
-        c(vars, "MUCO"),
-        f(x) ~ {
-            list.map(
-                list_manif, 
-                f(y) ~ list.map(y[[x]][[i]], ~names(.))
-            ) %>% compact() %>%
-        unlist() %>%
-        unique() %>%
-        discard(function(x) str_detect(x, "^\\d*$"))
-    }) %>% compact()
+        list.map(
+            c(vars, "MUCO"),
+            f(x) ~ {
+                list.map(
+                    list_manif,
+                    f(y) ~ list.map(y[[x]][[i]], ~ names(.))
+                ) %>%
+                    compact() %>%
+                    unlist() %>%
+                    unique() %>%
+                    discard(function(x) str_detect(x, "^\\d*$"))
+            }
+        ) %>% compact()
     }
 )
 
@@ -702,7 +878,14 @@ list.map(list_manif, f(i) ~ list.map(i[["MUCO"]]$manif, f(j) ~ names(j))) %>%
     unlist() %>%
     unique() -> ids
 var_names1 <- c("Active manifestation", "Affected body parts", "Specific disease", "Configuration", "Other signs", "Non-active manifestation")
-l_muco <- list.map(ids, f(i, j) ~ get_manif("MUCO", i) %>% get_occ_list())
+l_muco <- list.map(ids, f(i, j) ~ get_manif("MUCO", i) %>% get_occ_list(
+    fx = function(x) {
+        str_replace_all(x, "Axillary", "Lower limbs") %>%
+            str_replace_all("((Digits.*)|(Palms.*))", "Extremities") %>%
+            str_replace_all("((Buttocks)|(Inguinal))", "Seat") %>%
+            str_replace_all("((Neck)|(Scalp)|(Face))", "Head")
+    }
+))
 colnames(l_muco$localisation_body_parts) <- str_replace_all(colnames(l_muco$localisation_body_parts), "(.*) =.*", "\\1")
 
 names(l_muco) %in% c("active_description", "localisation_body_parts", "localisation_disease_specific", "localisation_configuration", "localisation_other_signs", "non_active_description") %>%
@@ -720,14 +903,15 @@ names(l_muco) %in% c("active_description", "localisation_body_parts", "localisat
             )
         }
     ) %>%
-    list.sort(nrow(.$data)) %>% rev() %>%
-plot_grid(
-    plotlist = .,
-    align = "hv",
-    nrow = 3,
-    ncol = 2,
-    rel_heights = c(1.5, 1, 0.55)
-)
+    list.sort(nrow(.$data)) %>%
+    rev() %>%
+    plot_grid(
+        plotlist = .,
+        align = "hv",
+        nrow = 3,
+        ncol = 2,
+        rel_heights = c(1.5, 1, 0.55)
+    )
 
 titles <- c("Active manifestation", "N. of manifestation", "Distribution", "Symetry", "Exposition")
 names(l_muco) %in% c("is_active", "localisation_number_lesion", "localisation_distribution", "localisation_symetry", "localisation_exposition") %>%
@@ -798,8 +982,8 @@ list.map(list_manif, f(i) ~ list.map(i[[x]]$manif, f(j) ~ names(j))) %>%
 l_manif <- list.map(ids, f(i, j, k) ~ get_manif(x, i) %>%
     get_occ_list(
         fx = function(x) {
-            str_replace_all(x, "(.*[Ii]nterphalangeal.*)|(Metacarpophalangeal.*)|(Hands)|(Wrist)", "Hand") %>%
-                str_replace_all("(Metatarsophalangeal.*)|(Ankle)", "Foot") %>%
+            str_replace_all(x, "(.*interphalangeal.*)|(Metacarpophalangeal.*)|(Hands)|(Wrist)", "Hand") %>%
+                str_replace_all("(Metatarsophalangeal.*)|(Ankle)|(^Interphalangeal.*)", "Foot") %>%
                 str_replace_all("(Pubis)|(Hip)|(Sacroiliac)", "Pelvis") %>%
                 str_replace_all("clavicular?", "Shoulder") %>%
                 str_replace_all("(femoral)|(.*tibia).*", "Inferior limb") %>%
@@ -833,45 +1017,43 @@ names(l_manif) %in% c("localisation", "manif") %>%
 list.map(
     unlist(vars1) %>% unique() %>% sort() %>% .[-1],
     f(i) ~ {
-         res <- get_manif0(x, i)
-         if(compact(res) %>% length() %>% `>`(0)) {
-        get_occ_list(
-            res,
-            fx = function(x)
-                str_replace_all(x, "(Clinical )?[Ee]xamination", "Clinically")  %>%
-                str_replace_all("(ECHOGRAPHIE)|(Echographie)", "Ultrasound")  %>%
-                str_replace_all("(Blood sample)|(Bilan sanguin)", "Blood test")
-                # str_remove_all(".*\\: ")
-        ) %>%
-        plot_bar_mcat(
-            collapse = TRUE,
-            cex = 8,
-            width_text = 30,
-            n_collapse = 5,
-            ratio = 5,
-            title = to_title(i)
-        )
-     }
+        res <- get_manif0(x, i)
+        if (compact(res) %>% length() %>% `>`(0)) {
+            get_occ_list(
+                res # ,
+                # fx = function(x)
+                # str_remove_all(x, ".*\\: ")
+            ) %>%
+                plot_bar_mcat(
+                    collapse = TRUE,
+                    cex = 8,
+                    width_text = 30,
+                    n_collapse = 5,
+                    ratio = 5,
+                    title = to_title(i)
+                )
+        }
     }
-    ) %>% compact() -> p2
+) %>% compact() -> p2
 
-y = "localisation"
+y <- "localisation"
 get_manif0(x, y) %>%
-get_occ_list(
-    fx = function(x)
-        str_remove_all(x, "\\:.*")
-) %>%
-plot_bar_mcat(
-    collapse = TRUE,
-    cex = 8,
-    width_text = 20,
-    ratio = 5,
-    title = to_title(y)
-) -> p5
+    get_occ_list(
+        fx = function(x) {
+            str_remove_all(x, "\\:.*")
+        }
+    ) %>%
+    plot_bar_mcat(
+        collapse = TRUE,
+        cex = 8,
+        width_text = 20,
+        ratio = 5,
+        title = to_title(y)
+    ) -> p5
 
-y = "laterality"
+y <- "laterality"
 get_manif0(x, y) %>%
-get_occ_list() %>%
+    get_occ_list() %>%
     mutate(`NA` = rowSums(.) %>% `==`(0) %>% as.numeric()) %>%
     plot_pie(
         cex = 15,
@@ -880,54 +1062,55 @@ get_occ_list() %>%
         colour = c(get_colors()[c(1, 4, 2)], "gray"),
         title = to_title(y),
         legend = TRUE,
-        t = -0.9,#.75,
+        t = -0.9, # .75,
         width_title = 30,
         width_text = 30
-)
+    )
 
 list.map(
     c("symptom", "frequency"),
     f(i) ~ {
         res <- get_manif(x, i, "symptom")
-         if(compact(res) %>% length() %>% `>`(0)) {
+        if (compact(res) %>% length() %>% `>`(0)) {
             get_occ_list(
                 res,
-                 fx = function(x) {
-                     str_replace_all(x, "(Arthralgia).*", "\\1") %>%
-                     str_replace_all(".*pros?thesis.*", "Prosthesis") %>%
-                     str_replace_all(".*a(rthrosis).*", "A\\1")
-                 }
+                fx = function(x) {
+                    str_replace_all(x, "(Arthralgia).*", "\\1") %>%
+                        str_replace_all(".*pros?thesis.*", "Prosthesis") %>%
+                        str_replace_all(".*a(rthrosis).*", "A\\1")
+                }
             ) %>%
-            select(-contains(c("Other", "None", "Pains"))) %>%
-            plot_bar_mcat(
-                collapse = TRUE,
-                cex = 8,
-                width_text = 30,
-                ratio = 5,
-                title = to_title(i)
-            ) 
-         }
-        }) %>% compact() -> p3
-            
-y <- "frequency"     
+                select(-contains(c("Other", "None", "Pains"))) %>%
+                plot_bar_mcat(
+                    collapse = TRUE,
+                    cex = 8,
+                    width_text = 30,
+                    ratio = 5,
+                    title = to_title(i)
+                )
+        }
+    }
+) %>% compact() -> p3
+
+y <- "frequency"
 get_manif(x, y, "symptom") %>%
     get_occ_list() %>%
     mutate(`NA` = rowSums(.) %>% `==`(0) %>% as.numeric()) %>%
     plot_pie(
-    cex = 15,
-    digits = 1,
-    hsize = 1.5,
-    colour = c(get_colors()[c(1, 3)], "gray"),
-    title = to_title(y),
-    legend = TRUE,
-    t = -0.9,#.75,
-    width_title = 30,
-    width_text = 10
-) -> p6
-# "aneurysm"   
+        cex = 15,
+        digits = 1,
+        hsize = 1.5,
+        colour = c(get_colors()[c(1, 3)], "gray"),
+        title = to_title(y),
+        legend = TRUE,
+        t = -0.9, # .75,
+        width_title = 30,
+        width_text = 10
+    ) -> p6
+# "aneurysm"
 # $`7024`$`1`
 # [1] "Aortic"
-# 
+#
 # $`16001`$`1`
 # [1] "Aortic"
 
@@ -935,7 +1118,7 @@ get_manif(x, y, "symptom") %>%
 # $`17002`$`1`
 # [1] "40"
 
-# "pulm_hyp" 
+# "pulm_hyp"
 # $`10004`$`1`
 # [1] "80"
 
@@ -943,32 +1126,31 @@ list.map(
     c("sequellae", "laterality"),
     f(i) ~ {
         res <- get_manif(x, i, "sequellae")
-         if(compact(res) %>% length() %>% `>`(0)) {
+        if (compact(res) %>% length() %>% `>`(0)) {
             get_occ_list(
                 res,
-                 fx = function(x) {
-                     str_replace_all(x, "(Arthralgia).*", "\\1") %>%
-                     str_replace_all(".*pros?thesis.*", "Prosthesis") %>%
-                     str_replace_all(".*a(rthrosis).*", "A\\1") %>%
-                     str_replace_all(".*(ypertension)", "H\\1") %>%
-                     str_replace_all(".*Mal de gorge$", "Sore throat") %>%
-                     str_replace_all("Conjonctivite", "Conjunctivitis") %>%
-                     str_replace_all("Adénopathies cervicales bilatérales non nécrotiques", "Bilateral non-necrotic cervical adenopathy")
-                 }
+                fx = function(x) {
+                    str_replace_all(x, "(Arthralgia).*", "\\1") %>%
+                        str_replace_all(".*pros?thesis.*", "Prosthesis") %>%
+                        str_replace_all(".*a(rthrosis).*", "A\\1") %>%
+                        str_replace_all(".*(ypertension)", "H\\1")
+                }
             ) %>%
-            select(-contains(c("None", "Pains"))) %>%
-            plot_bar_mcat(
-                collapse = TRUE,
-                cex = 8,
-                width_text = 30,
-                n_collapse = 6,
-                ratio = 5,
-                title = to_title(i)
-            ) 
-         }
-        }) %>% compact() -> p4
+                select(-contains(c("None", "Pains"))) %>%
+                plot_bar_mcat(
+                    collapse = TRUE,
+                    cex = 8,
+                    width_text = 30,
+                    n_collapse = 6,
+                    ratio = 5,
+                    title = to_title(i)
+                )
+        }
+    }
+) %>% compact() -> p4
 
-list_p <- c(p, p2, p3, p4, list(p5)) %>% compact() %>%
+list_p <- c(p, p2, p3, p4, list(p5)) %>%
+    compact() %>%
     list.sort(nrow(.$data)) %>%
     rev()
 length(list_p)
@@ -979,23 +1161,30 @@ plot_grid(
     ncol = 3,
     rel_heights = c(1.5, 1)
 )
+
+
+ids <- l_manif[["manif"]][apply(l_manif[["manif"]] != 0, 1, any), , drop = FALSE]
+clinic %>%
+    mutate(ID = as.numeric(C_2643_3796)) %>%
+    filter(ID %in% rownames(ids)) %>%
+    get_metadata(col = c("C_2686_4014", "C_2686_4015", "C_2686_4016"))
+# select(c(ID, C_2643_3798)) %>% write_tsv("temp.tsv")
 ```
 
 ## Pie charts
 ```{r}
 titles <- c("Is active?", "Chronicity", "Distribution", "N. of manifestation", "Laterality")
-l_manif0 <- names(l_manif) %in% c("is_active", "active_description", "type", "non_active_description",  "laterality") %>%
+l_manif0 <- names(l_manif) %in% c("is_active", "active_description", "type", "non_active_description", "laterality") %>%
     l_manif[.]
 
 p1 <- l_manif0 %>%
-        lapply(. %>% mutate(., `NA` = rowSums(.) %>% `==`(0) %>% as.numeric())) %>%
+    lapply(. %>% mutate(., `NA` = rowSums(.) %>% `==`(0) %>% as.numeric())) %>%
     list.map(
         f(i, j, k) ~ {
             colour <- c(get_colors()[c(3, 1)], "gray")
             if (k == "is_active") {
                 legend <- c("Yes", "No")
-            } else
-            if (k == "active_description") {
+            } else if (k == "active_description") {
                 colour <- colour <- c(brewer_pal(, "Reds")(9)[c(3, 6, 9)], "gray")
                 legend <- c("First episode", "Recurrent", "Continuous", "NA")
             } else {
@@ -1018,12 +1207,12 @@ p1 <- l_manif0 %>%
     )
 
 list_p <- c(p1, list(p6)) %>% compact()
-    plot_grid(
-        plotlist = list_p,
-        align = "hv",
-        nrow = 1,
-        ncol = length(list_p)
-    )
+plot_grid(
+    plotlist = list_p,
+    align = "hv",
+    nrow = 1,
+    ncol = length(list_p)
+)
 ```
 
 
@@ -1049,8 +1238,6 @@ list.map(c("manif", "symptom", "sequellae"), f(z) ~ {
             sort()) %>%
         compact()
 })
-
-
 ```
 
 ```{r}
@@ -1130,4 +1317,31 @@ align_plots(plotlist = p, align = "vh") %>%
     )
 # ((colSums(temp0) / nrow(temp0)) * 100) %>% round(1)
 # align_plots(plotlist = c(p2[-1], p2[1])) %>% plot_grid(plotlist = ., align = "vh", nrow = 4, ncol = 2, labels = LETTERS, rel_heights = c(rep(1, 3), 1.5))
+```
+
+# Per disease
+```{r}
+ids <- list.map(vars, f(y) ~ get_manif0(y, "diagnosis", l = list_manif)) %>%
+    unlist() %>%
+    unique() %>%
+    discard(function(x) x == "Chest pain")
+res <- list.map(
+    ids,
+    f(x) ~ {
+        list.mapv(
+            list_manif,
+            f(y) ~ {
+                list.search(y, . == x, unlist = TRUE) %>%
+                    discard(function(x) x == "FALSE") %>%
+                    length() %>%
+                    `>`(0) %>%
+                    as.numeric()
+            }
+        )
+    }
+) %>% list.cbind()
+apply(res, 2, sum) %>% plot_bar(
+    colour = c("#99000d", "gray"),
+    threshold = 5
+)
 ```
