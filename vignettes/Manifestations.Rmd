@@ -25,6 +25,11 @@ clinic <- read_batches() %>%
     formate_immunaid()
 clinic_code <- read_batches(, "codes")
 
+modified_disease <- read_tsv(file.path(golem::get_golem_wd(), "inst", "extdata", "modified_disease.txt")) %>% arrange(ID)
+
+clinic <- filter(clinic, !C_2643_3796 %in% c("06055", "06058", "06063"))
+clinic[which(as.numeric(clinic$C_2643_3796) %in% modified_disease$ID), "C_2643_3798"] <-  modified_disease$Disease
+
 var_na <- c(
     "none",
     "None",
@@ -127,12 +132,16 @@ clinic0 <- mutate(
         str_replace_all("Adult.*", "AOSD") %>%
         str_replace_all("Systemic.*", "SOJIA") %>%
         str_replace_all("Chronic.*", "CRO") %>%
-        str_replace_all("Inflammation.*", "IUO")
+        str_replace_all("Inflammation.*", "IUO") %>%
+        str_replace_all("Pediatric.*", "MIS-C")
 ) %>% filter(!str_detect(C_2643_3798, "control"))
 
 n <- pull(clinic0, C_2643_3798) %>%
     fct_count() %>%
     rename(n_tot = n)
+
+disease_to_remove <- filter(n, n_tot == 1) %>% pull(f) %>% as.character()
+clinic0 <- filter(clinic0, !C_2643_3798 %in% disease_to_remove)
 
 # Bar plot
 per_manif <- list.map(
@@ -235,8 +244,8 @@ per_disease_perc <- mapply(function(x, y) x * 100 / y, per_disease0, sample_size
 # )
 sample_size0 <- left_join(data.frame(f = diseases), n) %>% pull(n_tot)
 par(mfrow = c(2, 4))
-for (x in seq_along(diseases)) {
-    per_disease_perc[, diseases[x]] %>%
+for (x in seq_along(diseases0[9:16])) {
+    per_disease_perc[, diseases0[9:16][x]] %>%
         set_names(
             names(.) %>%
                 str_replace_all("(Musculo)(skeletal)", "\\1- \\2")
@@ -251,7 +260,7 @@ for (x in seq_along(diseases)) {
             cex_sub = 1,
             width_text = 5,
             colour = GimmeMyPlot:::palette_discrete()[x],
-            title = paste0(diseases[x], ", N = ", sample_size0[x])
+            title = paste0(diseases0[9:16][x], ", N = ", sample_size0[9:16][x])
         )
 }
 # dev.off()
@@ -1320,7 +1329,7 @@ align_plots(plotlist = p, align = "vh") %>%
 
 # Per disease
 ```{r}
-vars <- c(vars, "MUCO")
+vars <- c("MUCO", vars)
 titles <- filter(clinic_code[[1]], column_code %in% vars) %>%
     pull(item_name) %>%
     str_replace("(\\d{1,2}. )", "") %>%
@@ -1354,7 +1363,7 @@ apply(res, 2, sum) %>% plot_bar(
 )
 
 manifs <- list.map(
-    vars[-11], f(y) ~ {
+    vars[-1], f(y) ~ {
         get_manif(y, "manif", l = list_manif) %>%
             unlist() %>%
             unique() %>% 
@@ -1370,20 +1379,24 @@ manifs <- list.map(
     list(MUCO = .), .
     ) %>% set_names(titles)
 
-ids <- list.map(
-    c("manif", "active_description"),
+symptoms <- list.map(
+    c("symptom", "sequellae"),
     f(x) ~{
-        list.map(vars, f(y) ~ get_manif(y, x, l = list_manif))
+        list.map(vars, f(y) ~ get_manif(y, x, x, l = list_manif) %>%
+    unlist() %>%
+    unique() %>% 
+    sort()) %>% set_names(titles)
     }
-)  %>%
+)
+ids <- c(symptoms, list(manifs)) %>%
     unlist() %>%
     unique() %>% 
     sort() %>%
-    discard(function(x) x %in% c("First episode", "Recurrent", "Continuous"))
+     discard(function(x) x %in% c("Arthralgia of the arms", "Des chevilles", "No", "None"))
 ids <- list(
     c("Multiple", "Unique"),
     c("First episode", "Recurrent", "Continuous"),
-    unlist(ids)
+    c(ids)
 )
 res <- list.map(
     ids,
@@ -1394,7 +1407,8 @@ res <- list.map(
         list.mapv(
             list_manif,
             f(y) ~ {
-                list.search(y, . == x, unlist = TRUE) %>%
+                list.search(y, str_remove_all(., ".*: ") %>%
+            str_remove_all(" \\(.*") == x, unlist = TRUE) %>%
                     discard(function(x) x == "FALSE") %>%
                     length() %>%
                     `>`(0) %>%
@@ -1406,25 +1420,19 @@ res <- list.map(
         })
 titles <- c("Non active manifestations", "Chronicity")
 colors <- list(get_colors()[c(3, 1)], brewer.pal(4, "Reds")[-1])
-list.map(
+p <- list.map(
     seq(2),
     f(i) ~{
     apply(res[[i]], 2, sum) %>%
     list.map(f(x, y, z) ~ rep(z, x)) %>% unlist() %>% 
     plot_bar_mcat(
         colour = colors[[i]], 
-        sample_size = 450,
+        sample_size = nrow(clinic0),
         title = titles[i],
         width_title = 50,
         hjust_title = 0.5
     )
     }
-) %>%
-    plot_grid(
-    plotlist = .,
-    align = "hv",
-    nrow = 1,
-    ncol = 2
 )
 
 apply(res[[2]], 2, sum) %>%
@@ -1435,24 +1443,46 @@ apply(res[[2]], 2, sum) %>%
         title = "Non active manifestations",
         width_title = 50
     )
-stat_manifs <- apply(res[[3]], 2, sum) %>% sort()
-manif_cat <- list.mapv(names(stat_manifs), f(x) ~ list.which(manifs, f(y) ~ str_detect(x, y) %>% any())) %>% rev()
+res0 <- res[[3]] %>% as.data.frame() %>% mutate(`Abdominal pain` = ifelse(`Abdominal pain` == 1 | `Acute abdomen` == 1, 1, 0)) %>% select(-`Acute abdomen`)
+stat_manifs <- apply(res0, 2, sum) %>% sort(TRUE) %>% head(10)
+manif_cat <- names(stat_manifs) %>%
+    list.mapv(
+        f(x) ~ {
+            tmp <- list.which(manifs, f(y) ~ str_detect(x, y) %>% any())
+            if (length(tmp) == 0) {
+                tmp <- list.which(symptoms[[1]], f(y) ~ if (!is.null(y)) str_detect(x, y) %>% any())
+            }
+            if (length(tmp) == 0) {
+                tmp <- list.which(symptoms[[2]], f(y) ~ if (!is.null(y)) str_detect(x, y) %>% any())
+            }
+            return(tmp)
+            }
+        )
 # %>% titles[.] 
-plot_bar(
+p2 <- plot_bar(
     stat_manifs,
-    colour = GimmeMyPlot:::palette_discrete()[manif_cat[seq(10)]], 
-    sample_size = 450,
+    colour = GimmeMyPlot:::palette_discrete()[manif_cat], 
+    sample_size = nrow(clinic0),
     title = "Manifestations",
     width_title = 50,
-    n_max = 10
+    cex = 1.4
+)
+plot_grid(
+    plotlist = c(p, list(p2)),
+    align = "hv",
+    nrow = 3,
+    rel_heights = c(1, 1.1, 2.5)
 )
 
-
 clinic0 <- mutate(clinic0, C_2643_3796 = as.numeric(C_2643_3796)) %>% select(c(C_2643_3796, C_2643_3798))
-res1 <- as.data.frame(res[[3]]) %>% rownames_to_column("C_2643_3796") %>% mutate( C_2643_3796 = as.numeric(C_2643_3796)) %>% right_join(clinic0)
+res1 <- as.data.frame(res0) %>% rownames_to_column("C_2643_3796") %>% mutate( C_2643_3796 = as.numeric(C_2643_3796)) %>% right_join(clinic0)
+sample_size <- pull(clinic0, C_2643_3798) %>%
+    fct_count() %>%
+    arrange(desc(n)) %>% 
+    pull(n)
 p <- list.map(
     diseases0,
-    f(x) ~{
+    f(x, y) ~{
         res2 <- filter(res1, C_2643_3798 == x) %>% 
             select(-c(C_2643_3796, C_2643_3798)) %>%
             set_colnames(
@@ -1462,16 +1492,27 @@ p <- list.map(
                 )
         stat_manifs <- apply(res2, 2, sum) %>% 
             sort(TRUE) %>%
-            discard(function(x) x == 0)
-         manif_cat <- names(stat_manifs) %>%
-             list.mapv(f(x) ~ list.which(manifs, f(y) ~ str_detect(x, y) %>% any())) %>%
+            discard(function(x) x == 0)  %>%
              head(10)
+         manif_cat <- names(stat_manifs) %>%
+    list.mapv(
+        f(x) ~ {
+            tmp <- list.which(manifs, f(y) ~ str_detect(x, y) %>% any())
+            if (length(tmp) == 0) {
+                tmp <- list.which(symptoms[[1]], f(y) ~ if (!is.null(y)) str_detect(x, y) %>% any())
+            }
+            if (length(tmp) == 0) {
+                tmp <- list.which(symptoms[[2]], f(y) ~ if (!is.null(y)) str_detect(x, y) %>% any())
+            }
+            return(tmp)
+            }
+        )
          if (!is.null(manif_cat))
          plot_bar(
             stat_manifs,
             colour = GimmeMyPlot:::palette_discrete()[manif_cat], 
             sample_size = nrow(res2),
-            title = x,
+            title = paste0(x, ", N = ", sample_size[y]),
             width_title = 50,
             n_max = 10,
             ratio = 4
