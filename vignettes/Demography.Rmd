@@ -1,0 +1,381 @@
+---
+title: "Demography"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Demography}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+    collapse = TRUE,
+    comment = "#>"
+)
+```
+
+```{r setup}
+library(MultiOmics4ImmunAID)
+```
+
+# Load data
+```{r, eval = FALSE}
+clinic0 <- read_batches()
+clinic <- Reduce(rbind, clinic0) %>%
+    formate_immunaid()
+clinic_code <- read_batches(, "codes")
+```
+
+# Disease
+```{r}
+clinic$C_2643_3798 %>%
+    str_remove_all(" \\(.*\\)") %>%
+    plot_bar_mcat(
+        collapse = TRUE,
+        width_text = 50,
+        ratio = 10,
+        cex = 8
+    )
+```
+
+# Batch
+```{r}
+lapply(clinic0, function(x) pull(x, C_2643_3796) %>% sort()) %>%
+    set_names(seq(5)) %>%
+    plot_venn(
+        cex = 2,
+        colour = brewer.pal(6, "Blues")[-1],
+        cex_main = 12
+    )
+
+sapply(clinic0, nrow) %>%
+    mapply(function(x, y) rep(x, y), seq(5), .) %>%
+    unlist() %>%
+    plot_pie(
+        cex = 25,
+        colour = brewer.pal(6, "Blues")[-1],
+        sort = FALSE,
+        format = FALSE
+    )
+```
+
+# Center
+```{r}
+clinic_tot$C_2643_3797 %>%
+    str_remove_all("\\d{2} - ") %>%
+    str_remove_all(" \\(.*\\)") %>%
+    str_remove_all("AP-HP [–-] ") %>%
+    # str_replace_all("(AP-HP) [–-] (.*)", "\\2 (\\1)") %>%
+    str_replace_all("(HC|CR?HU) (.*) [–-] ?(.*)", "\\3 (\\2)") %>%
+    str_replace_all("(La Pitié-Salpêtrière) – (.*)", "\\1 (\\2)") %>%
+    plot_bar_mcat(
+        collapse = TRUE,
+        width_text = 25,
+        ratio = 1,
+        cex = 15,
+        n_max = 5,
+        colour = c(
+            "#67000D",
+            "#9D0D14",
+            "#67000D",
+            "#67000D",
+            "#67000D"
+        )
+    )
+```
+
+# Map
+```{r}
+library(raster)
+library(tmap)
+library(tmaptools)
+library(dplyr)
+library(forcats)
+library(stringr)
+library(magrittr)
+
+data(world, package = "spData", envir = environment())
+
+countries_db <- clinic %>%
+    # filter(str_detect(C_2643_3798, "AOSD|SOJIA")) %>%
+    mutate(
+        country = case_when(
+            str_detect(C_2643_3797, "Paris|Bordeaux|Nantes|Lyon|Lille|Strasbourg") ~ "France",
+            str_detect(C_2643_3797, "Madrid|Barcelona") ~ "Spain",
+            str_detect(C_2643_3797, "Leuven") ~ "Belgium",
+            str_detect(C_2643_3797, "Rotterdam") ~ "Netherlands",
+            str_detect(C_2643_3797, "Athens") ~ "Greece",
+            str_detect(C_2643_3797, "Roma|Milan|Sienna|Padova") ~ "Italy",
+            str_detect(C_2643_3797, "Geneva|Lausanne") ~ "Switzerland",
+            str_detect(C_2643_3797, "Ankara|Istanbu") ~ "Turkey",
+            str_detect(C_2643_3797, "Münster|Berlin") ~ "Germany",
+            str_detect(C_2643_3797, "Leeds") ~ "UK",
+            str_detect(C_2643_3797, "Lubljana") ~ "Slovenia",
+            TRUE ~ C_2643_3797
+        )
+    ) %>%
+    pull(country) %>%
+    fct_count() %>%
+    set_colnames(c("Country", "Nb. of samples")) %>%
+    merge(
+        world,
+        .,
+        by.x = 2,
+        by.y = 1
+    )
+
+space <- bb(matrix(c(10, 52, -7, 42), 2, 2))
+fr <- getData("GADM", country = "FRA", level = 3)
+
+cities <- clinic %>%
+    # filter(str_detect(disease, "osteitis")) %>%
+    pull(C_2643_3797) %>%
+    str_replace_all(".\\((.)\\)$", "\\1") %>%
+    fct_count() %>%
+    set_colnames(c("Cities", "Nb. of samples")) %>%
+    mutate(city = Cities)
+
+keys <- c("Strasbourg", "Paris")
+values <- c("Strasbourg-Ville", "Paris, 1er arrondissement")
+for (i in seq(keys)) {
+    cities$Cities <- str_replace_all(cities$Cities, keys[i], values[i])
+}
+cities <- merge(
+    fr,
+    cities,
+    by.x = 10,
+    by.y = 1
+)
+
+plot_map <- function(x,
+                     db,
+                     y = "name_long",
+                     space = NULL,
+                     cex = 1,
+                     legend.position = c("left", "top"),
+                     label = TRUE,
+                     except = NULL) {
+    if (label) {
+        x <- mutate(x, n = !!sym(y))
+        if (!is.null(except)) {
+            x <- mutate(x, n = ifelse(name_long %in% except, "", n))
+        }
+    }
+    p <- tm_shape(db, bbox = space) +
+        tm_borders(col = "gray30", alpha = 0.5, lwd = 2) +
+        tm_shape(x) +
+        tm_fill(col = "Nb. of samples", id = y, style = "cat", palette = "Reds") +
+        tm_layout(
+            title = "",
+            legend.text.size = 1.5 * cex,
+            legend.title.size = 2 * cex,
+            legend.position = legend.position,
+            legend.title.color = "gray30",
+            legend.text.color = "gray30",
+            legend.show = FALSE
+        ) +
+        tm_borders(col = "gray30", alpha = 0.5, lwd = 2)
+    if (label) {
+        p + tm_text("n", size = 2 * cex, just = c("center", "center"))
+    } else {
+        p
+    }
+}
+
+plot_map(
+    countries_db,
+    world,
+    space = bb(matrix(c(20, 55, -10, 35), 2, 2)),
+    label = FALSE
+)
+plot_map(
+    countries_db,
+    world,
+    space = bb(matrix(c(35, 55.5, -10, 35), 2, 2)),
+    cex = 1.2,
+    y = "Nb. of samples",
+    except = c("France", "Greece", "Turkey")
+)
+plot_map(
+    cities,
+    fr,
+    "city",
+    space = bb(matrix(c(10, 52, -7, 42), 2, 2))
+) +
+    tm_bubbles(size = "Nb. of samples", col = "red")
+```
+
+# Age, BMI
+```{r}
+# clinic$C_2649_3889[which.max(clinic$C_2649_3890)] <- 170
+# clinic$C_2649_3890[which.max(clinic$C_2649_3890)] <- 22.2
+age <- interval(
+    (complete_date(clinic$C_2643_3800) %>% dmy()),
+    (complete_date(clinic$C_2643_3802) %>% dmy())
+) / years(1)
+
+clinic <- mutate(clinic, age_first_symptom = age)
+clinic(str_wich)
+ifelse(age >= 18, "Adult", "Chidren") %>% fct_count()
+plot_grid(
+    plotlist = list(
+        plot_violin(
+            age,
+            title = "Age",
+            colour = brewer.pal(8, "Set2")[5],
+            cex = 1.2,
+            pch_size = 3,
+            pch_alpha = 0.25,
+            coef = 1.5
+        ),
+        plot_violin(
+            clinic$C_2649_3890,
+            title = "BMI",
+            colour = brewer.pal(8, "Set2")[6],
+            cex = 1.2,
+            pch_size = 3,
+            pch_alpha = 0.25,
+            coef = 1.5
+        )
+    ),
+    align = "hv",
+    nrow = 1,
+    ncol = 2
+)
+
+plot_grid(
+    plotlist = list(
+        plot_violin(
+            clinic$C_2643_3803,
+            title = "Age at inclusion",
+            colour = brewer.pal(10, "Set3")[10],
+            cex = 1.2,
+            pch_size = 3,
+            pch_colour = "gray20",
+            pch_alpha = 0.25,
+            coef = 1.5
+        ),
+        plot_violin(
+            clinic$C_2643_3804,
+            title = "Weight",
+            colour = get_colors()[5],
+            cex = 1.2,
+            pch_size = 3,
+            pch_colour = "gray20",
+            pch_alpha = 0.25,
+            coef = 1.5
+        ),
+        plot_violin(
+            clinic$C_2649_3889,
+            title = "Height",
+            colour = get_colors()[8],
+            cex = 1.2,
+            pch_size = 3,
+            pch_colour = "gray20",
+            pch_alpha = 0.25,
+            coef = 1.5
+        )
+    ),
+    align = "hv",
+    nrow = 1,
+    ncol = 3
+)
+
+
+# Outliers for BMI
+filter(clinic, C_2649_3890 > 40) %>% select(C_2643_3803)
+filter(clinic, C_2649_3890 < 18) %>%
+    select(C_2643_3803) %>%
+    arrange(C_2643_3803)
+
+# clinic$C_2649_3888[which(clinic$C_2643_3796 %in% c("04046", "07023", "21007"))] <- c("Female", rep("Male", 2))
+plot_grid(
+    plotlist = list(
+        plot_pie(
+            clinic$C_2649_3895,
+            colour = c("#eaaab0", "#af3e40"),
+            cex = 40,
+            digits = 1,
+            hsize = 1.5,
+            title = "",
+            legend = FALSE
+        )
+    ),
+    plot_pie(
+        clinic$C_2649_3888,
+        colour = c("#38bcbd", "#3438a7"),
+        cex = 40,
+        digits = 1,
+        hsize = 1.5,
+        title = "",
+        legend = FALSE
+    ),
+    align = "hv",
+    nrow = 1,
+    ncol = 2
+)
+
+# Age
+df_years <- mutate(
+    clinic,
+    years = cut(
+        age_first_symptom,
+        breaks = seq(0, 100, 10),
+        right = FALSE
+    )
+) %>% drop_na(C_2649_3888)
+df_year_gender <- unique(clinic$C_2649_3888) %>%
+    na.omit() %>%
+    list.map(f(i) ~ {
+        fct_count(subset(df_years, C_2649_3888 == i)$years) %>%
+            mutate(perc = (n / sum(n) * 100) %>% round(1), Gender = i)
+    })
+df_year_gender[[1]]$n <- -df_year_gender[[1]]$n
+df_year_gender <- list.stack(df_year_gender)
+df_year_gender <- df_years$years %>%
+    fct_count() %>%
+    right_join(df_year_gender, by = "f")
+# Age pyramid
+ggplot(df_year_gender, aes(x = n.y, y = f, fill = Gender)) +
+    geom_col(width = 0.95, alpha = 0.75) +
+    geom_text(
+        aes(label = ifelse(Gender == "Male", n.x, "")),
+        hjust = -1,
+        color = "gray",
+        size = 5
+    ) +
+    theme_minimal(base_family = "Verdana", base_size = 18) +
+    scale_fill_manual(values = c("#3438a7", "#38bcbd")) +
+    scale_x_continuous(
+        name = "Count",
+        labels = abs,
+        expand = c(0.1, 0)
+    ) +
+    scale_y_discrete(
+        name = "Age (decades)",
+        labels = function(x) {
+            str_remove_all(x, "\\[|\\)") %>% str_replace_all(",", "-")
+        }
+    )
+```
+
+# Samples per years
+```{r}
+plot_date(clinic$C_2643_3801)
+dmy(clinic$C_2643_3801) %>%
+    year() %>%
+    plot_pie(cex = 30, sort = FALSE)
+dmy(clinic$C_2643_3801) %>%
+    format("%Y-%m") %>%
+    fct_count() %>%
+    mutate(f = ym(f)) %>%
+    mutate(year = year(f), month = format(f, "%B")) %>%
+    select(month, n) %>%
+    set_colnames(str_to_title(colnames(.))) %>%
+    kable0("r") %>%
+    pack_rows("2019", 1, 1) %>%
+    pack_rows("2020", 2, 11) %>%
+    pack_rows("2021", 12, 22) %>%
+    pack_rows("2022", 24, 36) %>%
+    pack_rows("2023", 36, 28)
+```

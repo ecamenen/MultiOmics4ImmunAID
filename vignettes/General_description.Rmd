@@ -1,0 +1,339 @@
+---
+title: "General description"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{General description}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+    collapse = TRUE,
+    comment = "#>"
+)
+```
+
+# Data
+```{r data}
+clinic <- read_batches() %>%
+    Reduce(rbind, .) %>%
+    formate_immunaid()
+clinic_code <- read_batches(, "codes")
+
+var_na <- c("Not applicable", "Unknown", "Not performed")
+for (i in var_na) {
+    clinic[clinic == i] <- NA
+}
+```
+
+# Pyrexia
+```{r}
+i <- ""
+# i <- "_SecondVisit"
+metadata <- clinic_code[[1]] %>%
+    filter(str_detect(group_code, paste0("^IMA", i, "_General_pyrexia")))
+df <- select(clinic, metadata$column_code) %>%
+    set_colnames(metadata$item_name)
+plot_pie(
+    pull(df, 4),
+    colour = brewer.pal(9, "Reds")[c(5, 7, 9)],
+    cex = 40,
+    digits = 1,
+    hsize = 1.5,
+    title = "",
+    sort = c(
+        "Between once every 3 months and once a year",
+        "Between once a month and once every 3 months",
+        "More than once a month"
+    )
+)
+plot_pie(
+    pull(df, 1),
+    colour = get_colors()[c(1, 3)],
+    cex = 40,
+    digits = 1,
+    hsize = 1.5,
+    title = "",
+    sort = FALSE
+)
+list.map(
+    c(2, 3),
+    f(i, j) ~ {
+        pull(df, i) %>%
+            plot_violin(
+                title = "",
+                colour = brewer.pal(12, "Paired")[9 - j],
+                pch_alpha = 0.25,
+                pch_size = 3,
+                cex = 2
+            )
+    }
+) %>%
+    plot_grid(
+        plotlist = .,
+        # align = "hv",
+        nrow = 1,
+        ncol = 2
+    )
+
+plot_cor2(select(df, c(2, 3)), color = "orange", cex = 1.3)
+filter(clinic, C_2736_3919 == "Yes") %>% get_metadata()
+t_general <- df # [, c(2, 3)]
+```
+
+# Weigth loss
+```{r}
+metadata <- clinic_code[[1]] %>%
+    filter(str_detect(group_code, paste0("^IMA", i, "_General_weightLoss")))
+df <- select(clinic, metadata$column_code) %>% set_colnames(metadata$item_name)
+df0 <- df
+df0[df0 == 0] <- NA
+list.map(
+    df0,
+    f(i, j) ~ {
+        plot_violin(
+            i,
+            title = "",
+            colour = brewer.pal(11, "Paired")[11 - j],
+            pch_alpha = 0.25,
+            pch_size = 4,
+            cex = 1.7,
+            pch_colour = "gray40",
+            cex_sub = 12 * 1.7
+        ) + ylim(0, NA)
+    }
+) %>%
+    plot_grid(
+        plotlist = .,
+        # align = "hv",
+        nrow = 1,
+        ncol = 2
+    )
+
+plot_cor2(
+    pull(df0, 1),
+    pull(df0, 2),
+    xlab = "Weight loss",
+    ylab = "How many months?",
+    color = "purple"
+)
+filter(clinic, !is.na(C_2738_3928) & C_2738_3928 > 0) %>% get_metadata()
+
+t_general <- cbind(t_general, df) %>%
+    set_colnames(
+        colnames(.) %>%
+            str_remove_all(" \\(unintentional\\)") %>%
+            to_title()
+    )
+```
+
+# Mother
+```{r, eval = FALSE}
+metadata <- clinic_code[[1]] %>%
+    filter(str_detect(group_code, "^IMA_BiologicalParents_guSAIDs_mother"))
+df <- select(clinic, metadata$column_code) %>%
+    set_colnames(metadata$item_name)
+list.map(df, f(i, j, k) ~ {
+    plot_pie(
+        i,
+        # colour = get_colors()[c(1, 3)],
+        cex = 15,
+        digits = 1,
+        hsize = 1.5,
+        title = str_trunc(k, 30)
+    )
+}) %>% plot_grid(
+    plotlist = .,
+    # align = "hv",
+    nrow = 3,
+    ncol = 4
+)
+pull(df, 11) %>%
+    unique() %>%
+    na.omit() %>%
+    sort() %>%
+    to_title()
+```
+
+# Follow up
+```{r}
+metadata <- clinic_code[[1]] %>%
+    filter(str_detect(group_code, "^IMA_FollowUp"))
+# select(clinic, metadata$column_code) %>%
+#     set_colnames(metadata$item_name) %>%
+#     View()
+df <- select(clinic, metadata$column_code) %>%
+    set_colnames(metadata$item_name)
+col <- "Diagnosed new disease"
+colnames(df)[3] <- col
+colnames(df)[4:5] <- sapply(colnames(df)[4:5], function(x) str_trunc0(x, 4))
+colnames(df)[5] <- paste(colnames(df)[5], "?")
+df$`Evolution of the disease` <- df$`Evolution of the disease` %>%
+    str_remove_all(" during the last 12 months")
+df0 <- select(df, -c(1, get_name_num(df)))
+df0[[col]] <- df0[[col]] %>%
+    str_replace_all("^[Nn][Oo] ?.*", "No") %>%
+    str_replace_all("l(mphoma)", "Ly\\1")
+
+list.map(
+    select(df0, -contains("unknown")),
+    f(i, j, k) ~ {
+        if (k == "Diagnosed new disease") {
+            l <- pull(df0, "Diagnosed new disease") %>% unique() %>% na.omit()
+            n <- length(l) - 1
+            colours <- get_colors()[c(1, rep(2, n))]
+            sort = c("No", l %>% discard(function(x) x == "No") %>% sort())
+        } else if (k == "Evolution of the disease") {
+            colours <- c("red", brewer.pal(9, "Greens")[c(4, 6, 9)])
+            # sort = c(
+            #     "No improvement",
+            #     "Partial improvement",
+            #     "Complete remission with flare(s) during the last 12 months",
+            #     "Complete remission without any flare during the last 12 months"
+            # )
+            sort = c(
+                "No improvement",
+                "Partial improvement",
+                "Complete remission with flare(s)",
+                "Complete remission without any flare"
+            )
+        } else {
+            colours <- get_colors()[c(1, 3)]
+            sort = c("No", "Yes")
+        }
+        plot_pie(
+            i,
+            colour = colours,
+            cex = 25,
+            digits = 1,
+            hsize = 1.5,
+            title = k,
+            cex_main = 25,
+            width_text = 20,
+            width_title = 25,
+            sort = sort,
+            legend = NULL
+        )
+    }
+) %>% plot_grid(
+    plotlist = .,
+    align = "hv",
+    nrow = 2,
+    ncol = 2
+    # rel_heights = c(1, 1.1)
+)
+
+select(df, get_name_num(df)) %>%
+    select(-1) %>%
+    list.map(
+        f(i, j, k) ~ {
+            as.numeric(i) %>%
+                plot_violin(
+                    title = str_trunc(k, 30),
+                    colour = get_colors()[j],
+                    pch_colour = "black",
+                    pch_alpha = 0.25,
+                    pch_size = 3
+                )
+        }
+    ) %>%
+    plot_grid(
+        plotlist = .,
+        # align = "hv",
+        nrow = 2,
+        ncol = 2
+    )
+
+# How many new flare for the follow up
+# "Evolution of the disease since the last visit"
+# [3] "Persistant systemic symptoms"
+
+filter(clinic, !is.na(C_2742_4212) & !str_detect(C_2742_4212, "^[Nn][Oo]")) %>%
+    mutate(
+        C_2742_4212 = 
+            to_title(C_2742_4212) %>% 
+            str_remove_all("\\s*\\([^\\)]+\\)") %>%
+            str_replace_all("(mphoma)", "y\\1") %>%
+            str_replace_all("(gen)", "\\1e") %>%
+            str_replace_all("ENCEPHALOPATHIE HEPATIQUE", "Encephalopathie hepatique")
+        ) %>%
+    get_metadata("C_2742_4212")
+```
+
+# Disease activity
+```{r}
+activity <- list.map(
+    c("", "_SecondVisit"), f(i) ~ {
+        metadata <- clinic_code[[1]] %>%
+            filter(
+                str_detect(
+                    group_code,
+                    paste0("^IMA", i, "_General_deseaseActivityAssessment$")
+                )
+            )
+        vars <- metadata$item_name %>%
+            str_remove_all("( \\(.+\\))|( of disease activity)") %>%
+            str_to_sentence()
+        select(clinic, metadata$column_code) %>%
+            set_colnames(vars) %>%
+            as.list()
+    }
+)
+
+# list.map(
+#     activity,
+#     f(i) ~ {
+#         list.map(i, f(j) ~ get_outliers(j, method = "iqr", c = 3)) %>%
+#             compact()
+#     }
+# )
+
+activity1 <- list.map(activity, list.map(., f(j) ~ j[-7]))
+
+list.map(
+    names(activity[[1]]),
+    f(i, j) ~ {
+        list.map(activity1, .[[i]]) %>%
+            data.frame() %>%
+            set_colnames(paste(c("First", "Second"), "visit")) %>%
+            plot_violin(
+                colour = brewer.pal(12, "Paired")[2:1 + j * 2 - 2],
+                pch_colour = "gray40",
+                pch_alpha = 0.25,
+                pch_size = 3,
+                width_text = 5,
+                title = i,
+                cex = 1.5,
+                method = "wilcox",
+                cex_sub = 12 * 1.5
+            )
+    }
+) %>%
+    plot_grid(
+        plotlist = .,
+        # align = "hv",
+        nrow = 1,
+        ncol = 3
+    )
+
+list.map(
+    combn(seq(3), 2, simplify = FALSE),
+    f(i, j) ~ {
+        activity[[1]][i] %>%
+            list.cbind() %>%
+            as.data.frame() %>%
+            plot_cor2(color = get_colors()[j], cex = 1.3)
+    }
+) %>%
+    plot_grid(
+        plotlist = .,
+        # align = "hv",
+        nrow = 2,
+        ncol = 2
+    )
+
+t_general <- cbind(t_general, activity[[1]]) %>%
+    set_rownames(as.numeric(clinic$C_2643_3796))
+use_data(t_general, overwrite = TRUE)
+```
