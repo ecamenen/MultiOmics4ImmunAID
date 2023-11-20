@@ -671,7 +671,6 @@ l_names <- list.map(list_manif, f(x) ~ list.map(x, f(i, ii) ~ if (ii > 1) list.m
 
 list.map(l_names, f(xx) ~ list.map(list_manif, f(x) ~ list.map(x, f(i, ii) ~ if (ii > 1) list.map(i, f(j) ~ list.map(j, f(k) ~ if (!is.null(k[[xx]])) k[[xx]])))) %>% unlist() %>% unique() %>% sort())
 
-
 # cou$localisation_disease_specific %>% str_replace_all(".*[Ee]rythema.*", "Erythema") %>% unique()
 
 # list.search(list_manif, .[grepl(".*[Hh][ée]mipar[ée]si[es] .*", .)], classes = "character", unlist = TRUE)
@@ -1321,6 +1320,15 @@ align_plots(plotlist = p, align = "vh") %>%
 
 # Per disease
 ```{r}
+vars <- c(vars, "MUCO")
+titles <- filter(clinic_code[[1]], column_code %in% vars) %>%
+    pull(item_name) %>%
+    str_replace("(\\d{1,2}. )", "") %>%
+    str_replace("\\s*\\([^\\)]+\\)", "") %>%
+    str_replace_all("Ear.*", "ENT") %>%
+    str_replace("and", "/")
+
+# Diagnosis
 ids <- list.map(vars, f(y) ~ get_manif0(y, "diagnosis", l = list_manif)) %>%
     unlist() %>%
     unique() %>%
@@ -1341,7 +1349,143 @@ res <- list.map(
     }
 ) %>% list.cbind()
 apply(res, 2, sum) %>% plot_bar(
-    colour = c("#99000d", "gray"),
+    colour = brewer.pal(4, "Reds")[-1] %>% rev(),
     threshold = 5
+)
+
+manifs <- list.map(
+    vars[-11], f(y) ~ {
+        get_manif(y, "manif", l = list_manif) %>%
+            unlist() %>%
+            unique() %>% 
+            sort() %>% 
+            str_remove_all(".*: ") %>%
+            str_remove_all(" \\(.*")
+    }
+    ) %>% c(
+        get_manif("MUCO", "active_description", l = list_manif) %>% 
+    unlist() %>%
+    unique() %>% 
+    sort() %>% 
+    list(MUCO = .), .
+    ) %>% set_names(titles)
+
+ids <- list.map(
+    c("manif", "active_description"),
+    f(x) ~{
+        list.map(vars, f(y) ~ get_manif(y, x, l = list_manif))
+    }
+)  %>%
+    unlist() %>%
+    unique() %>% 
+    sort() %>%
+    discard(function(x) x %in% c("First episode", "Recurrent", "Continuous"))
+ids <- list(
+    c("Multiple", "Unique"),
+    c("First episode", "Recurrent", "Continuous"),
+    unlist(ids)
+)
+res <- list.map(
+    ids,
+    f(i) ~ {
+        list.map(
+    i,
+    f(x) ~ {
+        list.mapv(
+            list_manif,
+            f(y) ~ {
+                list.search(y, . == x, unlist = TRUE) %>%
+                    discard(function(x) x == "FALSE") %>%
+                    length() %>%
+                    `>`(0) %>%
+                    as.numeric()
+            }
+        )
+    }
+) %>% list.cbind()
+        })
+titles <- c("Non active manifestations", "Chronicity")
+colors <- list(get_colors()[c(3, 1)], brewer.pal(4, "Reds")[-1])
+list.map(
+    seq(2),
+    f(i) ~{
+    apply(res[[i]], 2, sum) %>%
+    list.map(f(x, y, z) ~ rep(z, x)) %>% unlist() %>% 
+    plot_bar_mcat(
+        colour = colors[[i]], 
+        sample_size = 450,
+        title = titles[i],
+        width_title = 50,
+        hjust_title = 0.5
+    )
+    }
+) %>%
+    plot_grid(
+    plotlist = .,
+    align = "hv",
+    nrow = 1,
+    ncol = 2
+)
+
+apply(res[[2]], 2, sum) %>%
+    list.map(f(x, y, z) ~ rep(z, x)) %>% unlist() %>% 
+    plot_bar_mcat(
+        colour = , 
+        sample_size = 450,
+        title = "Non active manifestations",
+        width_title = 50
+    )
+stat_manifs <- apply(res[[3]], 2, sum) %>% sort()
+manif_cat <- list.mapv(names(stat_manifs), f(x) ~ list.which(manifs, f(y) ~ str_detect(x, y) %>% any())) %>% rev()
+# %>% titles[.] 
+plot_bar(
+    stat_manifs,
+    colour = GimmeMyPlot:::palette_discrete()[manif_cat[seq(10)]], 
+    sample_size = 450,
+    title = "Manifestations",
+    width_title = 50,
+    n_max = 10
+)
+
+
+clinic0 <- mutate(clinic0, C_2643_3796 = as.numeric(C_2643_3796)) %>% select(c(C_2643_3796, C_2643_3798))
+res1 <- as.data.frame(res[[3]]) %>% rownames_to_column("C_2643_3796") %>% mutate( C_2643_3796 = as.numeric(C_2643_3796)) %>% right_join(clinic0)
+p <- list.map(
+    diseases0,
+    f(x) ~{
+        res2 <- filter(res1, C_2643_3798 == x) %>% 
+            select(-c(C_2643_3796, C_2643_3798)) %>%
+            set_colnames(
+                colnames(.) %>% 
+                    str_remove_all(".*: ") %>%
+                    str_remove_all(" \\(.*")
+                )
+        stat_manifs <- apply(res2, 2, sum) %>% 
+            sort(TRUE) %>%
+            discard(function(x) x == 0)
+         manif_cat <- names(stat_manifs) %>%
+             list.mapv(f(x) ~ list.which(manifs, f(y) ~ str_detect(x, y) %>% any())) %>%
+             head(10)
+         if (!is.null(manif_cat))
+         plot_bar(
+            stat_manifs,
+            colour = GimmeMyPlot:::palette_discrete()[manif_cat], 
+            sample_size = nrow(res2),
+            title = x,
+            width_title = 50,
+            n_max = 10,
+            ratio = 4
+        )
+    #      apply(res2, 2, sum) %>%
+    # mapply(function(x, y) rep(x, y), names(.), .) %>%
+    # unlist() %>% plot_bar_mcat(colour = rev(manif_cat))
+    }
+) 
+
+plot_grid(
+    plotlist = p,
+    nrow = 3,
+    ncol = 3,
+    align = "hv"
 )
 ```
